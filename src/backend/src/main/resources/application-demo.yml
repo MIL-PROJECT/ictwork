@@ -1,0 +1,4 @@
+# 시연용: 시연 데이터(db/seed) 적용
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed

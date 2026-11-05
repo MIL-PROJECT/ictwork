@@ -1,0 +1,19 @@
+{
+  "list": {
+    "count": "조회 {count}건",
+    "urgent": "긴급 {count}건"
+  },
+  "tasks": {
+    "desc": "우리 부서 업무, 내가 요청한 업무, 열람할 수 있는 업무를 찾아봅니다."
+  },
+  "receipts": {
+    "listTitle": "접수 대기 목록"
+  },
+  "approvals": {
+    "desc": "내 차례인 결재와 내가 처리한 결재 문서를 봅니다.",
+    "inProgressList": "진행 중 결재 문서"
+  },
+  "detail": {
+    "requestInfo": "요청 내용"
+  }
+}

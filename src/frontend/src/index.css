@@ -1,0 +1,939 @@
+/* KRDS 서체: Pretendard GOV (SIL OFL 1.1). 외부 웹폰트 대신 로컬 파일을 main.tsx에서 불러옴 */
+
+@import "tailwindcss";
+
+/* 어두운 테마는 화면에만: 인쇄할 때는 dark: 변형을 쓰지 않아 늘 밝은 색으로 찍힌다 (F8-1) */
+@custom-variant dark {
+  @media not print {
+    &:is(.dark *) {
+      @slot;
+    }
+  }
+}
+
+@theme {
+  --font-*: initial;
+  /* 토큰 이름(font-outfit)은 원본 사용처를 바꾸지 않으려고 그대로 둠 */
+  --font-outfit: "Pretendard GOV Variable", "Pretendard GOV", -apple-system, BlinkMacSystemFont, system-ui, "Malgun Gothic", sans-serif;
+
+  --breakpoint-*: initial;
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  --text-title-2xl: 72px;
+  --text-title-2xl--line-height: 90px;
+  --text-title-xl: 60px;
+  --text-title-xl--line-height: 72px;
+  --text-title-lg: 48px;
+  --text-title-lg--line-height: 60px;
+  --text-title-md: 36px;
+  --text-title-md--line-height: 44px;
+  --text-title-sm: 30px;
+  --text-title-sm--line-height: 38px;
+  /* OMNIS 밀도 (시제품): 17 / 13.5 / 12px. 원래 KRDS 19 / 15 / 13px (DEC-033) */
+  --text-theme-xl: 17px;
+  --text-theme-xl--line-height: 1.5;
+  --text-theme-sm: 13.5px;
+  --text-theme-sm--line-height: 1.5;
+  --text-theme-xs: 12px;
+  --text-theme-xs--line-height: 1.5;
+  /* OMNIS 밀도 (시제품): Tailwind 기본 글자 크기를 OMNIS 크기로. 간격(--spacing)은 그대로 */
+  --text-xs: 0.71875rem; /* 11.5px */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.8125rem; /* 13px */
+  --text-sm--line-height: 1.5;
+  --text-base: 0.84375rem; /* 13.5px */
+  --text-base--line-height: 1.5;
+  --text-lg: 0.96875rem; /* 15.5px */
+  --text-lg--line-height: 1.45;
+  --text-xl: 1.125rem; /* 18px */
+  --text-xl--line-height: 1.4;
+  --text-2xl: 1.375rem; /* 22px */
+  --text-2xl--line-height: 1.3;
+
+  --color-current: currentColor;
+  --color-transparent: transparent;
+  --color-white: #ffffff;
+  --color-black: #101828;
+
+  --color-brand-25: #f5f6fc;
+  --color-brand-50: #eef0fa;
+  --color-brand-100: #e4e7f6;
+  --color-brand-200: #d9ddf2;
+  --color-brand-300: #7d87cf;
+  --color-brand-400: #5b68c9;
+  --color-brand-500: #232e6b;
+  --color-brand-600: #1b255c;
+  --color-brand-700: #171f4f;
+  --color-brand-800: #131a44;
+  --color-brand-900: #0f1539;
+  --color-brand-950: #0a0e28;
+
+  --color-blue-light-25: #f5fbff;
+  --color-blue-light-50: #f0f9ff;
+  --color-blue-light-100: #e0f2fe;
+  --color-blue-light-200: #b9e6fe;
+  --color-blue-light-300: #7cd4fd;
+  --color-blue-light-400: #36bffa;
+  --color-blue-light-500: #0ba5ec;
+  --color-blue-light-600: #0086c9;
+  --color-blue-light-700: #026aa2;
+  --color-blue-light-800: #065986;
+  --color-blue-light-900: #0b4a6f;
+  --color-blue-light-950: #062c41;
+
+  --color-gray-25: #fbfcfd;
+  --color-gray-50: #f7f8fb;
+  --color-gray-100: #f3f5f9;
+  --color-gray-200: #e6e9f0;
+  --color-gray-300: #d3d8e4;
+  --color-gray-400: #a3a9b8;
+  --color-gray-500: #6b7185;
+  --color-gray-600: #5c6275;
+  --color-gray-700: #3a3f55;
+  --color-gray-800: #2b2f45;
+  --color-gray-900: #1d2033;
+  --color-gray-950: #0c111d;
+  --color-gray-dark: #1a2231;
+
+  --color-orange-25: #fffaf5;
+  --color-orange-50: #fff6ed;
+  --color-orange-100: #ffead5;
+  --color-orange-200: #fddcab;
+  --color-orange-300: #feb273;
+  --color-orange-400: #fd853a;
+  --color-orange-500: #fb6514;
+  --color-orange-600: #ec4a0a;
+  --color-orange-700: #c4320a;
+  --color-orange-800: #9c2a10;
+  --color-orange-900: #7e2410;
+  --color-orange-950: #511c10;
+
+  /* 노랑: 정보통신 현황 박스 색 (REQ-503, slices/15 13.3). warning-500은 주황에 가까워 따로 둔다 */
+  --color-yellow-25: #fefdf0;
+  --color-yellow-50: #fefbe8;
+  --color-yellow-100: #fef7c3;
+  --color-yellow-200: #feee95;
+  --color-yellow-300: #fde272;
+  --color-yellow-400: #fac515;
+  --color-yellow-500: #eaaa08;
+  --color-yellow-600: #ca8504;
+  --color-yellow-700: #a15c07;
+  --color-yellow-800: #854a0e;
+  --color-yellow-900: #713b12;
+  --color-yellow-950: #542c0d;
+
+  --color-success-25: #f6fef9;
+  --color-success-50: #e3f6ec;
+  --color-success-100: #d1fadf;
+  --color-success-200: #a6f4c5;
+  --color-success-300: #6ce9a6;
+  --color-success-400: #32d583;
+  --color-success-500: #2fb872;
+  --color-success-600: #1d8a52;
+  --color-success-700: #177044;
+  --color-success-800: #05603a;
+  --color-success-900: #054f31;
+  --color-success-950: #053321;
+
+  --color-error-25: #fffbfa;
+  --color-error-50: #fde6ea;
+  --color-error-100: #fee4e2;
+  --color-error-200: #fecdca;
+  --color-error-300: #fda29b;
+  --color-error-400: #f97066;
+  --color-error-500: #e5484d;
+  --color-error-600: #d83b40;
+  --color-error-700: #c4323a;
+  --color-error-800: #912018;
+  --color-error-900: #7a271a;
+  --color-error-950: #55160c;
+
+  --color-warning-25: #fffcf5;
+  --color-warning-50: #fff0dd;
+  --color-warning-100: #fef0c7;
+  --color-warning-200: #fedf89;
+  --color-warning-300: #fec84b;
+  --color-warning-400: #fdb022;
+  --color-warning-500: #e8912d;
+  --color-warning-600: #c9741a;
+  --color-warning-700: #a8570b;
+  --color-warning-800: #93370d;
+  --color-warning-900: #7a2e0e;
+  --color-warning-950: #4e1d09;
+
+  /* OMNIS 바탕 */
+  --color-app-bg: #eef1f6;
+
+  --color-theme-pink-500: #ee46bc;
+
+  --color-theme-purple-500: #7a5af8;
+
+  /* OMNIS 카드 그림자: 인디고 기운의 넓고 옅은 그림자 */
+  --shadow-theme-md:
+    0 1px 2px rgba(35, 46, 107, 0.04),
+    0 10px 30px -14px rgba(35, 46, 107, 0.14);
+  --shadow-theme-lg: 0 14px 34px -14px rgba(35, 46, 107, 0.22);
+  --shadow-theme-sm:
+    0 1px 2px rgba(35, 46, 107, 0.04),
+    0 10px 30px -14px rgba(35, 46, 107, 0.14);
+  --shadow-theme-xs: 0 1px 2px rgba(35, 46, 107, 0.06);
+  --shadow-theme-xl: 0 30px 70px -20px rgba(29, 32, 51, 0.35);
+  --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
+  --shadow-focus-ring: 0 0 0 4px rgba(35, 46, 107, 0.08);
+  --shadow-slider-navigation:
+    0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
+  --shadow-tooltip:
+    0px 4px 6px -2px rgba(16, 24, 40, 0.05),
+    -8px 0px 20px 8px rgba(16, 24, 40, 0.05);
+
+  --drop-shadow-4xl:
+    0 35px 35px rgba(0, 0, 0, 0.25), 0 45px 65px rgba(0, 0, 0, 0.15);
+
+  /* OMNIS 카드 모서리 20px (rounded-2xl) */
+  --radius-2xl: 1.25rem;
+
+  --z-index-1: 1;
+  --z-index-9: 9;
+  --z-index-99: 99;
+  --z-index-999: 999;
+  --z-index-9999: 9999;
+  --z-index-99999: 99999;
+  --z-index-999999: 999999;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  body {
+    @apply relative z-1 font-outfit font-normal;
+    background: var(--color-app-bg);
+    color: var(--color-gray-900);
+    font-size: 13.5px;
+    line-height: 1.5;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/*
+  입력 칸 테두리 (F8-10, WCAG 1.4.11 3:1): 화면마다 쓰는 border-gray-200·300(어두운 테마 gray-700·800)은 대비 1.4~1.7:1이라
+  글 칸·고르기 칸만 두 테마 모두 gray-500으로 진하게 한다. 초점·오류(aria-invalid, 오류 색 클래스) 테두리는 그대로 둔다
+*/
+@layer utilities {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):is(.border-gray-200, .border-gray-300):not(:focus, [aria-invalid="true"]) {
+    border-color: var(--color-gray-500);
+  }
+}
+
+/* OMNIS 메뉴: 높이 44, 모서리 14, 14.5px. 활성은 바탕 없이 주색 굵은 글자 + 오른쪽 점 */
+@utility menu-item {
+  @apply relative flex min-h-11 w-full items-center gap-3 rounded-[14px] px-3 py-2 text-[0.90625rem] font-medium;
+}
+
+@utility menu-item-active {
+  @apply font-bold text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-300;
+  /* 오른쪽 점은 지금 경로인 링크(a)에만, 글자가 보이는 펼친 메뉴에서만 (하위 메뉴 펼침 단추·접힌 메뉴는 빼기) */
+  &:is(a):has(.menu-item-text)::after {
+    content: "";
+    margin-inline-start: auto;
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+}
+
+@utility menu-item-inactive {
+  @apply text-gray-700 group-hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+}
+
+@utility menu-item-icon {
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+}
+
+@utility menu-item-icon-active {
+  @apply text-brand-500 dark:text-brand-400;
+}
+
+@utility menu-item-icon-inactive {
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+}
+
+@utility menu-dropdown-item {
+  @apply relative flex min-h-10 items-center gap-3 rounded-[12px] px-3 py-2 text-base font-medium;
+}
+
+@utility menu-dropdown-item-active {
+  @apply font-bold text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+}
+
+@utility menu-dropdown-item-inactive {
+  @apply text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5;
+}
+
+@utility menu-dropdown-badge {
+  @apply block rounded-full px-2.5 py-0.5 text-xs font-medium text-success-600 uppercase dark:text-success-500;
+}
+
+@utility menu-dropdown-badge-active {
+  @apply bg-success-100 dark:bg-success-500/20;
+}
+
+@utility menu-dropdown-badge-inactive {
+  @apply bg-success-50 group-hover:bg-success-100 dark:bg-success-500/15 dark:group-hover:bg-success-500/20;
+}
+
+@utility menu-dropdown-badge-pro {
+  @apply block rounded-full px-2.5 py-0.5 text-xs font-medium text-brand-600 uppercase dark:text-brand-500;
+}
+
+@utility menu-dropdown-badge-pro-active {
+  @apply bg-brand-100 dark:bg-brand-500/20;
+}
+
+@utility menu-dropdown-badge-pro-inactive {
+  @apply bg-brand-50 group-hover:bg-brand-100 dark:bg-brand-500/15 dark:group-hover:bg-brand-500/20;
+}
+
+/* 어두운 테마 (OMNIS에는 없음): 주색 단계를 밝은 인디고로 바꿔 어두운 바탕에서 읽히게 한다 */
+@layer base {
+  .dark {
+    --color-brand-300: #b7bff0;
+    --color-brand-400: #a3abef;
+    --color-brand-500: #6f7bd9;
+    --color-brand-600: #5b68c9;
+  }
+}
+
+/* OMNIS 스크롤바: 얇은 둥근 막대. 폭·모양은 두 테마가 같고 색만 다르다 (테마를 바꿔도 본문 폭이 그대로) */
+@layer base {
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(55, 53, 47, 0.18); border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(55, 53, 47, 0.32); background-clip: padding-box; }
+  .dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); background-clip: padding-box; }
+  .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); background-clip: padding-box; }
+}
+
+@utility no-scrollbar {
+  /* Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    @apply size-1.5;
+  }
+
+  &::-webkit-scrollbar-track {
+    @apply rounded-full;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-gray-200 dark:bg-gray-700;
+  }
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #344054;
+}
+
+@layer utilities {
+  /* For Remove Date Icon */
+  input[type="date"]::-webkit-inner-spin-button,
+  input[type="time"]::-webkit-inner-spin-button,
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+  }
+}
+
+/* third-party libraries CSS */
+.apexcharts-legend-text {
+  @apply text-gray-700! dark:text-gray-400!;
+}
+
+.apexcharts-text {
+  @apply fill-gray-700! dark:fill-gray-400!;
+}
+
+.apexcharts-tooltip.apexcharts-theme-light {
+  @apply gap-1 rounded-lg! border-gray-200! p-3 shadow-theme-sm! dark:border-gray-800! dark:bg-gray-900!;
+}
+
+.apexcharts-tooltip-marker {
+  margin-right: 6px;
+  height: 6px;
+  width: 6px;
+}
+.apexcharts-legend-text {
+  @apply pl-5! text-gray-700! dark:text-gray-400!;
+}
+.apexcharts-tooltip-series-group {
+  @apply p-0!;
+}
+.apexcharts-tooltip-y-group {
+  @apply p-0!;
+}
+.apexcharts-tooltip-title {
+  @apply mb-0! border-b-0! bg-transparent! p-0! text-[10px]! leading-4! text-gray-800! dark:text-white/90!;
+}
+.apexcharts-tooltip-text {
+  @apply text-theme-xs! text-gray-700! dark:text-white/90!;
+}
+.apexcharts-tooltip-text-y-value {
+  @apply font-medium!;
+}
+
+.apexcharts-gridline {
+  @apply stroke-gray-100! dark:stroke-gray-800!;
+}
+.form-check-input:checked ~ span {
+  @apply border-[6px] border-brand-500 bg-brand-500 dark:border-brand-500;
+}
+
+/* FullCalendar Style Overrides */
+:root {
+  --fc-classic-border: var(--color-gray-200);
+}
+
+/* 다른 달 날짜 글자: 원래 색(밝은 테마 #9ca3af, 어두운 테마 #4b5563)은 대비 4.5:1 미만 (F8-10) */
+.custom-calendar[data-color-scheme] {
+  --fc-classic-faint-foreground: var(--color-gray-500);
+}
+@media not print {
+  .custom-calendar[data-color-scheme="dark"] {
+    --fc-classic-faint-foreground: var(--color-gray-400);
+  }
+}
+
+.custom-calendar .fc-scroller {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.custom-calendar .fc-classic-yth {
+  @apply gap-0!;
+}
+
+@media not print {
+  .dark .event-fc-color .fc-event-title,
+  .dark .fc-event-title {
+    @apply text-white!;
+  }
+}
+
+@media (max-width: 639px) {
+  .custom-calendar:has(.fc-multimonth) .fc-toolbar,
+  .custom-calendar.fc-multimonth .fc-toolbar {
+    position: relative !important;
+    top: auto !important;
+  }
+
+  /* Month Title sticks below the dashboard AppHeader (56px) */
+  .custom-calendar:has(.fc-multimonth) [role="grid"] [id*="month-"],
+  .custom-calendar .fc-multimonth [role="grid"] [id*="month-"],
+  .custom-calendar.fc-multimonth [role="grid"] [id*="month-"],
+  .custom-calendar [role="grid"].fc-multimonth [id*="month-"] {
+    position: sticky !important;
+    top: 56px !important;
+    z-index: 10 !important;
+    background-color: #ffffff !important;
+    margin-bottom: 0 !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] [id*="month-"],
+  .dark .custom-calendar .fc-multimonth [role="grid"] [id*="month-"],
+  .dark .custom-calendar.fc-multimonth [role="grid"] [id*="month-"],
+  .dark .custom-calendar [role="grid"].fc-multimonth [id*="month-"] {
+    background-color: #111827 !important;
+  }
+
+  /* Day Header (SUN MON TUE...) sticks directly below the Month Title */
+  .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    .fc-multimonth-day-header-row,
+  .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
+  .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .custom-calendar .fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
+  .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
+  .custom-calendar.fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .custom-calendar.fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
+  .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
+  .custom-calendar
+    [role="grid"].fc-multimonth
+    [role="row"]:has([role="columnheader"]),
+  .custom-calendar [role="grid"].fc-multimonth .fc-multimonth-day-header-row,
+  .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
+    position: sticky !important;
+    top: 92px !important;
+    z-index: 9 !important;
+    background-color: #f9fafb !important;
+  }
+  .dark
+    .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    .fc-multimonth-day-header-row,
+  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
+  .dark
+    .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    .fc-multimonth-day-header-row,
+  .dark .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
+  .dark
+    .custom-calendar.fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar.fc-multimonth
+    [role="grid"]
+    .fc-multimonth-day-header-row,
+  .dark .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
+  .dark
+    .custom-calendar
+    [role="grid"].fc-multimonth
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar
+    [role="grid"].fc-multimonth
+    .fc-multimonth-day-header-row,
+  .dark .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
+    background-color: #111827 !important;
+  }
+
+  /* Reset FullCalendar margin math to avoid whitespace gaps */
+  .custom-calendar:has(.fc-multimonth) [role="grid"] > div,
+  .custom-calendar .fc-multimonth [role="grid"] > div,
+  .custom-calendar.fc-multimonth [role="grid"] > div,
+  .custom-calendar [role="grid"].fc-multimonth > div {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  .custom-calendar:has(.fc-multimonth) [role="grid"] > div > div,
+  .custom-calendar .fc-multimonth [role="grid"] > div > div,
+  .custom-calendar.fc-multimonth [role="grid"] > div > div,
+  .custom-calendar [role="grid"].fc-multimonth > div > div {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Remove inner month border and border radius on small devices */
+  .custom-calendar:has(.fc-multimonth) [role="grid"] > div:last-child,
+  .custom-calendar .fc-multimonth [role="grid"] > div:last-child,
+  .custom-calendar.fc-multimonth [role="grid"] > div:last-child,
+  .custom-calendar [role="grid"].fc-multimonth > div:last-child {
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+  .custom-calendar:has(.fc-multimonth) [role="grid"] [role="columnheader"],
+  .custom-calendar .fc-multimonth [role="grid"] [role="columnheader"],
+  .custom-calendar.fc-multimonth [role="grid"] [role="columnheader"],
+  .custom-calendar [role="grid"].fc-multimonth [role="columnheader"] {
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .custom-calendar .fc-timegrid {
+    min-width: 580px;
+  }
+}
+
+/* 구성도 그리기 도구(Excalidraw): 끌 수 없는 외부 링크·파일 기능을 숨긴다 (slices/8a 7장, 0.18.1 선택자) */
+.diagram-canvas .help-icon,
+.diagram-canvas .default-sidebar-trigger,
+.diagram-canvas .default-sidebar,
+.diagram-canvas .library-menu-browse-button,
+.diagram-canvas [data-testid="toolbar-embeddable"],
+.diagram-canvas li[data-testid="copyAsSvg"],
+.diagram-canvas li[data-testid="copyAsPng"],
+.diagram-canvas li[data-testid="addToLibrary"],
+.diagram-canvas .dropdown-menu-container > [data-testid="toolbar-laser"] ~ div:not([data-testid]) {
+  display: none !important;
+}
+
+/* 선 도구를 화살촉 없는 화살표(상자에 붙는 선)로 쓰는 동안 도구 모음은 선 단추가 눌린 것처럼 보인다 (slices/8a 16장, 0.18.1 선택자) */
+.diagram-canvas[data-line-tool] .excalidraw .ToolIcon [data-testid="toolbar-arrow"]:checked + .ToolIcon__icon {
+  background: transparent;
+}
+.diagram-canvas[data-line-tool] .excalidraw .ToolIcon [data-testid="toolbar-arrow"]:checked + .ToolIcon__icon svg {
+  color: var(--icon-fill-color);
+}
+.diagram-canvas[data-line-tool] .excalidraw .ToolIcon [data-testid="toolbar-line"] + .ToolIcon__icon {
+  background: var(--color-surface-primary-container);
+}
+.diagram-canvas[data-line-tool] .excalidraw .ToolIcon [data-testid="toolbar-line"] + .ToolIcon__icon svg {
+  color: var(--color-on-primary-container);
+}
+
+/* 업무 현황 부서별 보기의 부서 색 8가지 (트리 순서대로, 8곳 이하일 때만, slices/9_업무현황.md 3.4).
+   그래프 라이브러리가 읽는 값이라 @theme(쓰지 않으면 빠짐)이 아닌 :root 변수로 둔다 */
+:root {
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+  --color-series-6: #008300;
+  --color-series-7: #6250d6;
+  --color-series-8: #e34948;
+}
+
+/* 업무 현황 인쇄 (REQ-906, slices/9_업무현황.md 5장): A4 세로, 메뉴·상단바·패널·단추는 숨기고(print:hidden), 표 머리글은 쪽마다 되풀이 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  .print-page-break {
+    break-before: page;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+  .print-exact {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* 넓은 표를 쪽 폭에 맞춤(장비 목록): 가로 스크롤·고정 열을 풀고 글자를 줄여 칸 안에서 줄을 바꾼다 */
+  .print-fit {
+    overflow: visible;
+  }
+  .print-fit table {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+  .print-fit th,
+  .print-fit td {
+    position: static;
+    min-width: 0;
+    max-width: none;
+    padding: 4px 5px;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+}
+
+/*
+  OMNIS 화면 모양. 크기·여백·모서리는 두 테마 공통(테마를 바꿔도 글자·틀 위치가 그대로), 색·그림자만 테마별. 화면 파일을 고치지 않고 화면마다 직접 적은 카드·버튼·입력·표 클래스를 OMNIS 값으로 덮는다.
+  원본: MIL-PROJECT/OMNIS src/renderer/src/style.css(.panel·.MuiDataGrid·status-pill)와 App.tsx MUI 테마(MuiButton·MuiOutlinedInput·MuiDialog)
+  @layer 밖에 두어 Tailwind 유틸리티보다 앞선다
+*/
+@keyframes omnis-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes omnis-drawer {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes omnis-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes omnis-rise {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 카드: 테두리 없이 흰 면 + 넓고 옅은 인디고 그림자, 모서리 20 (OMNIS .panel) */
+main :is(.rounded-xl, .rounded-2xl).border.bg-white:not(:is(.rounded-xl, .rounded-2xl).border.bg-white *, input, select, textarea) {
+  border-radius: 20px;
+}
+html:not(.dark) main :is(.rounded-xl, .rounded-2xl).border.bg-white:not(:is(.rounded-xl, .rounded-2xl).border.bg-white *, input, select, textarea) {
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(35, 46, 107, 0.04), 0 10px 30px -14px rgba(35, 46, 107, 0.14);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.dark) main > div > :is(.rounded-xl, .rounded-2xl).border.bg-white,
+  html:not(.dark) main > div > section {
+    animation: omnis-rise 0.25s ease backwards;
+  }
+}
+
+/* 반응: 단추·링크·입력은 색·그림자가 부드럽게 바뀐다 (OMNIS 전환 .15s). base 층에 두어 화면의 transition 유틸리티가 이긴다 */
+@layer base {
+  :is(a, button, [role="button"], [role="tab"], input, select, textarea, summary) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform, translate;
+    transition-duration: 0.15s;
+    transition-timing-function: ease;
+  }
+}
+html:not(.dark) :is(a, button, [role="tab"], summary):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+/* 주 단추: 모서리 12 + 남색 그림자, 누르면 살짝 눌림 (OMNIS MuiButton contained) */
+:is(button, a).bg-brand-500:not(.rounded-full) {
+  border-radius: 12px;
+  letter-spacing: -0.1px;
+}
+html:not(.dark) :is(button, a).bg-brand-500:not(.rounded-full) {
+  box-shadow: 0 6px 16px -6px rgba(35, 46, 107, 0.55);
+}
+html:not(.dark) :is(button, a).bg-brand-500:not(:disabled):hover {
+  box-shadow: 0 8px 20px -6px rgba(35, 46, 107, 0.6);
+}
+html:not(.dark) :is(button, a).bg-brand-500:not(:disabled):active {
+  transform: translateY(1px);
+}
+html:not(.dark) button.bg-brand-500:disabled {
+  background-color: #e6e9f0;
+  color: #a3a9b8;
+  box-shadow: none;
+  opacity: 1;
+}
+
+/* 보조 단추: 테두리 대신 가는 링 + 흰 알약 (OMNIS MuiButton outlined) */
+:is(button, a):is(.ring-1, .border).bg-white:not(.rounded-full) {
+  border-radius: 12px;
+}
+html:not(.dark) :is(button, a).ring-1.bg-white {
+  --tw-ring-color: var(--color-gray-200);
+  box-shadow: 0 1px 2px rgba(35, 46, 107, 0.06), 0 0 0 1px var(--color-gray-200);
+}
+html:not(.dark) :is(button, a).ring-1.bg-white:not(:disabled):hover {
+  background-color: #f5f7fb;
+  box-shadow: 0 1px 2px rgba(35, 46, 107, 0.06), 0 0 0 1px #d8dde8;
+}
+
+/* 입력: 옅은 회청색 바탕, 모서리 12, 초점 때 흰 바탕 + 인디고 링 (OMNIS MuiOutlinedInput).
+   테두리 색은 접근성 규칙(F8-10, 위 gray-500)을 그대로 둔다 */
+html:not(.dark) main :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(:disabled) {
+  background-color: #f5f7fb;
+}
+main :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea).rounded-lg {
+  border-radius: 12px;
+}
+html:not(.dark) main :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(:disabled, [aria-invalid="true"]):focus,
+html:not(.dark) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not([aria-invalid="true"]):focus {
+  background-color: #fff;
+  border-color: #4a57a8;
+  box-shadow: 0 0 0 4px rgba(35, 46, 107, 0.08);
+}
+
+/* 표: 머리글은 밝은 남색 띠 + 작고 자간 넓은 글자, 행은 마우스를 올리면 남색 틴트 + 왼쪽 표시선 (OMNIS 고급 표) */
+main table:not(.board-table) thead :is(th, td) {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+main table:not(.board-table) thead tr {
+  border-bottom: 1px solid #dde1f1;
+}
+html:not(.dark) main table:not(.board-table) thead :is(th, td) {
+  background-color: #eceff9;
+  color: #4b5486;
+}
+.dark main table:not(.board-table) thead :is(th, td) {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--color-gray-300);
+}
+.dark main table:not(.board-table) thead tr {
+  border-bottom-color: var(--color-gray-800);
+}
+html:not(.dark) main table:not(.board-table) tbody tr:hover {
+  background-color: var(--color-brand-50);
+  box-shadow: inset 3px 0 0 var(--color-brand-500);
+}
+.dark main table:not(.board-table) tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 3px 0 0 var(--color-brand-500);
+}
+main table:not(.board-table) tbody tr {
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* 걸러 보기 단추 묶음: 떨어진 흰 알약, 고른 것은 남색 알약 + 그림자 (OMNIS .ui-filter) */
+main [role="group"]:has(> button[aria-pressed]) {
+  gap: 6px;
+  padding: 0;
+  border-color: transparent;
+}
+main [role="group"] > button[aria-pressed] {
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-gray-200);
+  font-size: 0.78125rem;
+}
+html:not(.dark) main [role="group"] > button[aria-pressed] {
+  background-color: #fff;
+  color: var(--color-gray-600);
+  box-shadow: 0 1px 2px rgba(35, 46, 107, 0.06);
+}
+.dark main [role="group"] > button[aria-pressed] {
+  border-color: var(--color-gray-700);
+  background-color: transparent;
+  color: var(--color-gray-400);
+}
+.dark main [role="group"] > button[aria-pressed]:hover {
+  border-color: var(--color-gray-600);
+  color: var(--color-gray-200);
+}
+.dark main [role="group"] > button[aria-pressed="true"] {
+  border-color: var(--color-brand-500);
+  background-color: var(--color-brand-500);
+  color: #fff;
+}
+html:not(.dark) main [role="group"] > button[aria-pressed]:hover {
+  border-color: var(--color-gray-300);
+  color: var(--color-gray-900);
+}
+html:not(.dark) main [role="group"] > button[aria-pressed="true"] {
+  border-color: var(--color-brand-500);
+  background-color: var(--color-brand-500);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px rgba(35, 46, 107, 0.55);
+}
+
+/* 메뉴 아이콘 21px (OMNIS .sb-nav svg) */
+.menu-item-icon-size svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* 사이드바: 초점 테두리를 안쪽으로(스크롤 영역에 잘리지 않게), 얇은 스크롤바 (OMNIS .sb-nav) */
+aside :is(a, button):focus-visible {
+  outline-offset: -2px;
+}
+aside .sb-scroll {
+  scrollbar-width: thin;
+  /* 메뉴가 펼쳐지는 동안 가로 스크롤바가 생기지 않게 */
+  overflow-x: hidden;
+}
+/* 어두운 테마: 얇은 스크롤바도 어둡게 (scrollbar-width를 주면 ::-webkit-scrollbar 대신 이 색을 쓴다) */
+.dark aside .sb-scroll {
+  scrollbar-color: var(--color-gray-700) transparent;
+}
+/* 메뉴를 펼치고 접는 동안(폭 80 → 248px) 글자가 먼저 나타나 좁은 폭에서 줄이 바뀌며 메뉴가 깨지지 않게 한 줄로 둔다 */
+aside:has(> .sb-scroll) {
+  overflow: hidden;
+}
+aside :is(.menu-item-text, .menu-dropdown-item, .sb-status, h2) {
+  white-space: nowrap;
+}
+aside .menu-item-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 낮은 화면: 사이드바 아래 상태 상자를 숨겨 메뉴 자리를 확보한다 (OMNIS 850px 이하 압축) */
+@media (max-height: 820px) {
+  aside .sb-status {
+    display: none;
+  }
+}
+
+/* 밀도 (OMNIS MUI small): 입력 40px, 표 셀 위아래 8px·좌우 14px(첫 열 22px), 머리글 36px */
+main :is(input, select).h-11 {
+  height: 40px;
+}
+main table:not(.board-table) :is(td, th) {
+  padding: 8px 14px;
+}
+main table:not(.board-table) :is(td, th):first-child {
+  padding-inline-start: 22px;
+}
+main table:not(.board-table) thead :is(th, td) {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 좁은 화면: 열이 6개 이상인 목록 표는 폭을 줄이지 않고 가로로 넘겨 본다(제목 칸이 한두 글자씩 쪼개지지 않게).
+   가로 스크롤 상자 안의 표만 (등록된 업무·결재 목록·인원 명단 등) */
+@media (max-width: 639px) {
+  main :is(.overflow-x-auto, .overflow-auto) > table:has(tr > :nth-child(6)) {
+    min-width: 44rem;
+  }
+}
+
+/* 입력 테두리: OMNIS처럼 연하게(#e6e9f0, 마우스를 올리면 #d3d8e4). 사용자 결정(2026-11-05)으로 위 F8-10 진한 테두리를 밝은 테마에서 덮는다.
+   흰 바탕 대비 약 1.2:1로 WCAG 1.4.11(3:1)에 못 미친다. 초점(#4a57a8 + 링)·오류(aria-invalid) 테두리는 그대로 */
+html:not(.dark) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(:focus, [aria-invalid="true"]) {
+  border-color: #e6e9f0;
+}
+html:not(.dark) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(:focus, :disabled, [aria-invalid="true"]):hover {
+  border-color: #d3d8e4;
+}
+
+/* 공통 카드(Panel): OMNIS .panel 그림자·등장 */
+html:not(.dark) .omnis-panel {
+  box-shadow: 0 1px 2px rgba(35, 46, 107, 0.04), 0 10px 30px -14px rgba(35, 46, 107, 0.14);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .omnis-panel {
+    animation: omnis-rise 0.25s ease backwards;
+  }
+}
+
+/* 인쇄: 카드 그림자·등장 효과를 빼고 얇은 테두리로 경계를 남긴다 */
+@media print {
+  .omnis-panel,
+  main :is(.rounded-xl, .rounded-2xl).border.bg-white {
+    box-shadow: none !important;
+    animation: none !important;
+    border: 1px solid #d3d8e4 !important;
+  }
+}

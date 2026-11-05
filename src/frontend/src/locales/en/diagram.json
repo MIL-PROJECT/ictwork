@@ -1,0 +1,173 @@
+{
+  "loading": "Loading…",
+  "close": "Close",
+  "permission": {
+    "VIEW": "View",
+    "EDIT": "Edit"
+  },
+  "list": {
+    "newName": "New diagram name",
+    "create": "Create diagram",
+    "name": "Name",
+    "owner": "Owner department",
+    "permission": "My permission",
+    "editing": "Editing",
+    "empty": "No diagrams to show.",
+    "orphans": "Diagrams needing recovery",
+    "orphansHelp": "No one in the owner department can manage permissions for these diagrams. Recovering gives you edit permission so you can set permissions again.",
+    "recover": "Recover",
+    "deleted": "Deleted diagrams",
+    "restore": "Restore"
+  },
+  "view": {
+    "rename": "Rename",
+    "png": "Save PNG",
+    "print": "Print",
+    "forceRelease": "Release lock",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this diagram? An administrator can restore it.",
+    "lockedBy": "{name} is editing (since {time}). You can only view.",
+    "editingElsewhere": "You are editing in another window. This window is view-only."
+  },
+  "edit": {
+    "start": "Start editing",
+    "save": "Save",
+    "saveEnd": "Save and finish",
+    "discard": "Finish without saving",
+    "discardConfirm": "Discard unsaved changes and finish editing?",
+    "resume": "Continue editing",
+    "editing": "Editing. Editing ends in {minutes} min without changes. Draft is saved every minute.",
+    "warn": "Editing ends in {minutes} min. Change the drawing or save to continue.",
+    "resumed": "Reopened your unfinished edit.",
+    "saved": "Saved (version {no}).",
+    "savedEnded": "Saved and finished (version {no}).",
+    "reverted": "Reverted to version {no}.",
+    "revertConfirm": "Unsaved changes will be lost. Revert to this version?",
+    "ending": "Editing is about to end.",
+    "grid": "Grid",
+    "attachable": "Attachable",
+    "attachableHelp": "Attach to and move with another shape"
+  },
+  "color": {
+    "rainbow": "More colors"
+  },
+  "box": {
+    "outOfScope": "Out-of-scope equipment",
+    "legend": "Status colors"
+  },
+  "info": {
+    "title": "Info display",
+    "color": "Status color"
+  },
+  "picker": {
+    "title": "Place equipment",
+    "department": "Department",
+    "allDepartments": "All departments",
+    "search": "Find by name or serial number",
+    "empty": "No equipment to place.",
+    "open": "Show equipment list",
+    "close": "Hide equipment list"
+  },
+  "settings": {
+    "title": "Equipment display settings",
+    "share": "Shared fields",
+    "shareHelp": "Equipment fields shown to users with view permission (info display, tooltip, PNG). Users with edit permission see all fields. A placed box shows the equipment name.",
+    "nameFixed": "The equipment name is always shared because it is the box text.",
+    "save": "Save settings",
+    "shareAttributes": "Extra attributes to share",
+    "shareAttributesHelp": "Set per department attribute. Nothing is shared at first, including same-name attributes created later. File attributes show file names only.",
+    "shareShapeInfo": "Shape info",
+    "shareShapeInfoHelp": "Also shows the shape info written on shapes and lines that are not equipment to view-only users (info display, PNG, print). Only the equipment fields turned on above are shown. Not shared at first.",
+    "sharePhoto": "Equipment photo",
+    "sharePhotoHelp": "Also shows the photo registered in equipment details to view-only users (inside boxes, tooltip, PNG, print). Shared at first."
+  },
+  "photo": {
+    "title": "Equipment photo",
+    "load": "Load equipment photo",
+    "remove": "Remove",
+    "removeLabel": "Remove equipment photo",
+    "none": "This equipment has no photo."
+  },
+  "shapeInfo": {
+    "title": "Shape info",
+    "lineTitle": "Shape info (line)",
+    "open": "Edit shape info",
+    "help": "Write information on a shape that is not registered equipment, like equipment. All fields are optional; turn on the same item in Info display to show it below the shape.",
+    "lineHelp": "For a line, write the network list, network type and memo. All fields are optional; turn on the same item in Info display to show it next to the middle of the line.",
+    "apply": "Apply",
+    "errors": {
+      "softwareName": "Enter the SW name.",
+      "network": "Enter an IP address or a MAC address on each network row.",
+      "mac": "Enter the MAC address as 12 hexadecimal digits (e.g. 02-00-00-00-00-01).",
+      "macDuplicate": "The same MAC address cannot be entered twice for one shape."
+    }
+  },
+  "grants": {
+    "title": "Permissions",
+    "help": "Pick people or departments and give view or edit permission. A department grant covers its members only (not sub-departments).",
+    "readOnly": "Editors in the owner department manage permissions.",
+    "department": "Department",
+    "person": "Person",
+    "permission": "Permission",
+    "remove": "Remove",
+    "pick": "People and departments",
+    "save": "Save permissions",
+    "saved": "Permissions saved."
+  },
+  "versions": {
+    "title": "Versions",
+    "empty": "No saved versions.",
+    "no": "Version {no}",
+    "kinds": {
+      "SAVE": "Saved",
+      "AUTO": "Auto-saved",
+      "REVERT": "Reverted"
+    },
+    "view": "View",
+    "revert": "Revert",
+    "back": "Back to current",
+    "viewing": "Viewing version {no} (read-only)."
+  },
+  "errors": {
+    "load": "Could not load diagrams.",
+    "unknown": "Could not process. Try again later.",
+    "notFound": "Diagram not found. You may not have permission or it was deleted.",
+    "imageType": "Only PNG and JPG images are allowed.",
+    "imageSize": "Each image can be up to 5MB.",
+    "link": "Only in-system addresses (starting with /) can be opened.",
+    "popup": "Could not open a new window. Check the popup blocker.",
+    "dropBlocked": "Dropping files is not allowed. Use the image tool or paste.",
+    "pasteBlocked": "This content cannot be pasted (PNG/JPG up to 5MB, in-system links only).",
+    "permissionLost": "Your edit permission was removed, so editing ended.",
+    "linkFixed": "Only internal links (starting with /, up to 500 characters) are allowed, so the link was removed.",
+    "codes": {
+      "ACCESS_DENIED": "You don't have permission.",
+      "NOT_FOUND": "Diagram not found. You may not have access, or it was deleted.",
+      "REQUEST_INVALID": "The request is not valid.",
+      "DATA_CONFLICT": "Another request conflicted. Reload and try again.",
+      "NAME_INVALID": "Enter a name of 1–100 characters.",
+      "NAME_DUPLICATE": "A diagram with the same name already exists in this department.",
+      "GRANT_INVALID": "One of the selected people or departments is not valid.",
+      "LAST_MANAGER": "At least one editor from the owner department must remain.",
+      "NOT_ORPHAN": "This diagram still has someone who can manage permissions.",
+      "OWNER_DEPARTMENT_INACTIVE": "Diagrams whose owner department was deleted cannot be restored.",
+      "DIAGRAM_LOCKED": "Someone else is editing this diagram.",
+      "DIAGRAM_LOCKED_SELF": "You are already editing in another window. This window is view-only.",
+      "LOCK_LOST": "Your edit lock was released. Your changes may be in an 'Auto-saved' version. Please reload.",
+      "LOCK_EXPIRED": "Editing timed out and the lock was released. Your changes may be in an 'Auto-saved' version. Press [Resume editing].",
+      "SCENE_INVALID": "The diagram content is not valid.",
+      "SCENE_TOO_LARGE": "The diagram is too large. Remove some elements.",
+      "LINK_NOT_ALLOWED": "Only internal links (starting with /) are allowed.",
+      "EQUIPMENT_NOT_ALLOWED": "Equipment outside the diagram scope or disposed cannot be placed.",
+      "EQUIPMENT_DUPLICATE": "Each piece of equipment can be placed only once per diagram.",
+      "FILE_INVALID": "Only PNG and JPG images are allowed.",
+      "FILE_TOO_LARGE": "Each image can be up to 5MB.",
+      "FILE_TOTAL_EXCEEDED": "Images in one diagram can total up to 20MB.",
+      "FIELDS_INVALID": "Unknown equipment field or extra attribute."
+    }
+  },
+  "confirm": {
+    "yes": "OK",
+    "no": "Cancel"
+  }
+}

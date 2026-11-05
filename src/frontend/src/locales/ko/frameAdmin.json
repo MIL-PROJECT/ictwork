@@ -1,0 +1,63 @@
+{
+  "org": {
+    "description": "부서를 트리로 보며 부서 등록·이름 바꾸기·끌어오기·삭제와 부서 관리자 지정을 합니다."
+  },
+  "personnel": {
+    "description": "관리하는 부서의 인원을 계정과 함께 등록하고, 수정·끌어오기·사용 중지와 계정·역할을 관리합니다.",
+    "listTitle": "인원 목록",
+    "summary": "전체 {total}명 · 사용 중 {active}명"
+  },
+  "equipment": {
+    "description": "관리 범위의 장비 목록과 설치장소를 관리합니다."
+  },
+  "location": {
+    "summary": "{total}곳 · 사용 중 {active}곳"
+  },
+  "workTypes": {
+    "listTitle": "유형 목록",
+    "summary": "{total}개 · 사용 중 {active}개"
+  },
+  "routes": {
+    "editorSubtitle": "부서와 결재 종류를 골라 단계를 고칩니다.",
+    "listTitle": "부서별 결재 경로",
+    "summary": "{count}개 경로"
+  },
+  "attributes": {
+    "listTitle": "특성 목록",
+    "summary": "{count}개 특성"
+  },
+  "settings": {
+    "description": "내 정보를 보고 비밀번호와 화면·알림·달력 설정을 바꿉니다."
+  },
+  "ai": {
+    "description": "체계 자료를 근거로 AI에게 묻고 답을 받습니다.",
+    "banner": "AI 답은 내가 볼 수 있는 체계 자료를 근거로 쓰며 틀릴 수 있습니다. 답 아래 출처를 눌러 원래 화면에서 확인하세요.",
+    "questionCount": "질문 {count}건",
+    "conversationCount": "대화 {count}개"
+  },
+  "login": {
+    "eyebrow": "ICT Work Management System",
+    "headlineThin": "부대 정보통신 업무를",
+    "headlineStrong": "하나의 체계에서.",
+    "lead": "업무 요청과 결재, 정보통신 현황, 장비·인원 관리까지 부대 정보통신 업무를 한 화면에서 처리합니다.",
+    "points": {
+      "work": {
+        "title": "업무·결재",
+        "desc": "업무를 요청하고 결재 경로에 따라 처리"
+      },
+      "status": {
+        "title": "정보통신 현황",
+        "desc": "통합상황판과 현황 박스로 운용 상태 확인"
+      },
+      "ai": {
+        "title": "AI 질의응답",
+        "desc": "체계 자료를 근거로 묻고 답하기"
+      }
+    },
+    "legal": "인가된 사용자만 접속할 수 있습니다."
+  },
+  "qa": {
+    "listTitle": "확인용 계정",
+    "summary": "{total}개 · 사용 중 {active}개"
+  }
+}

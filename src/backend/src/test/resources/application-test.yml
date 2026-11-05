@@ -1,0 +1,10 @@
+# 시험용: 로컬 MySQL의 시험 스키마 (07 4장)
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/ictwork_test?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true&preserveInstants=false&characterEncoding=UTF-8
+
+# 시험 전용 공통 초기 비밀번호 (DEC-056). 시험 DB에만 쓰이는 값
+ictwork:
+  initial-password: "Test-Init-2026!"
+  scheduler:
+    enabled: false # 시험은 스케줄러 대신 서비스 메서드를 직접 부른다 (B_업무결재 6장)

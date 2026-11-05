@@ -1,0 +1,89 @@
+{
+  "loading": "불러오는 중…",
+  "unreachable": "AI 서버에 연결할 수 없습니다. 지난 대화는 볼 수 있습니다.",
+  "statusError": "AI 상태를 읽지 못했습니다.",
+  "off": "AI 질의응답이 꺼져 있어 쓸 수 없습니다.",
+  "untitled": "새 대화",
+  "list": {
+    "title": "대화 목록",
+    "toggleOpen": "대화 목록 펴기",
+    "toggleClose": "대화 목록 접기",
+    "new": "새 대화",
+    "empty": "아직 대화가 없습니다.",
+    "error": "대화 목록을 읽지 못했습니다.",
+    "delete": "‘{title}’ 대화 지우기",
+    "lastAsked": "마지막 질문 {time}"
+  },
+  "confirm": {
+    "delete": "‘{title}’ 대화를 지울까요? 지운 대화는 되살릴 수 없습니다."
+  },
+  "notice": {
+    "deleted": "‘{title}’ 대화를 지웠습니다."
+  },
+  "empty": {
+    "title": "체계 자료를 근거로 묻고 답합니다",
+    "help": "문서함 파일·구성도·업무·장비·인원 가운데 내가 볼 수 있는 자료로 답합니다. 아래 예시를 누르거나 질문을 써 보세요.",
+    "examples": "예시 질문"
+  },
+  "message": {
+    "question": "질문",
+    "answer": "AI 답",
+    "sending": "보내는 중…",
+    "writing": "답을 쓰는 중…",
+    "queued": "차례를 기다리는 중: 앞에 질문 {count}건(답을 쓰는 중인 질문 포함)",
+    "next": "다음 차례입니다. 곧 답을 씁니다."
+  },
+  "meta": {
+    "conditions": "조회 조건",
+    "sources": "출처",
+    "links": "확인할 곳",
+    "pending": "아직 읽는 중인 자료 {count}건",
+    "note": "체계 자료를 근거로 AI가 쓴 답이며 틀릴 수 있음",
+    "sourceType": {
+      "FILE": "파일",
+      "WORK_REQUEST": "업무 요청",
+      "WORK_ITEM": "처리 건",
+      "WORK_FORM": "양식 답",
+      "DIAGRAM": "구성도",
+      "EQUIPMENT": "장비",
+      "PERSONNEL": "인원",
+      "DIRECTIVE": "지시사항",
+      "DUTY_ROSTER": "근무표",
+      "ICT_BOX": "정보통신 현황",
+      "other": "자료"
+    }
+  },
+  "status": {
+    "STOPPED": "멈춘 답입니다. 멈추기 전까지 받은 글입니다.",
+    "TIMEOUT": "2분 안에 끝나지 않아 멈췄습니다. 다시 물어 주세요.",
+    "FAILED": "답을 끝까지 쓰지 못했습니다. 다시 물어 주세요."
+  },
+  "input": {
+    "label": "질문",
+    "placeholder": "질문을 쓰세요 (1~1,000자)",
+    "help": "Enter로 보내고 Shift+Enter로 줄을 바꿉니다.",
+    "count": "{count} / 1,000자",
+    "send": "보내기",
+    "stop": "멈춤",
+    "cancel": "취소",
+    "answering": "답을 받는 중입니다.",
+    "otherConversation": "다른 대화에서 답을 받는 중입니다."
+  },
+  "live": {
+    "DONE": "답을 다 받았습니다.",
+    "STOPPED": "답을 멈췄습니다.",
+    "TIMEOUT": "2분 안에 끝나지 않아 답을 멈췄습니다.",
+    "FAILED": "답을 쓰지 못했습니다.",
+    "CANCELLED": "질문을 취소했습니다."
+  },
+  "errors": {
+    "AI_BUSY": "이미 답을 받는 중인 질문이 있습니다(다른 창 포함). 그 답이 끝난 뒤 물어 주세요.",
+    "AI_BUSY_DELETE": "답을 받는 중인 대화는 지울 수 없습니다. 답이 끝난 뒤 지워 주세요.",
+    "AI_QUESTION_LENGTH": "질문은 1~1,000자로 써 주세요.",
+    "AI_UNAVAILABLE": "AI 서버에 연결할 수 없습니다. 잠시 뒤 다시 물어 주세요.",
+    "AI_TIMEOUT": "2분 안에 끝나지 않아 멈췄습니다. 다시 물어 주세요.",
+    "AI_FAILED": "답을 만들지 못했습니다. 다시 물어 주세요.",
+    "NOT_FOUND": "대화를 찾을 수 없습니다. 지워졌거나 AI 기능이 꺼져 있습니다.",
+    "default": "요청을 처리하지 못했습니다. 잠시 뒤 다시 해 주세요."
+  }
+}

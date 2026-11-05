@@ -1,0 +1,25 @@
+{
+  "orgChart": {
+    "description": "Pick a battalion: companies appear as boxes, sections and people as folders inside them."
+  },
+  "people": {
+    "description": "Filter active people in your department and its sub-departments and check their assigned work.",
+    "listTitle": "People"
+  },
+  "equipment": {
+    "description": "Filter equipment, choose columns and download to Excel.",
+    "listTitle": "Equipment list",
+    "count": "{shown} shown · {total} total",
+    "newDescription": "Fill in the equipment fields to register it. Fields marked * are required.",
+    "editDescription": "Edit the equipment fields. Changes apply when you save."
+  },
+  "diagrams": {
+    "description": "Open a diagram you can view, or enter a name to create a new one.",
+    "listTitle": "Diagrams",
+    "count": "{n}"
+  },
+  "docs": {
+    "description": "Browse, upload and search folders and files in department document boxes.",
+    "itemCount": "{n} items"
+  }
+}

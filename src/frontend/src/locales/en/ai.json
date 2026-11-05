@@ -1,0 +1,89 @@
+{
+  "loading": "Loading…",
+  "unreachable": "Cannot connect to the AI server. You can still view past conversations.",
+  "statusError": "Could not read the AI status.",
+  "off": "AI Q&A is turned off and cannot be used.",
+  "untitled": "New conversation",
+  "list": {
+    "title": "Conversations",
+    "toggleOpen": "Show conversations",
+    "toggleClose": "Hide conversations",
+    "new": "New conversation",
+    "empty": "No conversations yet.",
+    "error": "Could not load conversations.",
+    "delete": "Delete conversation '{title}'",
+    "lastAsked": "Last asked {time}"
+  },
+  "confirm": {
+    "delete": "Delete conversation '{title}'? Deleted conversations cannot be restored."
+  },
+  "notice": {
+    "deleted": "Deleted conversation '{title}'."
+  },
+  "empty": {
+    "title": "Ask questions answered from system data",
+    "help": "Answers use only the documents, diagrams, tasks, equipment and personnel you can view. Pick an example below or type a question.",
+    "examples": "Example questions"
+  },
+  "message": {
+    "question": "Question",
+    "answer": "AI answer",
+    "sending": "Sending…",
+    "writing": "Writing the answer…",
+    "queued": "Waiting: {count} question(s) ahead of yours, including the one being answered",
+    "next": "You are next. The answer will start shortly."
+  },
+  "meta": {
+    "conditions": "Query conditions",
+    "sources": "Sources",
+    "links": "Where to check",
+    "pending": "{count} items still being read",
+    "note": "Written by AI from system data and may be wrong",
+    "sourceType": {
+      "FILE": "File",
+      "WORK_REQUEST": "Task request",
+      "WORK_ITEM": "Task item",
+      "WORK_FORM": "Form answer",
+      "DIAGRAM": "Diagram",
+      "EQUIPMENT": "Equipment",
+      "PERSONNEL": "Person",
+      "DIRECTIVE": "Directive",
+      "DUTY_ROSTER": "Duty roster",
+      "ICT_BOX": "ICT status",
+      "other": "Data"
+    }
+  },
+  "status": {
+    "STOPPED": "Stopped answer. This is the text received before stopping.",
+    "TIMEOUT": "Stopped because it did not finish within 2 minutes. Please ask again.",
+    "FAILED": "The answer could not be completed. Please ask again."
+  },
+  "input": {
+    "label": "Question",
+    "placeholder": "Type a question (1–1,000 characters)",
+    "help": "Press Enter to send and Shift+Enter for a new line.",
+    "count": "{count} / 1,000 characters",
+    "send": "Send",
+    "stop": "Stop",
+    "cancel": "Cancel",
+    "answering": "Receiving the answer.",
+    "otherConversation": "Receiving an answer in another conversation."
+  },
+  "live": {
+    "DONE": "The answer is complete.",
+    "STOPPED": "The answer was stopped.",
+    "TIMEOUT": "The answer was stopped after 2 minutes.",
+    "FAILED": "The answer could not be written.",
+    "CANCELLED": "The question was cancelled."
+  },
+  "errors": {
+    "AI_BUSY": "You already have a question being answered (possibly in another window). Ask again after it finishes.",
+    "AI_BUSY_DELETE": "A conversation that is receiving an answer cannot be deleted. Delete it after the answer finishes.",
+    "AI_QUESTION_LENGTH": "Questions must be 1–1,000 characters.",
+    "AI_UNAVAILABLE": "Cannot connect to the AI server. Please try again later.",
+    "AI_TIMEOUT": "Stopped because it did not finish within 2 minutes. Please ask again.",
+    "AI_FAILED": "Could not write an answer. Please ask again.",
+    "NOT_FOUND": "Conversation not found. It may have been deleted or the AI feature is off.",
+    "default": "The request could not be processed. Please try again later."
+  }
+}

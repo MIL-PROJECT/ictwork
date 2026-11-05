@@ -1,0 +1,23 @@
+{
+  "status": {
+    "description": "고른 부서의 업무 현황과 기간 실적을 보고 인쇄·엑셀로 내보냅니다.",
+    "countUnit": "건"
+  },
+  "directives": {
+    "description": "직책별로 올라 있는 지시사항을 보고, 지난 지시사항은 기록에서 찾습니다.",
+    "boxesSubtitle": "올라 있는 지시사항 {count}건",
+    "recordsSubtitle": "전체 {total}건 · 조회 {shown}건"
+  },
+  "duty": {
+    "description": "어제·오늘·내일 근무자와 달별·연별 근무표를 봅니다."
+  },
+  "dutyEdit": {
+    "description": "근무표마다 로테이션 규칙·배치·공휴일·공유 부서·담당자를 고칩니다."
+  },
+  "ictStatus": {
+    "description": "볼 수 있는 정보통신 현황 박스를 내 배치대로 놓고, 눌러서 상세를 봅니다."
+  },
+  "calendar": {
+    "description": "업무 계획과 개인 일정을 한 달력에서 보고, 날짜를 골라 개인 일정을 더합니다."
+  }
+}

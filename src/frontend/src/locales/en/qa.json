@@ -1,0 +1,36 @@
+{
+  "picker": {
+    "title": "Choose a QA account",
+    "description": "Choose an account to sign in as it without a password. Signing out or switching accounts brings you back here.",
+    "end": "End QA",
+    "choose": "Use this account",
+    "loading": "Loading.",
+    "empty": "No accounts to choose.",
+    "columns": {
+      "name": "Name",
+      "loginId": "ID",
+      "department": "Department",
+      "position": "Position",
+      "roles": "Roles",
+      "status": "Status",
+      "choose": "Choose"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "passwordChange": "Password change required"
+    },
+    "errors": {
+      "QA_ACCOUNT_INACTIVE": "Inactive accounts cannot be chosen.",
+      "QA_ACCOUNT_INVALID": "This account cannot be chosen.",
+      "failed": "Could not switch accounts. Please try again.",
+      "endFailed": "Could not sign out. Please try again.",
+      "loadFailed": "Could not load the list. Please refresh."
+    }
+  },
+  "banner": {
+    "label": "QA mode · {name} ({loginId})",
+    "switch": "Switch account",
+    "switchFailed": "Could not return to account selection. Please try again."
+  }
+}

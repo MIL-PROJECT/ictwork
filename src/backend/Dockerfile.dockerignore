@@ -1,0 +1,17 @@
+# src/backend/Dockerfile 전용 제외 목록 (빌드 컨텍스트는 저장소 루트)
+# 비밀정보
+secrets/
+src/backend/config/
+**/.env
+# 의존성·빌드 산출물
+**/node_modules/
+**/build/
+**/dist/
+**/.gradle/
+# 빌드에 쓰지 않는 폴더
+.git/
+docs/
+journal/
+logs/
+tests/
+assets/

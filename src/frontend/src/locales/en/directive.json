@@ -1,0 +1,101 @@
+{
+  "title": "Directives",
+  "create": "Post directive",
+  "tabs": {
+    "directives": "Directives",
+    "records": "Records"
+  },
+  "columns": {
+    "date": "Date",
+    "department": "Issuing unit",
+    "named": "Issued by",
+    "content": "Content",
+    "actions": "Actions"
+  },
+  "edited": "Edited ({time})",
+  "proxy": "Posted by a system administrator on your behalf",
+  "more": "Show more",
+  "less": "Show less",
+  "edit": "Edit",
+  "delete": "Delete",
+  "filters": {
+    "label": "Filters",
+    "department": "Issuing unit",
+    "allDepartments": "All",
+    "otherDepartment": "Selected unit",
+    "includeSub": "Include subordinate units",
+    "from": "From",
+    "to": "To",
+    "search": "Search content",
+    "searchPlaceholder": "Text in content",
+    "clear": "Clear filters",
+    "reversed": "The start date is after the end date, so the period is not applied.",
+    "outOfRange": "Choose dates between 2000 and 2099. The period is not applied."
+  },
+  "empty": {
+    "none": "There are no directives yet.",
+    "noneCanCreate": "Use [Post directive] to post the first one.",
+    "filtered": "No directives match the filters."
+  },
+  "dialog": {
+    "createTitle": "Post directive",
+    "editTitle": "Edit directive",
+    "named": "Issued as",
+    "content": "Content",
+    "contentHelp": "1 to 1,000 characters after trimming spaces. A line break counts as 1.",
+    "remaining": "{count} characters left",
+    "over": "{count} characters over",
+    "submitCreate": "Post",
+    "submitEdit": "Save"
+  },
+  "confirmDelete": {
+    "title": "Delete directive",
+    "message": "Delete this directive? A deleted directive cannot be restored.",
+    "confirm": "Delete",
+    "cancel": "Cancel"
+  },
+  "position": {
+    "BATTALION": "Battalion commander",
+    "COMPANY": "Company commander",
+    "SECTION": "Section leader"
+  },
+  "boxTitle": "{department} {position}",
+  "takenDown": "Taken down",
+  "takeDown": "Take down",
+  "restore": "Repost",
+  "boxes": {
+    "label": "Directives by position",
+    "empty": "No directives are posted now. See past directives in [Records]."
+  },
+  "confirmTakeDown": {
+    "title": "Take down directive",
+    "message": "Take down this directive? It will no longer appear on the [Directives] tab and will remain in [Records] marked \"Taken down\". You can repost it from [Records].",
+    "confirm": "Take down",
+    "cancel": "Cancel"
+  },
+  "images": {
+    "label": "Images",
+    "add": "Add images",
+    "help": "PNG or JPG files, up to 10MB each. They appear below the content in the order added.",
+    "remove": "Remove",
+    "removeNamed": "Remove image: {name}",
+    "uploading": "Uploading",
+    "count": "{n} image(s)",
+    "alt": "Image {n}",
+    "typeOnly": "Only PNG or JPG images can be uploaded.",
+    "tooLarge": "Each image can be up to 10MB.",
+    "empty": "Empty (0-byte) files cannot be uploaded.",
+    "notTemp": "Some images were uploaded too long ago. Remove them and add them again.",
+    "loadFailed": "Could not load the image"
+  },
+  "errors": {
+    "stale": "Someone else edited or deleted it first. The list has been reloaded.",
+    "notFound": "Directive not found. It was deleted or you can no longer view it.",
+    "cannotEdit": "You can no longer edit this directive. The list has been reloaded.",
+    "cannotCreate": "You can no longer post under this name. The list has been reloaded.",
+    "load": "Could not load directives.",
+    "default": "Could not complete the request. Please try again later.",
+    "staleTakeDown": "Someone else edited, took down or deleted it first. The list has been reloaded.",
+    "cannotTakeDown": "You can no longer take down this directive. The list has been reloaded."
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "section": "업무 현황",
+  "title": "통합상황판",
+  "desc": "{date} 기준 업무·정보통신 현황입니다.",
+  "updated": "{time} 갱신",
+  "refresh": "새로고침",
+  "retry": "다시 시도",
+  "refreshFailed": "갱신 실패",
+  "loading": "불러오는 중...",
+  "loadFailed": "상황판을 불러오지 못했습니다.",
+  "noData": "볼 수 있는 자료가 없습니다",
+  "empty": "표시할 항목이 없습니다",
+  "viewAll": "전체 보기",
+  "openList": "{label} {value}{unit} 목록 보기",
+  "virtualData": "가상 시연 데이터",
+  "pages": "쪽 이동",
+  "firstPage": "첫 쪽",
+  "prevPage": "이전 쪽",
+  "nextPage": "다음 쪽",
+  "lastPage": "마지막 쪽",
+  "unit": {
+    "items": "건",
+    "people": "명",
+    "boxes": "개"
+  },
+  "kpi": {
+    "total": "현황 전체",
+    "totalFoot": "대기 {waiting} · 계획 {ongoing} · 완료 {done} · 반려·이송 {rejected}",
+    "done": "이번 달 완료",
+    "doneRate": "완료율",
+    "urgent": "긴급 업무",
+    "urgentFoot": "지금 접수 대기·계획 {open}건 중 긴급",
+    "ongoing": "진행 중 업무",
+    "ongoingFoot": "지금 지연 {overdue} · 접수 대기 {waiting}"
+  },
+  "band": {
+    "label": "통제 요약",
+    "receipts": "내 부서 접수 대기",
+    "myTurn": "내 결재 차례",
+    "alerts": "주의 현황",
+    "requests": "이번 달 요청 / 완료",
+    "completed": "{count}건",
+    "duty": "오늘 근무",
+    "toIct": "정보통신 현황",
+    "overdue": "지연 중 업무"
+  },
+  "alerts": {
+    "caption": "주의 현황",
+    "count": "{count}건",
+    "check": "빨강 {count}건",
+    "none": "빨강·주황·노랑 정보통신 현황 박스가 없습니다"
+  },
+  "cards": {
+    "ict": "정보통신 현황",
+    "ictSub": "박스 {count}개",
+    "progress": "업무 진행 현황",
+    "progressSub": "계획 중 {count}건",
+    "receipts": "업무 접수 대기",
+    "receiptsSub": "{count}건",
+    "directives": "지시사항",
+    "directivesSub": "직책마다 최신 · {count}건"
+  },
+  "progress": {
+    "kicker": "이번 달 완료율",
+    "sub": "완료 {done}건 / 대상 {total}건",
+    "done": "완료",
+    "ongoing": "계획",
+    "waiting": "접수 대기",
+    "rejected": "반려",
+    "transferred": "이송",
+    "section": "계획 중 업무 (작업 기간 경과)",
+    "elapsedHelp": "작업 기간 중 오늘까지 지난 비율"
+  },
+  "cols": {
+    "box": "박스",
+    "department": "부서",
+    "state": "상태",
+    "updated": "갱신",
+    "no": "번호",
+    "title": "제목",
+    "requester": "요청자",
+    "priority": "우선순위",
+    "status": "상태",
+    "wanted": "희망일"
+  }
+}

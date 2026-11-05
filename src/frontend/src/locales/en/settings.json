@@ -1,0 +1,52 @@
+{
+  "profile": {
+    "title": "My information",
+    "desc": "Your information is managed by administrators. Ask your department administrator for changes.",
+    "name": "Name",
+    "loginId": "ID",
+    "department": "Department",
+    "position": "Position",
+    "roles": "Roles",
+    "none": "None",
+    "systemWide": "Whole system",
+    "loadError": "Could not load your information."
+  },
+  "positions": {
+    "BN_CMDR": "Battalion commander",
+    "CO_CMDR": "Company commander",
+    "SEC_LEAD": "Section leader",
+    "MEMBER": "Member"
+  },
+  "roles": {
+    "BN_CMDR": "Battalion commander",
+    "CO_CMDR": "Company commander",
+    "SEC_LEAD": "Section leader",
+    "DEPT_ADMIN": "Department administrator",
+    "SYS_ADMIN": "System administrator"
+  },
+  "password": {
+    "title": "Change password",
+    "desc": "Use at least 10 characters with 2 kinds, or at least 8 characters with 3 kinds, of uppercase letters, lowercase letters, digits, and symbols. Your ID and common passwords are not allowed.",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "submit": "Change password",
+    "mismatch": "The new password and confirmation do not match.",
+    "success": "Your password has been changed. Sessions signed in elsewhere are signed out.",
+    "error": "Could not change the password. Please try again later.",
+    "PASSWORD_CURRENT_INVALID": "The current password is incorrect.",
+    "PASSWORD_SAME_AS_CURRENT": "Enter a password different from the current one.",
+    "PASSWORD_TOO_WEAK": "Use at least 10 characters with 2 kinds, or at least 8 characters with 3 kinds, of uppercase letters, lowercase letters, digits, and symbols.",
+    "PASSWORD_TOO_LONG": "The new password is too long. Use up to 72 bytes (about 72 letters, or 24 Korean characters).",
+    "PASSWORD_COMMON": "This password is too common and easy to guess. Choose another.",
+    "PASSWORD_CONTAINS_LOGIN_ID": "The password cannot contain your ID."
+  },
+  "display": {
+    "title": "Display",
+    "desc": "Saved in this browser only.",
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}

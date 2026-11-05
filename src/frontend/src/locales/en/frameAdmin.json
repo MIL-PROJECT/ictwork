@@ -1,0 +1,63 @@
+{
+  "org": {
+    "description": "View departments as a tree; add, rename, move or delete them and assign department admins."
+  },
+  "personnel": {
+    "description": "Register people in the departments you manage together with their accounts, and manage edits, transfers, deactivation, accounts and roles.",
+    "listTitle": "People",
+    "summary": "Total {total} · Active {active}"
+  },
+  "equipment": {
+    "description": "Manage the equipment in your scope and its installation locations."
+  },
+  "location": {
+    "summary": "{total} locations · Active {active}"
+  },
+  "workTypes": {
+    "listTitle": "Work types",
+    "summary": "{total} types · Active {active}"
+  },
+  "routes": {
+    "editorSubtitle": "Choose a department and approval type to edit the steps.",
+    "listTitle": "Routes by department",
+    "summary": "Routes: {count}"
+  },
+  "attributes": {
+    "listTitle": "Attributes",
+    "summary": "Attributes: {count}"
+  },
+  "settings": {
+    "description": "View your information and change your password, display, notification and calendar settings."
+  },
+  "ai": {
+    "description": "Ask the AI questions answered from system data.",
+    "banner": "AI answers are based on the system data you can view and may be wrong. Open the sources under each answer to check the original screen.",
+    "questionCount": "Questions: {count}",
+    "conversationCount": "Conversations: {count}"
+  },
+  "login": {
+    "eyebrow": "ICT Work Management System",
+    "headlineThin": "Unit ICT work,",
+    "headlineStrong": "in one system.",
+    "lead": "Handle unit ICT work in one place, from work requests and approvals to ICT status and equipment and personnel management.",
+    "points": {
+      "work": {
+        "title": "Work & approvals",
+        "desc": "Request work and process it along approval routes"
+      },
+      "status": {
+        "title": "ICT status",
+        "desc": "Check operating status on the control board and status boxes"
+      },
+      "ai": {
+        "title": "AI Q&A",
+        "desc": "Ask questions answered from system data"
+      }
+    },
+    "legal": "Only authorized users may sign in."
+  },
+  "qa": {
+    "listTitle": "Test accounts",
+    "summary": "{total} accounts · Active {active}"
+  }
+}

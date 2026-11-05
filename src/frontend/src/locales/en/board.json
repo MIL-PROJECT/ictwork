@@ -1,0 +1,86 @@
+{
+  "section": "Work status",
+  "title": "Control Board",
+  "desc": "Work and ICT status as of {date}.",
+  "updated": "Updated {time}",
+  "refresh": "Refresh",
+  "retry": "Retry",
+  "refreshFailed": "Refresh failed",
+  "loading": "Loading...",
+  "loadFailed": "Could not load the board.",
+  "noData": "No data you can view",
+  "empty": "No items to show",
+  "viewAll": "View all",
+  "openList": "Open list: {label} {value}{unit}",
+  "virtualData": "Virtual demo data",
+  "pages": "Pages",
+  "firstPage": "First page",
+  "prevPage": "Previous page",
+  "nextPage": "Next page",
+  "lastPage": "Last page",
+  "unit": {
+    "items": "",
+    "people": "",
+    "boxes": ""
+  },
+  "kpi": {
+    "total": "All work",
+    "totalFoot": "Waiting {waiting} · Planned {ongoing} · Done {done} · Rej./Trans. {rejected}",
+    "done": "Done this month",
+    "doneRate": "Completion",
+    "urgent": "Urgent work",
+    "urgentFoot": "Urgent among {open} waiting or planned",
+    "ongoing": "Work in progress",
+    "ongoingFoot": "Overdue now {overdue} · Waiting {waiting}"
+  },
+  "band": {
+    "label": "Control summary",
+    "receipts": "Waiting (my dept.)",
+    "myTurn": "My approvals",
+    "alerts": "Attention",
+    "requests": "Requests / done (month)",
+    "completed": "{count}",
+    "duty": "On duty today",
+    "toIct": "ICT status",
+    "overdue": "Overdue now"
+  },
+  "alerts": {
+    "caption": "Attention",
+    "count": "{count}",
+    "check": "{count} red",
+    "none": "No red, orange or yellow ICT status boxes"
+  },
+  "cards": {
+    "ict": "ICT status",
+    "ictSub": "{count} boxes",
+    "progress": "Work progress",
+    "progressSub": "{count} planned",
+    "receipts": "Waiting to receive",
+    "receiptsSub": "{count} items",
+    "directives": "Directives",
+    "directivesSub": "Latest per position · {count}"
+  },
+  "progress": {
+    "kicker": "Completion this month",
+    "sub": "{done} done of {total}",
+    "done": "Done",
+    "ongoing": "Planned",
+    "waiting": "Waiting",
+    "rejected": "Rejected",
+    "transferred": "Transferred",
+    "section": "Planned work (elapsed period)",
+    "elapsedHelp": "Share of the work period passed as of today"
+  },
+  "cols": {
+    "box": "Box",
+    "department": "Department",
+    "state": "State",
+    "updated": "Updated",
+    "no": "No.",
+    "title": "Title",
+    "requester": "Requester",
+    "priority": "Priority",
+    "status": "Status",
+    "wanted": "Wanted"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "list": {
+    "count_one": "{count} item",
+    "count_other": "{count} items",
+    "urgent": "{count} urgent"
+  },
+  "tasks": {
+    "desc": "Browse our department's tasks, tasks you requested, and tasks you can view."
+  },
+  "receipts": {
+    "listTitle": "Awaiting receipt"
+  },
+  "approvals": {
+    "desc": "Approvals on your turn and approval documents you have handled.",
+    "inProgressList": "Approvals in progress"
+  },
+  "detail": {
+    "requestInfo": "Request details"
+  }
+}

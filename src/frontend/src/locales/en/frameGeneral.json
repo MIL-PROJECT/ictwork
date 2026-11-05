@@ -1,0 +1,23 @@
+{
+  "status": {
+    "description": "See work status and period performance for the selected departments, and print or export to Excel.",
+    "countUnit": ""
+  },
+  "directives": {
+    "description": "See current directives by position. Find past directives in Records.",
+    "boxesSubtitle": "{count} directives posted",
+    "recordsSubtitle": "{total} total · {shown} shown"
+  },
+  "duty": {
+    "description": "See who is on duty yesterday, today and tomorrow, and the monthly or yearly roster."
+  },
+  "dutyEdit": {
+    "description": "Edit rotation rules, placement, holidays, shared departments and assignees for each roster."
+  },
+  "ictStatus": {
+    "description": "Arrange the ICT status boxes you can see in your own layout, and click one to see details."
+  },
+  "calendar": {
+    "description": "See work plans and personal events in one calendar, and select dates to add a personal event."
+  }
+}

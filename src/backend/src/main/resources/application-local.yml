@@ -1,0 +1,11 @@
+# 개발용: 시연·개발 데이터(db/seed) 적용, SQL 로그
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+  jpa:
+    show-sql: true
+
+# AI 질의응답은 개발 PC(GPU)에서만 켠다 (H-8, slices/12 5.1)
+ictwork:
+  ai:
+    enabled: true

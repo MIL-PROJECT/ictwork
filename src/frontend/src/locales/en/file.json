@@ -1,0 +1,29 @@
+{
+  "title": "Attachments",
+  "choose": "Choose files",
+  "help": "Only documents and images (PDF, HWP, Word, Excel, PowerPoint, text, PNG/JPG) up to 10 MB each. No limit on the number of files.",
+  "uploading": "Uploading…",
+  "remove": "Remove",
+  "removeNamed": "Remove {name}",
+  "delete": "Delete",
+  "deleteNamed": "Delete {name}",
+  "download": "Download {name}",
+  "none": "No attachments.",
+  "empty": "Empty (0-byte) files cannot be uploaded.",
+  "tooLarge": "Not uploaded: larger than 10 MB.",
+  "requestFiles": "Request attachments",
+  "itemFiles": "Work item attachments",
+  "itemHelp": "Members of the handling department upload and delete files (including files uploaded by others). Files can be added after completion, but not to rejected or transferred work.",
+  "errors": {
+    "default": "Upload failed. Please try again later.",
+    "FILE_TOO_LARGE": "Upload failed: larger than 10 MB.",
+    "FILE_BUSY": "Many files are being uploaded. Please try again in a moment.",
+    "FILE_TYPE_NOT_ALLOWED": "This file type is not allowed (executables, archives, etc.).",
+    "FILE_EMPTY": "Empty (0-byte) files cannot be uploaded.",
+    "FILE_PURPOSE_INVALID": "Unknown file purpose.",
+    "WORK_STATE": "Files cannot be added to rejected or transferred work.",
+    "ACCESS_DENIED": "You do not have permission.",
+    "NOT_FOUND": "Not found.",
+    "FILE_EXECUTABLE": "Executable files (exe, msi, bat, cmd, com, scr, ps1, vbs, js, jar, sh) cannot be uploaded."
+  }
+}

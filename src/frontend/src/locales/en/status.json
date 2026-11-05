@@ -1,0 +1,161 @@
+{
+  "title": "Work status",
+  "scope": {
+    "selected": "Selected: {names}",
+    "own": "Department: {name} (yours)",
+    "fixed": "Department: {name}",
+    "more": "{first} and {count} more",
+    "withChildren": "(incl. sub-units)"
+  },
+  "panel": {
+    "toggle": "View options",
+    "title": "View options",
+    "range": "Departments",
+    "view": "View",
+    "period": "Period",
+    "total": "Combined",
+    "separate": "By department",
+    "separateHint": "Select two or more to use",
+    "week": "This week",
+    "month": "This month",
+    "custom": "Custom",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "close": "Close",
+    "summary": "Current options",
+    "search": "Find a department",
+    "treeLabel": "Departments to view"
+  },
+  "periodError": {
+    "reversed": "The end date must be on or after the start date.",
+    "tooLong": "Choose a period within one year.",
+    "range": "Choose dates between 2000 and 2099."
+  },
+  "notice": {
+    "scopeChanged": "Your scope changed, so some departments were removed.",
+    "reset": "Your scope changed, so the default options were applied.",
+    "oneLeft": "Only one department is left, so the combined view is shown.",
+    "periodReset": "The period was invalid, so this month is shown.",
+    "refreshed": "Work status updated.",
+    "peopleReset": "The assignments period was invalid, so the performance period is shown."
+  },
+  "empty": {
+    "noDepartment": "You have no department, so there is no work to show.",
+    "noSelection": "Select departments in View options.",
+    "noData": "No requests or completions in this period."
+  },
+  "now": "Now (as of {time})",
+  "nowShort": "now",
+  "periodTitle": "Period {from} – {to}",
+  "periodShort": "period",
+  "periodNowShort": "period + now",
+  "cards": {
+    "urgent": "Urgent",
+    "overdue": "Overdue",
+    "requests": "Requests",
+    "completed": "Completed",
+    "urgentCompleted": "Urgent completed",
+    "total": "Total workload",
+    "totalHelp": "Completed in period + open now",
+    "completionRate": "Completion rate",
+    "late": "Completed late",
+    "receiveDays": "Avg. request to receipt",
+    "completeDays": "Avg. receipt to completion",
+    "rejectRate": "Rejection rate",
+    "transferRate": "Transfer rate",
+    "open": "Open"
+  },
+  "previous": {
+    "title": "previous period {from} – {to}",
+    "value": "Previous {value}",
+    "count": "{value}",
+    "rate": "{value} pp",
+    "days": "{value} days",
+    "same": "No change",
+    "upSr": "up {value} from the previous period",
+    "downSr": "down {value} from the previous period",
+    "none": "Nothing to compare"
+  },
+  "buckets": {
+    "total": "All",
+    "waiting": "Awaiting receipt",
+    "ongoing": "Planned",
+    "done": "Completed",
+    "rejected": "Rejected",
+    "transferred": "Transferred",
+    "closedBasis": "closed in period",
+    "closedTitle": "closed items: period {from} – {to}"
+  },
+  "openList": "View {count} {label}",
+  "days": "{value} days",
+  "sections": {
+    "now": "Current status",
+    "perf": "Performance",
+    "trend": "Trend",
+    "types": "By work type",
+    "people": "Assignments by person",
+    "compare": "Departments at a glance",
+    "compareTrend": "Weekly completions",
+    "metric": "Compare one metric"
+  },
+  "trend": {
+    "requests": "Requests",
+    "completed": "Completed",
+    "week": "week",
+    "month": "month"
+  },
+  "people": {
+    "name": "Name",
+    "department": "Task department",
+    "items": "Jobs",
+    "days": "Days",
+    "basis": "Based on tasks of the selected departments",
+    "none": "No assignments.",
+    "sortHint": "Click to sort by this column. Click again to reverse the order",
+    "recent": "Fill back from today",
+    "recentSpan": {
+      "week": "1 week",
+      "month": "1 month",
+      "quarter": "3 months"
+    },
+    "startDate": "Assignments by person: start date",
+    "endDate": "Assignments by person: end date",
+    "nameSearch": "Search by name",
+    "allDepartments": "All",
+    "noMatch": "No one matches.",
+    "printName": "Name: {value}",
+    "printDepartment": "Task department: {value}"
+  },
+  "compare": {
+    "department": "Department",
+    "childNote": "Parent rows include their sub-units.",
+    "metricSelect": "Metric"
+  },
+  "print": "Print / PDF",
+  "excel": "Excel",
+  "downloading": "Downloading…",
+  "loadFailed": "Could not load.",
+  "retry": "Try again",
+  "loading": "Loading.",
+  "chartTable": "{title} values",
+  "errors": {
+    "STATUS_PERIOD_INVALID": "Choose a period within one year of the start date.",
+    "STATUS_VIEW_INVALID": "The by-department view needs two or more departments.",
+    "STATUS_DEPARTMENT_EMPTY": "Select departments to view.",
+    "STATUS_SCOPE_DENIED": "A department you cannot view is included.",
+    "UNKNOWN": "Something went wrong. Try again."
+  },
+  "banner": {
+    "from": "From work status:",
+    "clear": "Clear",
+    "nowBasis": "as of now",
+    "closedBasis": "open as of now, closed within the period",
+    "weekOf": "week of {date}"
+  },
+  "printHeader": {
+    "view": "View",
+    "period": "Period",
+    "generatedAt": "As of",
+    "departments": "Departments"
+  }
+}

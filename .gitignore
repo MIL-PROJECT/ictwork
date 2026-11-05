@@ -1,0 +1,22 @@
+# 비밀정보
+.env
+.env.*
+*.key
+*.pem
+secrets/
+
+# 백엔드 로컬 DB 접속 정보 (예시: src/backend/config/application.example.yml)
+src/backend/config/application.yml
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 의존성·빌드 산출물
+node_modules/
+dist/
+src/backend/build/
+src/backend/.kotlin/
+.gradle/
+*.war

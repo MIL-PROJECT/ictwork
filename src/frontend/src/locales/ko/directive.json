@@ -1,0 +1,101 @@
+{
+  "title": "지시사항",
+  "create": "지시사항 올리기",
+  "tabs": {
+    "directives": "지시사항",
+    "records": "기록"
+  },
+  "columns": {
+    "date": "지시 일자",
+    "department": "명의 부서",
+    "named": "명의자",
+    "content": "내용",
+    "actions": "작업"
+  },
+  "edited": "고침({time})",
+  "proxy": "시스템 관리자가 대신 올림",
+  "more": "더 보기",
+  "less": "접기",
+  "edit": "고치기",
+  "delete": "지우기",
+  "filters": {
+    "label": "걸러 보기",
+    "department": "명의 부서",
+    "allDepartments": "전체",
+    "otherDepartment": "고른 부서",
+    "includeSub": "하위 부서 명의 포함",
+    "from": "기간 시작",
+    "to": "기간 끝",
+    "search": "내용 찾기",
+    "searchPlaceholder": "내용 글자",
+    "clear": "조건 지우기",
+    "reversed": "기간 시작이 끝보다 늦어 기간을 적용하지 않았습니다.",
+    "outOfRange": "날짜는 2000~2099년 안에서 고르세요. 기간을 적용하지 않았습니다."
+  },
+  "empty": {
+    "none": "아직 지시사항이 없습니다.",
+    "noneCanCreate": "[지시사항 올리기]로 첫 지시를 올리세요.",
+    "filtered": "조건에 맞는 지시사항이 없습니다."
+  },
+  "dialog": {
+    "createTitle": "지시사항 올리기",
+    "editTitle": "지시사항 고치기",
+    "named": "명의",
+    "content": "내용",
+    "contentHelp": "앞뒤 빈칸을 뺀 1~1,000자. 줄바꿈은 1자로 셉니다.",
+    "remaining": "남은 글자 {count}자",
+    "over": "{count}자 넘음",
+    "submitCreate": "올리기",
+    "submitEdit": "저장"
+  },
+  "confirmDelete": {
+    "title": "지시사항 지우기",
+    "message": "이 지시사항을 지울까요? 지운 지시사항은 되돌릴 수 없습니다.",
+    "confirm": "지우기",
+    "cancel": "취소"
+  },
+  "position": {
+    "BATTALION": "대대장",
+    "COMPANY": "중대장",
+    "SECTION": "반장"
+  },
+  "boxTitle": "{department} {position}",
+  "takenDown": "내림",
+  "takeDown": "내리기",
+  "restore": "다시 올림",
+  "boxes": {
+    "label": "직책별 지시사항",
+    "empty": "지금 올라 있는 지시사항이 없습니다. 지난 지시사항은 [기록]에서 봅니다."
+  },
+  "confirmTakeDown": {
+    "title": "지시사항 내리기",
+    "message": "이 지시사항을 내릴까요? [지시사항] 탭에 보이지 않고 [기록]에 \"내림\"으로 남습니다. [기록]에서 다시 올릴 수 있습니다.",
+    "confirm": "내리기",
+    "cancel": "취소"
+  },
+  "images": {
+    "label": "그림",
+    "add": "그림 더하기",
+    "help": "PNG·JPG 파일, 한 장 10MB까지. 더한 순서대로 내용 아래에 보입니다.",
+    "remove": "빼기",
+    "removeNamed": "그림 빼기: {name}",
+    "uploading": "올리는 중",
+    "count": "그림 {n}장",
+    "alt": "그림 {n}",
+    "typeOnly": "그림은 PNG·JPG 파일만 올릴 수 있습니다.",
+    "tooLarge": "그림 한 장은 10MB까지 올릴 수 있습니다.",
+    "empty": "빈 파일(0바이트)은 올릴 수 없습니다.",
+    "notTemp": "그림 가운데 올린 지 오래된 것이 있습니다. 그 그림을 빼고 다시 더하세요.",
+    "loadFailed": "그림을 불러오지 못했습니다"
+  },
+  "errors": {
+    "stale": "다른 사람이 먼저 고쳤거나 지웠습니다. 목록을 새로 불러왔습니다.",
+    "notFound": "찾을 수 없는 지시사항입니다. 지워졌거나 볼 수 없게 되었습니다.",
+    "cannotEdit": "이 지시사항을 고칠 수 없게 되었습니다. 목록을 새로 불러왔습니다.",
+    "cannotCreate": "이 명의로 올릴 수 없게 되었습니다. 목록을 새로 불러왔습니다.",
+    "load": "지시사항을 불러오지 못했습니다.",
+    "default": "처리하지 못했습니다. 잠시 뒤 다시 시도하세요.",
+    "staleTakeDown": "다른 사람이 먼저 고쳤거나 내렸거나 지웠습니다. 목록을 새로 불러왔습니다.",
+    "cannotTakeDown": "이 지시사항을 내릴 수 없게 되었습니다. 목록을 새로 불러왔습니다."
+  }
+}

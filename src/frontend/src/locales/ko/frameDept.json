@@ -1,0 +1,25 @@
+{
+  "orgChart": {
+    "description": "대대를 고르면 중대는 상자로, 반과 인원은 상자 안 폴더로 보입니다."
+  },
+  "people": {
+    "description": "내 소속 부서와 하위 부서의 사용 중 인원을 걸러 보고 배정된 업무를 확인합니다.",
+    "listTitle": "인원 목록"
+  },
+  "equipment": {
+    "description": "장비를 걸러 보고 열을 골라 확인하며, 엑셀로 내려받습니다.",
+    "listTitle": "장비 목록",
+    "count": "조회 {shown}건 · 전체 {total}건",
+    "newDescription": "장비 항목을 적어 등록합니다. 별표(*) 칸은 꼭 적습니다.",
+    "editDescription": "장비 항목을 고칩니다. 저장하면 바로 반영됩니다."
+  },
+  "diagrams": {
+    "description": "볼 수 있는 구성도를 열거나 이름을 적어 새로 만듭니다.",
+    "listTitle": "구성도 목록",
+    "count": "{n}개"
+  },
+  "docs": {
+    "description": "부서 문서함의 폴더·파일을 보고, 올리고, 이름으로 찾습니다.",
+    "itemCount": "{n}개 항목"
+  }
+}

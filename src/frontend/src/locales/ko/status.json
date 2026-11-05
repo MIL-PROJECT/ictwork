@@ -1,0 +1,161 @@
+{
+  "title": "업무 현황",
+  "scope": {
+    "selected": "고른 부서: {names}",
+    "own": "부서: {name} (소속 부서)",
+    "fixed": "부서: {name}",
+    "more": "{first} 외 {count}곳",
+    "withChildren": "(하위 포함)"
+  },
+  "panel": {
+    "toggle": "보기 조건",
+    "title": "보기 조건",
+    "range": "보는 범위",
+    "view": "보기",
+    "period": "기간",
+    "total": "통합",
+    "separate": "부서별",
+    "separateHint": "두 곳 이상 고르면 쓸 수 있습니다",
+    "week": "이번 주",
+    "month": "이번 달",
+    "custom": "직접 지정",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "close": "닫기",
+    "summary": "지금 조건",
+    "search": "부서 찾기",
+    "treeLabel": "보는 범위 부서"
+  },
+  "periodError": {
+    "reversed": "종료일은 시작일과 같거나 뒤여야 합니다.",
+    "tooLong": "기간은 1년 안으로 고르세요.",
+    "range": "날짜는 2000~2099년 안에서 고르세요."
+  },
+  "notice": {
+    "scopeChanged": "보는 범위가 바뀌어 일부 부서를 뺐습니다.",
+    "reset": "보는 범위가 바뀌어 처음 조건으로 열었습니다.",
+    "oneLeft": "한 곳만 남아 통합 보기로 바꿨습니다.",
+    "periodReset": "기간이 올바르지 않아 이번 달로 열었습니다.",
+    "refreshed": "업무 현황을 새로 읽었습니다.",
+    "peopleReset": "사람별 투입 기간이 올바르지 않아 실적 기간으로 열었습니다."
+  },
+  "empty": {
+    "noDepartment": "소속 부서가 없어 볼 업무가 없습니다.",
+    "noSelection": "보기 조건에서 부서를 고르세요.",
+    "noData": "이 기간에 요청·완료가 없습니다."
+  },
+  "now": "지금 ({time} 기준)",
+  "nowShort": "지금",
+  "periodTitle": "기간 {from} ~ {to}",
+  "periodShort": "기간",
+  "periodNowShort": "기간+지금",
+  "cards": {
+    "urgent": "긴급",
+    "overdue": "기한 지남",
+    "requests": "요청",
+    "completed": "완료",
+    "urgentCompleted": "긴급 완료",
+    "total": "총업무량",
+    "totalHelp": "기간 안 완료 + 지금 미완료",
+    "completionRate": "완료율",
+    "late": "기한 넘긴 완료",
+    "receiveDays": "요청→접수 평균",
+    "completeDays": "접수→완료 평균",
+    "rejectRate": "반려 비율",
+    "transferRate": "이송 비율",
+    "open": "미완료"
+  },
+  "previous": {
+    "title": "지난 기간 {from} ~ {to}",
+    "value": "지난 기간 {value}",
+    "count": "{value}건",
+    "rate": "{value}%p",
+    "days": "{value}일",
+    "same": "변화 없음",
+    "upSr": "지난 기간보다 {value} 늘었습니다",
+    "downSr": "지난 기간보다 {value} 줄었습니다",
+    "none": "비교할 값이 없습니다"
+  },
+  "buckets": {
+    "total": "전체",
+    "waiting": "접수 대기",
+    "ongoing": "계획",
+    "done": "완료",
+    "rejected": "반려",
+    "transferred": "이송",
+    "closedBasis": "기간 안에 끝난 건",
+    "closedTitle": "끝난 건은 기간 {from} ~ {to}"
+  },
+  "openList": "{label} {count}건 목록 보기",
+  "days": "{value}일",
+  "sections": {
+    "now": "현황",
+    "perf": "실적",
+    "trend": "추이",
+    "types": "업무 유형별",
+    "people": "사람별 투입",
+    "compare": "부서 한눈에",
+    "compareTrend": "주별 완료 추이",
+    "metric": "지표 하나 골라 보기"
+  },
+  "trend": {
+    "requests": "요청",
+    "completed": "완료",
+    "week": "주",
+    "month": "달"
+  },
+  "people": {
+    "name": "이름",
+    "department": "처리 건 부서",
+    "items": "투입 건수",
+    "days": "투입 일수",
+    "basis": "고른 부서의 처리 건 기준",
+    "none": "투입한 사람이 없습니다.",
+    "sortHint": "누르면 이 열로 정렬합니다. 다시 누르면 순서가 바뀝니다",
+    "recent": "오늘부터 거꾸로 채우기",
+    "recentSpan": {
+      "week": "1주",
+      "month": "1개월",
+      "quarter": "3개월"
+    },
+    "startDate": "사람별 투입 시작일",
+    "endDate": "사람별 투입 종료일",
+    "nameSearch": "이름 검색",
+    "allDepartments": "전체",
+    "noMatch": "조건에 맞는 사람이 없습니다.",
+    "printName": "이름: {value}",
+    "printDepartment": "처리 건 부서: {value}"
+  },
+  "compare": {
+    "department": "부서",
+    "childNote": "상위 줄에는 하위 값이 들어 있습니다.",
+    "metricSelect": "지표"
+  },
+  "print": "인쇄·PDF",
+  "excel": "엑셀",
+  "downloading": "받는 중…",
+  "loadFailed": "불러오지 못했습니다.",
+  "retry": "다시 시도",
+  "loading": "불러오는 중입니다.",
+  "chartTable": "{title} 값 표",
+  "errors": {
+    "STATUS_PERIOD_INVALID": "기간은 시작일부터 1년 안으로 고르세요.",
+    "STATUS_VIEW_INVALID": "부서별 보기는 두 곳 이상 고를 때 쓸 수 있습니다.",
+    "STATUS_DEPARTMENT_EMPTY": "볼 부서를 고르세요.",
+    "STATUS_SCOPE_DENIED": "볼 수 없는 부서가 들어 있습니다.",
+    "UNKNOWN": "처리하지 못했습니다. 다시 시도하세요."
+  },
+  "banner": {
+    "from": "업무 현황에서 온 조건:",
+    "clear": "조건 지우기",
+    "nowBasis": "지금 기준",
+    "closedBasis": "진행 중은 지금, 끝난 건은 그 기간",
+    "weekOf": "{date} 주 작업"
+  },
+  "printHeader": {
+    "view": "보기",
+    "period": "기간",
+    "generatedAt": "기준 시각",
+    "departments": "부서"
+  }
+}

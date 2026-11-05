@@ -1,0 +1,42 @@
+# 공통 설정. DB 접속 계정·비밀번호는 Git 제외 파일 config/application.yml에 둔다 (예시: config/application.example.yml)
+spring:
+  datasource:
+    # preserveInstants=false: 날짜·시각을 JVM 시간대로 바꾸지 않고 그대로 주고받는다. 외부 톰캣(WAR)의 JVM 시간대가 서울이 아니어도 시각이 밀리지 않게 (DEC-063, 07 3.4)
+    url: jdbc:mysql://127.0.0.1:3306/ictwork?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true&preserveInstants=false&characterEncoding=UTF-8
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  # 파일 올리기: 첨부 파일 하나 10MB(REQ-115·116) + 여유. 넘으면 413 FILE_TOO_LARGE.
+  # 구성도 그림 5MB·장비 엑셀 6MB는 서비스가 본문을 읽기 전에 크기를 본다 (slices/11 2.3.2)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+server:
+  port: 8080
+
+# 요청 오류 경고에 요청 원문(비밀번호 등)이 섞일 수 있어 기본 경고 로그를 끈다 (05 6장, OWASP 로그 지침)
+logging:
+  level:
+    org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver: ERROR
+
+ictwork:
+  # 공유 문서함 용량 상한(MB, 휴지통 포함, REQ-A06·H-6). 문서함마다 50MB, 체계 전체 500MB. 넘게 올리면 413 DOC_BOX_FULL·DOC_TOTAL_FULL
+  docbox:
+    box-limit-mb: 50
+    total-limit-mb: 500
+  # AI 질의응답 (REQ-B09, NFR-005, slices/12 5.1). 처음에는 끈다: 개발 PC(application-local.yml)만 켜고 배포판(demo)·시험은 끈 채로 둔다
+  ai:
+    enabled: false
+    # 실행기(Ollama) 주소: 같은 PC(localhost·127.0.0.1·::1)만 받는다. 아니면 AI를 켜지 않고 경고를 남긴다
+    base-url: http://127.0.0.1:11434
+    chat-model: qwen3:8b
+    embed-model: bge-m3
+    # 차례를 받아 처리를 시작한 뒤 이 시간 안에 끝나지 않으면 멈춘다 (REQ-B08)
+    answer-timeout-seconds: 120
+    # 색인 맞추기 간격 (slices/12 5.2)
+    index-interval-seconds: 30

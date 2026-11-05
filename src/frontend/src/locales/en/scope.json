@@ -1,0 +1,30 @@
+{
+  "picker": "Pick departments and people to add to visibility",
+  "departments": "Departments",
+  "people": "People",
+  "includeSub": "Include sub-departments",
+  "includeSubOf": "Include sub-departments of {name}",
+  "remove": "Remove {name}",
+  "none": "Nothing picked. Only members of the department see it.",
+  "cards": {
+    "title": "Scope cards",
+    "open": "Scope cards",
+    "none": "No saved cards.",
+    "apply": "Add contents of {name}",
+    "saveNew": "Save current selection as a card",
+    "name": "Card name",
+    "save": "Save",
+    "rename": "Rename",
+    "overwrite": "Overwrite with current selection",
+    "delete": "Delete",
+    "deleteConfirm": "Delete the \"{name}\" card?",
+    "cancel": "Cancel",
+    "close": "Close",
+    "summary": "Departments {departments} · People {people}"
+  },
+  "errors": {
+    "SCOPE_CARD_INVALID": "Card names are 1–30 characters and may hold only active departments and people.",
+    "SCOPE_CARD_DUPLICATE": "A scope card with the same name exists.",
+    "default": "Could not process. Try again later."
+  }
+}
