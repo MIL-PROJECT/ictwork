@@ -21,6 +21,9 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
+import org.springframework.http.MediaType
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -53,6 +56,8 @@ class WorkRequestFieldsTest(
     @Autowired private val notificationRepository: NotificationRepository,
 ) : AttachmentTestSupport(mockMvc, objectMapper, accountRepository, departmentRepository, personnelRepository, roleAssignmentRepository, workTypeRepository, passwordEncoder) {
     @Autowired private lateinit var intakeTypes: WorkTypeRepository
+    @Autowired private lateinit var accounts: AccountRepository
+    @Autowired private lateinit var mapper: ObjectMapper
     private lateinit var s1: Department
     private lateinit var s2: Department
     private lateinit var s3: Department
@@ -145,19 +150,65 @@ class WorkRequestFieldsTest(
     fun `all members can edit only their own department service information and stale edits are rejected`() {
         val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "화상회의 지원", sortOrder = 1))
         val own = "/api/work/department-services/own"
-        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체", "types" to listOf(mapOf("typeId" to type.id, "scheduleMode" to "EXACT_REQUIRED")))
+        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체")
         assertThat(getAs("rf-s1a", own)["version"].asLong()).isZero()
         send("PUT", "rf-s1a", own, input).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
         send("PUT", "rf-s1b", own, input).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_CONFLICT"))
         send("PUT", "rf-s1b", own, input + mapOf("version" to 1, "symptoms" to "화면 안 나옴")).andExpect(status().isOk)
         assertThat(getAs("rf-s1a", own)["symptoms"].asText()).isEqualTo("화면 안 나옴")
-        send("PUT", "rf-out", own, input).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_INVALID"))
+        send("PUT", "rf-s1a", own, input + mapOf("version" to 2, "systems" to "x".repeat(2001))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_INVALID"))
+        // 부서원은 일정 방식을 바꾸지 못한다: 본문에 실어 보내도 무시된다
+        send("PUT", "rf-s1a", own, input + mapOf("version" to 2, "types" to listOf(mapOf("typeId" to type.id, "scheduleMode" to "EXACT_REQUIRED")))).andExpect(status().isOk)
+        assertThat(getAs("rf-s1a", own)["types"].first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("OPTIONAL")
         assertThat(getAs("rf-out", own)["departmentId"].asLong()).isEqualTo(s2.id)
         val list = getAs("rf-req", "/api/work/department-services")
         assertThat(list.map { it["departmentId"].asLong() }).contains(s1.id)
-        assertThat(getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
         send("PUT", "rf-c3a", own, mapOf("version" to 0, "systems" to "상위 부서 체계")).andExpect(status().isOk)
         assertThat(getAs("rf-req", "/api/work/department-services").map { it["departmentId"].asLong() }).doesNotContain(c3.id)
+    }
+
+    @Test
+    fun `department admins edit service information and schedule modes of their role departments`() {
+        user("rf-s1admin", s1, "MEMBER", "DEPT_ADMIN" to s1)
+        user("rf-c3admin", c3, "MEMBER", "DEPT_ADMIN" to c3)
+        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "화상회의 지원", sortOrder = 1))
+        val admin = "/api/admin/department-services/${s1.id}"
+        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체")
+
+        assertThat(getAs("rf-s1admin", admin)["version"].asLong()).isZero()
+        send("PUT", "rf-s1admin", admin, input).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
+        assertThat(getAs("rf-s1a", "/api/work/department-services/own")["systems"].asText()).isEqualTo("화상회의 체계")
+        // 관리자와 부서원이 같은 판을 본다: 옛 판으로 저장하면 409
+        send("PUT", "rf-s1a", "/api/work/department-services/own", input).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_CONFLICT"))
+        send("PUT", "rf-s1a", "/api/work/department-services/own", input + mapOf("version" to 1, "symptoms" to "화면 안 나옴")).andExpect(status().isOk)
+        send("PUT", "rf-s1admin", admin, input + mapOf("version" to 1)).andExpect(status().isConflict)
+        assertThat(getAs("rf-s1admin", admin)["symptoms"].asText()).isEqualTo("화면 안 나옴")
+
+        // 역할 대상 부서가 아니면 거부: 다른 부서 관리자·일반 부서원
+        mockMvc.perform(get(admin).with(kr.ictwork.signedIn("rf-c3admin", accounts))).andExpect(status().isForbidden)
+        send("PUT", "rf-c3admin", admin, input + mapOf("version" to 2)).andExpect(status().isForbidden)
+        mockMvc.perform(get(admin).with(kr.ictwork.signedIn("rf-s1a", accounts))).andExpect(status().isForbidden)
+        send("PUT", "rf-s1a", admin, input + mapOf("version" to 2)).andExpect(status().isForbidden)
+
+        // 일정 방식은 업무 유형 관리에서 바꾼다
+        val patchType = { login: String, body: Map<String, Any?> ->
+            mockMvc.perform(patch("/api/admin/work-types/${type.id}").with(kr.ictwork.signedIn(login, accounts)).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
+        }
+        val version = intakeTypes.findById(type.id!!).get().version
+        patchType("rf-s1a", mapOf("version" to version, "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isForbidden)
+        patchType("rf-s1admin", mapOf("version" to version, "scheduleMode" to "SOMETIMES")).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_SCHEDULE_MODE_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version, "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isOk)
+            .andExpect(jsonPath("$.scheduleMode").value("EXACT_REQUIRED"))
+        assertThat(getAs("rf-s1admin", "/api/admin/work-types?departmentId=${s1.id}").first { it["id"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
+        assertThat(getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
+        assertThat(getAs("rf-s1a", "/api/work/department-services/own")["types"].first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
+        val other = intakeTypes.findAll().firstOrNull { it.departmentId == s1.id && it.isOther }
+            ?: intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "기타", true, 99))
+        mockMvc.perform(patch("/api/admin/work-types/${other.id}").with(kr.ictwork.signedIn("rf-s1admin", accounts)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf("version" to other.version, "scheduleMode" to "EXACT_REQUIRED"))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_OTHER_FIXED"))
     }
 
     @Test

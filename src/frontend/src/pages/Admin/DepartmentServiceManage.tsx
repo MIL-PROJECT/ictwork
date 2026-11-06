@@ -1,3 +1,4 @@
+import { fetchAdminDepartmentService, saveAdminDepartmentService, type DepartmentService, type ScheduleMode } from "@/api/departmentServices";
 import { createWorkType, fetchAdminWorkTypes, fetchWorkTypeDepartments, reorderWorkTypes, updateWorkType, type WorkTypeAdminRow } from "@/api/work";
 import ActionModal from "@/components/admin/ActionModal";
 import DataTable, { RowButton } from "@/components/admin/DataTable";
@@ -8,7 +9,8 @@ import PageMeta from "@/components/common/PageMeta";
 import Button from "@/components/ui/button/Button";
 import { INPUT_CLASS, LABEL_CLASS, useWorkError } from "@/components/work/format";
 import FormEditor from "@/components/workform/FormEditor";
-import { ListIcon, PlusIcon } from "@/icons";
+import DepartmentServiceEditor from "@/components/work/DepartmentServiceEditor";
+import { DocsIcon, ListIcon, PlusIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,11 +18,13 @@ import { useTranslation } from "react-i18next";
 type Dialog = { kind: "create" } | { kind: "rename"; type: WorkTypeAdminRow } | { kind: "toggle"; type: WorkTypeAdminRow };
 
 /**
- * 관리 ▸ 업무 유형 (REQ-808 유형 부분, slices/11 3.4.8): 부서 관리자가 역할의 대상 부서(하위 부서 제외)의 유형을
- * 추가·이름 바꾸기·사용 중지·다시 사용·순서 바꾸기 한다. "기타"는 고정(맨 끝, 이름·사용 바꾸지 않음, 양식 없음, G-57).
+ * 관리 ▸ 부서 업무 안내: 부서 관리자가 역할의 대상 부서(하위 부서 제외)를 골라
+ * ① 부서 업무 안내 문구(담당 체계·업무·증상·담당하지 않는 업무, 부서원 화면과 같은 판)를 고치고
+ * ② 업무 유형(REQ-808 유형 부분, slices/11 3.4.8)을 추가·이름 바꾸기·사용 중지·다시 사용·순서 바꾸기·일정 방식 바꾸기 한다.
+ * "기타"는 고정(맨 끝, 이름·사용·일정 방식 바꾸지 않음, 양식 없음, G-57).
  * 유형마다 양식을 만들고 미리 본다(REQ-808, FormEditor). 편집하는 동안 목록은 감춘다
  */
-export default function WorkTypeManage() {
+export default function DepartmentServiceManage() {
   const { t } = useTranslation("work");
   const { t: tc } = useTranslation();
   const { t: tf } = useTranslation("frameAdmin");
@@ -33,6 +37,10 @@ export default function WorkTypeManage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<WorkTypeAdminRow | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
+  const [modeSaving, setModeSaving] = useState<number | null>(null);
+  const loadService = useCallback(() => fetchAdminDepartmentService(departmentId as number), [departmentId]);
+  const saveService = useCallback((value: DepartmentService) => saveAdminDepartmentService(departmentId as number, value), [departmentId]);
 
   useEffect(() => {
     fetchWorkTypeDepartments().then(
@@ -82,13 +90,28 @@ export default function WorkTypeManage() {
     }
   };
 
-  const title = tc("sidebar.items.workTypes");
+  // 일정 방식: 고르는 즉시 그 유형만 저장한다(유형의 version으로 동시 수정 검사)
+  const changeMode = async (type: WorkTypeAdminRow, scheduleMode: ScheduleMode) => {
+    setModeError(null);
+    setModeSaving(type.id);
+    try {
+      const saved = await updateWorkType(type.id, type.version, { scheduleMode });
+      setTypes((list) => list?.map((row) => (row.id === saved.id ? saved : row)) ?? list);
+    } catch (err) {
+      setModeError(describeError(err));
+      void load();
+    } finally {
+      setModeSaving(null);
+    }
+  };
+
+  const title = tc("sidebar.items.departmentServiceManage");
   const empty = departments !== null && departments.length === 0;
 
   if (editing) {
     return (
       <div>
-        <PageMeta titleKey="sidebar.items.workTypes" />
+        <PageMeta titleKey="sidebar.items.departmentServiceManage" />
         <PageBreadcrumb pageTitle={title} />
         <FormEditor
           key={editing.id}
@@ -104,32 +127,13 @@ export default function WorkTypeManage() {
   }
 
   return (
-    <div>
-      <PageMeta titleKey="sidebar.items.workTypes" />
-      {/* OMNIS 페이지 머리: 설명 한 줄 + 오른쪽 화면 동작(유형 추가) */}
+    <div className="space-y-5">
+      <PageMeta titleKey="sidebar.items.departmentServiceManage" />
+      {/* OMNIS 페이지 머리: 설명 한 줄 + 오른쪽 부서 고르기(부서가 여럿일 때). 고른 부서로 아래 두 카드를 함께 본다 */}
       <PageBreadcrumb
         pageTitle={title}
-        description={t("admin.workTypesDesc")}
+        description={t("admin.departmentServiceDesc")}
         actions={
-          departmentId !== null && (
-            <Button size="sm" startIcon={<PlusIcon className="size-4" aria-hidden="true" />} onClick={() => open({ kind: "create" })}>
-              {t("admin.addType")}
-            </Button>
-          )
-        }
-      />
-      {/* 목록 = 카드 하나: 머리(아이콘·제목·부서·건수) + 걸러 보기 줄(부서 고르기) + 꽉 찬 표 */}
-      <Panel
-        icon={<ListIcon />}
-        title={tf("workTypes.listTitle")}
-        titleId="work-type-list-title"
-        subtitle={
-          <>
-            {departments !== null && departments.length === 1 && <span className="font-medium text-gray-600 dark:text-gray-300">{departments[0].path} · </span>}
-            {types && tf("workTypes.summary", { total: types.length, active: types.filter((type) => type.active).length })}
-          </>
-        }
-        toolbar={
           departments !== null &&
           departments.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -141,6 +145,8 @@ export default function WorkTypeManage() {
                 value={departmentId ?? ""}
                 onChange={(e) => {
                   setTypes(null);
+                  setModeError(null);
+                  setOrderError(null);
                   setDepartmentId(Number(e.target.value));
                 }}
                 className={cn(INPUT_CLASS, "w-auto min-w-60")}
@@ -154,8 +160,33 @@ export default function WorkTypeManage() {
             </div>
           )
         }
+      />
+      {empty && <p className="text-sm text-gray-500 dark:text-gray-400">{t("admin.noWorkTypeDepartment")}</p>}
+      {/* ① 업무 안내 문구: 부서원 화면과 같은 판을 고친다 */}
+      {departmentId !== null && (
+        <Panel icon={<DocsIcon />} title={t("admin.serviceInfoTitle")} titleId="department-service-title" subtitle={departments?.find((d) => d.id === departmentId)?.path}>
+          <DepartmentServiceEditor key={departmentId} load={loadService} save={saveService} />
+        </Panel>
+      )}
+      {/* ② 업무 유형 = 카드 하나: 머리(아이콘·제목·건수·유형 추가) + 꽉 찬 표 */}
+      {departmentId !== null && (
+      <Panel
+        icon={<ListIcon />}
+        title={tf("workTypes.listTitle")}
+        titleId="work-type-list-title"
+        subtitle={types && tf("workTypes.summary", { total: types.length, active: types.filter((type) => type.active).length })}
+        actions={
+          <Button size="sm" startIcon={<PlusIcon className="size-4" aria-hidden="true" />} onClick={() => open({ kind: "create" })}>
+            {t("admin.addType")}
+          </Button>
+        }
         flush
       >
+        {modeError && (
+          <p role="alert" className="border-b border-error-100 bg-error-50 px-[22px] py-3 text-sm text-error-600 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400">
+            {modeError}
+          </p>
+        )}
         {orderError && (
           <p role="alert" className="border-b border-error-100 bg-error-50 px-[22px] py-3 text-sm text-error-600 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400">
             {orderError}
@@ -164,9 +195,9 @@ export default function WorkTypeManage() {
         <DataTable
           flush
           caption={title}
-          columns={[t("columns.name"), t("columns.inUse"), t("admin.form"), t("columns.actions")]}
-          emptyText={empty ? t("admin.noWorkTypeDepartment") : failed ? t("loadFailed") : types === null ? t("loading") : t("empty")}
-          rows={(empty ? [] : (types ?? [])).map((type) => {
+          columns={[t("columns.name"), t("columns.inUse"), t("service.scheduleColumn"), t("admin.form"), t("columns.actions")]}
+          emptyText={failed ? t("loadFailed") : types === null ? t("loading") : t("empty")}
+          rows={(types ?? []).map((type) => {
             const index = ordinary.findIndex((x) => x.id === type.id);
             return {
               key: type.id,
@@ -174,6 +205,23 @@ export default function WorkTypeManage() {
               cells: [
                 type.name,
                 type.active ? t("admin.inUse") : t("admin.notInUse"),
+                type.isOther ? (
+                  <span key="mode" className="text-sm text-gray-500 dark:text-gray-400">
+                    -
+                  </span>
+                ) : (
+                  <select
+                    key="mode"
+                    aria-label={t("service.scheduleFor", { name: type.name })}
+                    value={type.scheduleMode}
+                    disabled={modeSaving === type.id}
+                    onChange={(e) => void changeMode(type, e.target.value as ScheduleMode)}
+                    className={cn(INPUT_CLASS, "w-auto min-w-48 py-1.5 text-sm")}
+                  >
+                    <option value="OPTIONAL">{t("service.optional")}</option>
+                    <option value="EXACT_REQUIRED">{t("service.exact")}</option>
+                  </select>
+                ),
                 type.isOther ? t("admin.noFormOther") : type.formVersionId !== null ? t("admin.hasForm") : t("admin.noForm"),
                 type.isOther ? (
                   <span key="actions" className="text-sm text-gray-500 dark:text-gray-400">
@@ -193,6 +241,7 @@ export default function WorkTypeManage() {
           })}
         />
       </Panel>
+      )}
       {dialog?.kind === "create" && departmentId !== null && (
         <ActionModal title={t("admin.addType")} submitLabel={t("save")} canSubmit={name.trim() !== ""} describeError={describeError}
           onSubmit={() => createWorkType(departmentId, name)} onClose={close} onDone={load}>

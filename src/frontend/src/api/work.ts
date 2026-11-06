@@ -597,12 +597,13 @@ export interface WorkTypeAdminRow {
   version: number;
   formVersionId: number | null;
   definition: FormDefinition | null; // 지금 판 정의 (양식 편집기의 처음 값)
+  scheduleMode: "OPTIONAL" | "EXACT_REQUIRED"; // 요청할 때 일정 입력 방식
 }
 
 export const fetchWorkTypeDepartments = () => apiFetch<{ id: number; path: string }[]>("/api/admin/work-types/departments");
 export const fetchAdminWorkTypes = (departmentId: number) => apiFetch<WorkTypeAdminRow[]>(`/api/admin/work-types?departmentId=${departmentId}`);
 export const createWorkType = (departmentId: number, name: string) => apiFetch<WorkTypeAdminRow>("/api/admin/work-types", json("POST", { departmentId, name }));
-export const updateWorkType = (id: number, version: number, change: { name?: string; active?: boolean }) =>
+export const updateWorkType = (id: number, version: number, change: { name?: string; active?: boolean; scheduleMode?: "OPTIONAL" | "EXACT_REQUIRED" }) =>
   apiFetch<WorkTypeAdminRow>(`/api/admin/work-types/${id}`, json("PATCH", { ...change, version }));
 export const reorderWorkTypes = (departmentId: number, ids: number[]) =>
   apiFetch<WorkTypeAdminRow[]>("/api/admin/work-types/order", json("PUT", { departmentId, ids }));

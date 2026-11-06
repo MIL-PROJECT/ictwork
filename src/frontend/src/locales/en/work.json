@@ -481,7 +481,9 @@
     "form": "Form",
     "hasForm": "Yes",
     "noForm": "No",
-    "noFormOther": "No form (common fields only)"
+    "noFormOther": "No form (common fields only)",
+    "departmentServiceDesc": "Manage the service information and the work types received by the target department of your role. Types already used are deactivated instead of deleted. \"Other\" always stays last and cannot be changed.",
+    "serviceInfoTitle": "Service information"
   },
   "errors": {
     "default": "Could not complete. Try again in a moment.",
@@ -529,7 +531,7 @@
     "DEPARTMENT_INVALID": "Could not find the department.",
     "POSITION_INVALID": "The position must be section leader, company commander or battalion commander.",
     "WORK_TYPE_DUPLICATE": "This department already has a work type with the same name.",
-    "WORK_TYPE_OTHER_FIXED": "\"Other\" cannot be renamed or deactivated.",
+    "WORK_TYPE_OTHER_FIXED": "\"Other\" cannot be renamed, deactivated, or given a schedule option.",
     "WORK_TYPE_CONFLICT": "Another administrator changed it first. Reload and try again.",
     "NAME_INVALID": "Enter a name of 1–50 characters.",
     "COLOR_INVALID": "Unknown color.",
@@ -551,10 +553,11 @@
     "ANSWER_INVALID": "Check the form answers.",
     "FORM_INVALID": "Check the form.",
     "PREFERRED_SCHEDULE_INVALID": "Check the date and time of day for both choices. Duplicate preferences are not allowed.",
-    "DEPARTMENT_SERVICE_CONFLICT": "Another member saved changes first. Reload the latest information.",
-    "DEPARTMENT_SERVICE_INVALID": "Use up to 2,000 characters per field and select your department’s work types.",
+    "DEPARTMENT_SERVICE_CONFLICT": "Someone else saved first. Reload the latest content and check it.",
+    "DEPARTMENT_SERVICE_INVALID": "Enter up to 2,000 characters for each item.",
     "REQUEST_SCHEDULE_REQUIRED": "Enter the preferred date and both times for this scheduled service.",
-    "REQUEST_SCHEDULE_INVALID": "The preferred end must follow the start, within one year."
+    "REQUEST_SCHEDULE_INVALID": "The preferred end must follow the start, within one year.",
+    "WORK_TYPE_SCHEDULE_MODE_INVALID": "Choose a valid schedule option."
   },
   "applicant": {
     "title": "Applicant",
@@ -709,7 +712,10 @@
     "saving": "Saving…",
     "saved": "Saved. Recommendations and new requests will use this information.",
     "reload": "Reload latest information",
-    "manageLink": "Register or edit my department’s service information"
+    "manageLink": "Register or edit my department’s service information",
+    "scheduleColumn": "Schedule",
+    "scheduleFor": "Schedule for {name}",
+    "scheduleReadonly": "Shows how a preferred schedule is requested for each work type. Ask a department admin to change it (Admin ▸ Department Services)."
   },
   "guidance": {
     "startTime": "Start time",

@@ -31,6 +31,7 @@ data class WorkTypeAdminRow(
     val version: Long,
     val formVersionId: Long?,
     val definition: FormDefinition?, // 지금 판 정의 (양식 편집기의 처음 값). 없으면 null
+    val scheduleMode: String, // 요청할 때 일정 입력 방식: OPTIONAL(희망일 선택)·EXACT_REQUIRED(정확한 일정 필수)
 )
 
 /** 내가 유형을 고칠 수 있는 부서 (역할의 대상 부서) */
@@ -38,7 +39,7 @@ data class WorkTypeDepartment(val id: Long, val path: String)
 
 data class WorkTypeCreateInput(val departmentId: Long, val name: String)
 
-data class WorkTypeUpdateInput(val name: String? = null, val active: Boolean? = null, val version: Long? = null)
+data class WorkTypeUpdateInput(val name: String? = null, val active: Boolean? = null, val version: Long? = null, val scheduleMode: String? = null)
 
 data class WorkTypeOrderInput(val departmentId: Long, val ids: List<Long>)
 
@@ -130,6 +131,11 @@ class WorkTypeAdminService(
             if (repository.existsByDepartmentIdAndName(type.departmentId, name)) throw duplicate()
             type.name = name
         }
+        input.scheduleMode?.let { mode ->
+            if (mode !in SCHEDULE_MODES) throw badRequest("WORK_TYPE_SCHEDULE_MODE_INVALID", "일정 방식을 올바르게 고르세요.")
+            if (type.isOther && mode != type.scheduleMode) throw badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"는 일정 방식을 바꿀 수 없습니다.")
+            type.scheduleMode = mode
+        }
         input.active?.let { type.active = it }
         return row(repository.saveAndFlush(type))
     }
@@ -195,6 +201,10 @@ class WorkTypeAdminService(
         return FormImage(file.extension, fileService.body(fileId) ?: throw notFound())
     }
 
+    private companion object {
+        val SCHEDULE_MODES = setOf("OPTIONAL", "EXACT_REQUIRED")
+    }
+
     private fun otherFixed() = badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"에는 양식을 넣을 수 없습니다.")
 
     private fun ordered(departmentId: Long) =
@@ -214,7 +224,7 @@ class WorkTypeAdminService(
         val definitions = forms.definitions(types.map { it.currentFormVersionId })
         return types.map {
             WorkTypeAdminRow(checkNotNull(it.id), it.name, it.isOther, it.active, it.sortOrder, it.version, it.currentFormVersionId,
-                it.currentFormVersionId?.let(definitions::get))
+                it.currentFormVersionId?.let(definitions::get), it.scheduleMode)
         }
     }
 }

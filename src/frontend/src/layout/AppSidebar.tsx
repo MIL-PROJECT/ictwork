@@ -226,9 +226,9 @@ const menuGroups: MenuGroup[] = [
       },
       {
         icon: <DocsIcon fontSize={24} />,
-        name: "업무 유형",
-        key: "workTypes",
-        path: "/admin/work-types",
+        name: "부서 업무 안내",
+        key: "departmentServiceManage",
+        path: "/admin/department-services",
         feature: "ADMIN_WORK_TYPE",
       },
       {
