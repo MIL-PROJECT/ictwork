@@ -610,7 +610,7 @@
       "Choose your preferred dates and attach files. The request goes to the whole department.",
       "Review your details, preferred dates and visibility before sending."
     ],
-    "stepOf": "Step {step} of 4",
+    "stepOf": "Step {step} of {total}",
     "summary": "Request summary",
     "destination": "Departments · Work types",
     "help": "Use the selected departments’ guidance and forms. Your entries are kept when you move between steps.",
@@ -730,25 +730,21 @@
       "steps": [
         "Department & type",
         "Request details",
-        "Files & delivery",
         "Review & send"
       ],
       "headings": [
         "Which department and service do you need?",
         "Complete the department’s request form",
-        "Review attachments and delivery",
         "Review your request"
       ],
       "descriptions": [
         "Find a recommended department or choose one from the organization chart, then select a work type.",
-        "Enter the location and details. Scheduled services require a date and times; fault reports do not.",
-        "Attach any necessary files. The request goes to the selected department.",
+        "Complete the department form, add any required schedule and attach files. The request goes to the selected department.",
         "Review the request and visibility. Choose send approval if needed."
       ],
       "errors": [
         "Select a department and one of its work types.",
         "Check the department form, request details and required schedule.",
-        "Check attachments and delivery.",
         "Check visibility and any selected approval route."
       ]
     }

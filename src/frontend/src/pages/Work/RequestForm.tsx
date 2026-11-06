@@ -565,7 +565,7 @@ export default function RequestForm({
   const stepForField = (id: string) => {
     if (id === "request-targets") return 0;
     if (id.startsWith("request-types")) return 0;
-    if (intake && id === "request-schedule-section") return 1;
+    if (intake && ["request-contact", "request-schedule-section", "request-attachments"].includes(id)) return 1;
     if (
       [
         "request-assignees",
@@ -575,7 +575,7 @@ export default function RequestForm({
       ].includes(id)
     )
       return 2;
-    if (["request-viewers", "request-steps"].includes(id)) return 3;
+    if (["request-viewers", "request-steps"].includes(id)) return intake ? 2 : 3;
     return 1;
   };
   const focusField = (id: string) => {
@@ -585,7 +585,6 @@ export default function RequestForm({
   const flowProblems = () => intake ? [
     targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types" : null,
     formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : !scheduleReady ? "request-schedule-section" : null,
-    null,
     viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : approvalRequested && (!stepsReady(steps) || inactiveRoute) ? "request-steps" : null,
   ] : [
     targets.length === 0 || targets.some(staleDepartment)
@@ -673,7 +672,7 @@ export default function RequestForm({
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!register && flowStep < 3) {
+    if (!register && flowStep < (intake ? 2 : 3)) {
       goToStep(flowStep + 1);
       return;
     }
@@ -1498,7 +1497,7 @@ export default function RequestForm({
       <button
         type="button"
         className="mt-4 text-sm font-semibold text-brand-600"
-        onClick={() => goToStep(2)}
+        onClick={() => goToStep(intake ? 1 : 2)}
       >
         {t(intake ? "guidance.editDelivery" : "flow.editSchedule")}
       </button>
@@ -1570,13 +1569,18 @@ export default function RequestForm({
                       </p>
                     )}
                     {!intake && fieldsSection}
+                    {intake && <>
+                      {departmentDelivery}
+                      {attachmentsSection}
+                      {!profile?.contact && applicantSection}
+                    </>}
                   </>,
-                  <>
-                    {!intake && scheduleSection}
-                    {intake ? departmentDelivery : assigneeSection}
+                  ...(!intake ? [<>
+                    {scheduleSection}
+                    {assigneeSection}
                     {attachmentsSection}
                     {!profile?.contact && applicantSection}
-                  </>,
+                  </>] : []),
                   <>
                     {reviewSection}
                     {viewersSection}

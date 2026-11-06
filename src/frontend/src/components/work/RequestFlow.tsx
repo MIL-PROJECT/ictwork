@@ -71,7 +71,7 @@ export default function RequestFlow({
         aria-label={t("flow.navigation")}
         className="rounded-2xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900"
       >
-        <ol className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+        <ol className={cn("grid gap-1", panels.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
           {panels.map((_, index) => (
             <li key={index}>
               <button
@@ -118,7 +118,7 @@ export default function RequestFlow({
         <div className="min-w-0 space-y-5">
           <div className="px-1">
             <p className="mb-1 text-xs font-semibold tracking-wide text-brand-600 dark:text-brand-400">
-              {t("flow.stepOf", { step: step + 1 })}
+              {t("flow.stepOf", { step: step + 1, total: panels.length })}
             </p>
             <h2
               id="request-flow-heading"
@@ -192,7 +192,7 @@ export default function RequestFlow({
             {t("flow.previous")}
           </button>
         )}
-        {step < 3 ? (
+        {step < panels.length - 1 ? (
           <button
             type="button"
             disabled={busy || uploading}
