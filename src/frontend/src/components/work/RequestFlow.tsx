@@ -6,16 +6,20 @@ export function RequestDisclosure({
   title,
   children,
   initiallyOpen = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   title: string;
   children: ReactNode;
   initiallyOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   return (
     <details
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
+      open={controlledOpen ?? open}
+      onToggle={(e) => { setOpen(e.currentTarget.open); onOpenChange?.(e.currentTarget.open); }}
       className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
     >
       <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 focus-visible:outline-brand-500 dark:text-gray-200">
@@ -44,6 +48,7 @@ export default function RequestFlow({
   busy,
   uploading,
   submitLabel,
+  intake = false,
 }: {
   step: number;
   panels: ReactNode[];
@@ -56,8 +61,10 @@ export default function RequestFlow({
   busy: boolean;
   uploading: boolean;
   submitLabel: string;
+  intake?: boolean;
 }) {
   const { t } = useTranslation("work");
+  const copy = intake ? "guidance.flow" : "flow";
   return (
     <div className="space-y-5">
       <nav
@@ -100,7 +107,7 @@ export default function RequestFlow({
                       : "text-gray-600 dark:text-gray-400",
                   )}
                 >
-                  {t(`flow.steps.${index}`)}
+                  {t(`${copy}.steps.${index}`)}
                 </span>
               </button>
             </li>
@@ -118,10 +125,10 @@ export default function RequestFlow({
               tabIndex={-1}
               className="text-xl font-bold tracking-tight text-gray-900 outline-none dark:text-white"
             >
-              {t(`flow.headings.${step}`)}
+              {t(`${copy}.headings.${step}`)}
             </h2>
             <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-              {t(`flow.descriptions.${step}`)}
+              {t(`${copy}.descriptions.${step}`)}
             </p>
           </div>
           {panels.map((panel, index) => (

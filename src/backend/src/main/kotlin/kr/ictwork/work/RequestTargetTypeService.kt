@@ -48,6 +48,8 @@ class RequestTargetTypeService(
 ) {
     private class Wanted(val target: Long, val type: WorkType, val choice: TypeChoiceInput)
 
+    fun requiresExactSchedule(targets: List<TargetInput>): Boolean = workTypeRepository.findAllById(targets.flatMap { it.types.map { type -> type.workTypeId } }.toSet()).any { it.active && it.scheduleMode == "EXACT_REQUIRED" }
+
     /** 요청의 받는 부서(request.targetDepartmentIds를 정한 뒤)마다 고른 유형·답을 검사해 저장한다. 다시 올릴 때 원래 고른 유형은 그대로 쓸 수 있다 */
     fun apply(actor: Actor, request: WorkRequest, targets: List<TargetInput>) {
         val requestId = checkNotNull(request.id)

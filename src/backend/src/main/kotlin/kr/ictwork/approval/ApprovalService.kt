@@ -148,6 +148,7 @@ data class SubjectRequest(
     val applicant: ApplicantView,
     val sentAt: LocalDateTime?,
     val preferences: List<kr.ictwork.work.PreferredSlot> = emptyList(),
+    val departmentIntake: Boolean = false,
 )
 
 /**

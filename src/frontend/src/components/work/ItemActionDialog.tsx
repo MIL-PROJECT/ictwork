@@ -100,7 +100,7 @@ export default function ItemActionDialog({
   const common = { onClose, onDone, describeError };
   const requestFiles = (
     <>
-      {!!item.schedule?.preferences?.length && <p className="mb-4 rounded-lg bg-brand-50 p-3 text-sm text-brand-700">{t("schedule.requested")}: {formatSchedule(item.schedule)}<br />{t("intake.scheduleNotice")}</p>}
+      {(!!item.schedule?.preferences?.length || !!item.schedule?.startDate) && <p className="mb-4 rounded-lg bg-brand-50 p-3 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">{t("schedule.requested")}: {formatSchedule(item.schedule)}<br />{t("intake.scheduleNotice")}</p>}
       {item.requestAttachments && item.requestAttachments.length > 0 && <RequestFiles items={item.requestAttachments} />}
       {item.answers}
     </>

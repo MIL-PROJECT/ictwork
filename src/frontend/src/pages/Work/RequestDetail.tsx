@@ -188,8 +188,8 @@ function RequestDetailPage() {
           )}
 
           {request.docs.length > 0 && (
-            <Section icon={<TimeIcon />} title={t(request.departmentIntake ? "intake.sendHistory" : "requestDetail.sendHistory")}>
-              <DocHistory docs={request.docs} showSteps={!request.departmentIntake} />
+            <Section icon={<TimeIcon />} title={t(request.departmentIntake && !request.approvalRequested ? "intake.sendHistory" : "requestDetail.sendHistory")}>
+              <DocHistory docs={request.docs} showSteps={!request.departmentIntake || request.approvalRequested} />
             </Section>
           )}
         </div>

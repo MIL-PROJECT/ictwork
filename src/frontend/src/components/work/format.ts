@@ -3,7 +3,7 @@ import { ApiError } from "@/api/client";
 import type { Department } from "@/api/org";
 import { fetchApprovalAccounts, type PlanInput, type PlanView, type Schedule, type StepKind, type ViewFrom } from "@/api/work";
 import { byName } from "@/components/org/OrgTree";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // 업무·결재 화면 공용 함수·스타일 (B 업무·결재, DEC-060)
@@ -11,10 +11,10 @@ import { useTranslation } from "react-i18next";
 /** 서버 오류 코드를 업무 화면 문구로 바꾼다 */
 export function useWorkError() {
   const { t } = useTranslation("work");
-  return (err: unknown) => {
+  return useCallback((err: unknown) => {
     const code = err instanceof ApiError ? err.code : "";
     return t(`errors.${code}`, { defaultValue: t("errors.default") });
-  };
+  }, [t]);
 }
 
 /** 목록 카드 부제 (OMNIS "조회 52건 · 긴급 5건"): 읽기 전이면 없음, 긴급 수가 0이거나 모르면 건수만 */

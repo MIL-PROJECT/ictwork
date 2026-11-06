@@ -123,6 +123,13 @@ class WorkRequest(
     @Column(name = "department_intake", nullable = false)
     var departmentIntake: Boolean = false
 
+    @Column(name = "approval_requested", nullable = false)
+    var approvalRequested: Boolean = false
+    @Column(name = "requested_start_date") var requestedStartDate: LocalDate? = null
+    @Column(name = "requested_start_time") var requestedStartTime: LocalTime? = null
+    @Column(name = "requested_end_date") var requestedEndDate: LocalDate? = null
+    @Column(name = "requested_end_time") var requestedEndTime: LocalTime? = null
+
     @Column(name = "preferred_date_1")
     var preferredDate1: LocalDate? = null
     @Column(name = "preferred_period_1", length = 2)

@@ -550,7 +550,11 @@
     "FORM_CHANGED": "The form changed while you were writing. The new form was loaded; check it and submit again.",
     "ANSWER_INVALID": "Check the form answers.",
     "FORM_INVALID": "Check the form.",
-    "PREFERRED_SCHEDULE_INVALID": "Check the date and time of day for both choices. Duplicate preferences are not allowed."
+    "PREFERRED_SCHEDULE_INVALID": "Check the date and time of day for both choices. Duplicate preferences are not allowed.",
+    "DEPARTMENT_SERVICE_CONFLICT": "Another member saved changes first. Reload the latest information.",
+    "DEPARTMENT_SERVICE_INVALID": "Use up to 2,000 characters per field and select your department’s work types.",
+    "REQUEST_SCHEDULE_REQUIRED": "Enter the preferred date and both times for this scheduled service.",
+    "REQUEST_SCHEDULE_INVALID": "The preferred end must follow the start, within one year."
   },
   "applicant": {
     "title": "Applicant",
@@ -639,14 +643,14 @@
   "recommend": {
     "issue": "Which system needs help, and what is the issue?",
     "placeholder": "For example: I cannot connect to the tactical network.",
-    "basis": "Compare your issue with work types registered directly by leaf departments. Review up to three candidates and choose a department.",
+    "basis": "Up to three leaf departments are recommended from their registered services, systems, symptoms and search terms.",
     "loading": "Loading departments…",
     "search": "Find recommended departments",
     "failed": "Could not load department information.",
     "changed": "Your description changed. Search again to update the recommendations.",
     "results": "Candidates: {count}",
     "limit": "Up to 3 · You choose",
-    "empty": "No registered work types of leaf departments match. Specify the system name or choose a department below.",
+    "empty": "No department matched. Use the expanded organization chart below to choose a leaf department.",
     "systems": "Registered responsibilities",
     "guide": "Department form guidance",
     "guideLoading": "Loading guidance…",
@@ -656,12 +660,13 @@
     "matched": "Your description includes this department’s registered work type: {names}.",
     "select": "Choose this department",
     "selected": "Selected department",
-    "manual": "Find a leaf department manually",
+    "manual": "Choose a department from the organization chart",
     "manualHelp": "Expand the organization tree. Only leaf departments with available receiving staff can be added.",
-    "fields": "This work form asks about: {names}."
+    "fields": "This work form asks about: {names}.",
+    "profileMatched": "Your description matches these registered terms: {names}."
   },
   "intake": {
-    "typeHelp": "Choose work types registered directly by the selected leaf department, then complete its form.",
+    "typeHelp": "Choose the selected leaf department’s work type before completing its form in the next step.",
     "context": "Request location and details",
     "place": "Request location",
     "details": "Details",
@@ -681,5 +686,71 @@
     "sendNotice": "Sending places this request in the selected department’s receipt queue.",
     "sendHistory": "Send history",
     "send": "Send request"
+  },
+  "service": {
+    "title": "Department services",
+    "help": "Department members maintain the information used for department recommendations and request guidance.",
+    "own": "My department",
+    "visibility": "All users can see this information when finding a department. Describe the scope and the terms people may search for.",
+    "systems": "Systems and equipment",
+    "responsibilities": "Services provided",
+    "symptoms": "Symptoms and search terms",
+    "exclusions": "Services not provided",
+    "systemsExample": "e.g. video conferencing, meeting room audio",
+    "responsibilitiesExample": "e.g. meeting room audio/video checks and conference connections",
+    "symptomsExample": "e.g. no video, no sound, cannot connect\nSeparate terms with commas or new lines.",
+    "exclusionsExample": "e.g. interpreter staffing, PC replacement",
+    "scheduleTitle": "Preferred schedule by work type",
+    "scheduleHelp": "Require an exact date and both times for scheduled services such as conferences or interpreting. Leave fault reports optional to show a collapsed schedule field.",
+    "optional": "Optional · collapsed (fault reports)",
+    "exact": "Required · exact date and start/end times",
+    "noTypes": "No work types are registered. Ask a department administrator to add them.",
+    "save": "Save service information",
+    "saving": "Saving…",
+    "saved": "Saved. Recommendations and new requests will use this information.",
+    "reload": "Reload latest information",
+    "manageLink": "Register or edit my department’s service information"
+  },
+  "guidance": {
+    "startTime": "Start time",
+    "endTime": "End time",
+    "exactTitle": "Preferred service schedule (required)",
+    "exactHelp": "Enter the date and both times. Leave the end date empty for the same day.",
+    "requiredHelp": "The selected work type is a scheduled service. Provide the exact date and time.",
+    "optionalTitle": "Add preferred dates (optional)",
+    "optionalHelp": "Fault reports can be sent without preferred dates. Enter them only when needed.",
+    "clearSchedule": "Clear preferred dates",
+    "editDelivery": "Edit attachments and delivery",
+    "noSchedule": "No preferred dates · coordinate with the department",
+    "approvalTitle": "Send approval (optional)",
+    "approvalCheck": "Send after approval",
+    "approvalHelp": "If selected, the request is sent after the approval route completes. Otherwise it goes directly to the department’s receipt list.",
+    "submitApproval": "Request send approval",
+    "flow": {
+      "steps": [
+        "Department & type",
+        "Request details",
+        "Files & delivery",
+        "Review & send"
+      ],
+      "headings": [
+        "Which department and service do you need?",
+        "Complete the department’s request form",
+        "Review attachments and delivery",
+        "Review your request"
+      ],
+      "descriptions": [
+        "Find a recommended department or choose one from the organization chart, then select a work type.",
+        "Enter the location and details. Scheduled services require a date and times; fault reports do not.",
+        "Attach any necessary files. The request goes to the selected department.",
+        "Review the request and visibility. Choose send approval if needed."
+      ],
+      "errors": [
+        "Select a department and one of its work types.",
+        "Check the department form, request details and required schedule.",
+        "Check attachments and delivery.",
+        "Check visibility and any selected approval route."
+      ]
+    }
   }
 }

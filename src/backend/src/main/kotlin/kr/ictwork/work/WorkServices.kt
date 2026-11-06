@@ -41,6 +41,8 @@ data class ViewerInput(val departmentIds: List<Long> = emptyList(), val personne
 data class RequestInput(
     val kind: String = RequestKinds.REQUEST,
     val departmentIntake: Boolean = false,
+    val approvalRequested: Boolean = false,
+    val requestedSchedule: RequestedScheduleInput? = null,
     val preferredSlots: List<PreferredSlot> = emptyList(),
     val title: String = "",
     val place: String = "",
@@ -70,6 +72,7 @@ data class TransferInput(val departmentId: Long, val version: Long? = null)
 data class PlanRequest(val plan: PlanInput, val version: Long? = null)
 data class VersionInput(val version: Long? = null)
 data class ReceiveInput(val version: Long? = null, val priority: String? = null)
+data class RequestedScheduleInput(val startDate: LocalDate, val startTime: LocalTime? = null, val endDate: LocalDate? = null, val endTime: LocalTime? = null)
 data class PriorityInput(val priority: String, val version: Long? = null)
 data class NoteInput(val content: String)
 /** 자동 완료는 체크 하나 (REQ-110, G-1): 완료되는 때는 작업 기간 끝으로 서버가 정한다 */
@@ -101,10 +104,10 @@ class WorkRequestService(
             checkNotNull(actor.account.id), actor.personnelDepartmentId, RequestPhases.SEND_APPROVAL, input.kind)
         applyFields(actor, request, input)
         applyTargets(actor, request, input)
-        applySchedule(request, input)
         applyPriority(request, input)
         val saved = workRequestRepository.saveAndFlush(request)
         requestTargetTypes.apply(actor, saved, input.targets)
+        applySchedule(saved, input)
         workAttachments.attachToRequest(actor, saved, input.attachmentIds)
         val plan = registerPlan(actor, saved, input, null)
         approvalService.start(actor, DocTypes.SEND, saved.id, null, sendSteps(actor, input), plan, plan != null)
@@ -137,7 +140,7 @@ class WorkRequestService(
 
     // 기존 발송 완료 처리·접수 알림을 재사용하되 간편 요청에서는 결재자를 지정하지 않는다.
     private fun sendSteps(actor: Actor, input: RequestInput): List<StepInput> =
-        if (input.departmentIntake) listOf(StepInput(StepKinds.APPROVE, checkNotNull(actor.account.id))) else input.steps
+        if (input.departmentIntake && !input.approvalRequested) listOf(StepInput(StepKinds.APPROVE, checkNotNull(actor.account.id))) else input.steps
 
     private fun requestTitle(input: RequestInput): String = if (input.departmentIntake)
         validTitle(FormRules.clip("${input.place.trim()} · ${input.content.trim().lineSequence().firstOrNull().orEmpty()}", 100))
@@ -150,6 +153,7 @@ class WorkRequestService(
         request.place = place
         if (input.departmentIntake && request.kind != RequestKinds.REQUEST) throw badRequest("REQUEST_KIND_INVALID", "부서 접수는 업무 요청에서만 사용합니다.")
         request.departmentIntake = input.departmentIntake
+        request.approvalRequested = input.departmentIntake && input.approvalRequested
         request.assigneePersonnelIds = if (input.departmentIntake) mutableSetOf() else validAssignees(input.assigneePersonnelIds).toMutableSet()
         // 신청자 정보는 작성(다시 올리기 포함)하는 사람의 그때 인원 정보로 채우고 고칠 수 없다. 연락처가 비어 있으면 그 칸만 적는다(선택)
         val person = checkNotNull(personnelRepository.findById(actor.account.personnelId).orElse(null))
@@ -191,12 +195,28 @@ class WorkRequestService(
         request.preferredPeriod1 = null
         request.preferredDate2 = null
         request.preferredPeriod2 = null
+        request.requestedStartDate = null
+        request.requestedStartTime = null
+        request.requestedEndDate = null
+        request.requestedEndTime = null
         if (input.departmentIntake) {
-            validatePreferredSlots(input.preferredSlots)
-            val first = input.preferredSlots.first()
+            val exact = input.requestedSchedule
+            if (requestTargetTypes.requiresExactSchedule(input.targets) && exact == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "선택한 지원 업무의 희망 날짜와 시작·종료 시간을 입력하세요.")
+            if (exact != null) {
+                val end = exact.endDate ?: exact.startDate
+                if (exact.startTime == null || exact.endTime == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "희망 시작·종료 시간을 입력하세요.")
+                if (exact.startDate.year !in 2000..2099 || end.year !in 2000..2099 || end.isBefore(exact.startDate) || !end.isBefore(exact.startDate.plusYears(1)) || !end.atTime(exact.endTime).isAfter(exact.startDate.atTime(exact.startTime))) throw badRequest("REQUEST_SCHEDULE_INVALID", "희망 일정의 종료는 시작보다 뒤이고, 기간은 1년 이하여야 합니다.")
+                if (input.preferredSlots.isNotEmpty()) throw badRequest("REQUEST_SCHEDULE_INVALID", "정확한 일정과 1·2지망 일정을 함께 보낼 수 없습니다.")
+                request.requestedStartDate = exact.startDate
+                request.requestedStartTime = exact.startTime
+                request.requestedEndDate = end
+                request.requestedEndTime = exact.endTime
+            }
+            if (input.preferredSlots.isNotEmpty()) validatePreferredSlots(input.preferredSlots)
+            val first = input.preferredSlots.firstOrNull()
             val second = input.preferredSlots.getOrNull(1)
-            request.preferredDate1 = first.date
-            request.preferredPeriod1 = first.period
+            request.preferredDate1 = first?.date
+            request.preferredPeriod1 = first?.period
             request.preferredDate2 = second?.date
             request.preferredPeriod2 = second?.period
             // 접수자가 확정하기 전에는 희망 일정을 작업 계획으로 복사하지 않는다.

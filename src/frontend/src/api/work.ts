@@ -133,6 +133,7 @@ export interface Applicant {
 
 // 결재 문서의 대상 요청 칸 (REQ-210, G-6)
 export interface DocSubjectRequest {
+  departmentIntake?: boolean;
   preferences?: PreferredSlot[];
   kind: RequestKind;
   title: string;
@@ -198,6 +199,7 @@ export interface TargetTypes {
 
 // 고르기 목록의 한 줄 (REQ-118, G-51·G-64): label은 같은 순위 동점일 때만 부서를 붙인 이름("전화(1반)")
 export interface TypeOption {
+  scheduleMode?: "OPTIONAL" | "EXACT_REQUIRED";
   typeId: number;
   label: string;
   name: string;
@@ -266,6 +268,7 @@ export interface Schedule {
 export type ViewFrom = "mine" | "viewable" | "department" | "receipts";
 
 export interface RequestDetail {
+  approvalRequested?: boolean;
   departmentIntake?: boolean;
   id: number;
   kind: RequestKind;
@@ -304,6 +307,7 @@ export interface ItemDetail {
   approvalRejected: boolean;
   rejectReason: string | null;
   request: {
+    departmentIntake?: boolean;
     id: number;
     kind: RequestKind;
     title: string;
@@ -353,6 +357,8 @@ export interface Roster {
 }
 
 export interface RequestInput {
+  approvalRequested?: boolean;
+  requestedSchedule?: { startDate: string; startTime: string; endDate: string | null; endTime: string } | null;
   departmentIntake?: boolean;
   preferredSlots?: PreferredSlot[];
   kind: RequestKind;

@@ -128,15 +128,73 @@ class WorkRequestFieldsTest(
     }
 
     @Test
-    fun `department intake rejects missing duplicate or invalid preferences but allows one choice`() {
+    fun `department intake allows absent preferences but rejects duplicate or invalid choices`() {
         val am = mapOf("date" to "2026-11-10", "period" to "AM")
-        val invalid = listOf(emptyList(), listOf(am, am), listOf(am, am, am), listOf(mapOf("date" to "2026-11-10", "period" to "NIGHT")))
+        val invalid = listOf(listOf(am, am), listOf(am, am, am), listOf(mapOf("date" to "2026-11-10", "period" to "NIGHT")))
         invalid.forEach { slots ->
             send("POST", "rf-req", "/api/work/requests", intakeBody() + ("preferredSlots" to slots))
                 .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
         }
         val id = create("rf-req", intakeBody() + ("preferredSlots" to listOf(am)))
         assertThat(detail("rf-req", id)["schedule"]["preferences"].size()).isEqualTo(1)
+        val without = create("rf-req", intakeBody() - "preferredSlots")
+        assertThat(detail("rf-req", without)["schedule"]["preferences"].size()).isZero()
+    }
+
+    @Test
+    fun `all members can edit only their own department service information and stale edits are rejected`() {
+        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "화상회의 지원", sortOrder = 1))
+        val own = "/api/work/department-services/own"
+        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체", "types" to listOf(mapOf("typeId" to type.id, "scheduleMode" to "EXACT_REQUIRED")))
+        assertThat(getAs("rf-s1a", own)["version"].asLong()).isZero()
+        send("PUT", "rf-s1a", own, input).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
+        send("PUT", "rf-s1b", own, input).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_CONFLICT"))
+        send("PUT", "rf-s1b", own, input + mapOf("version" to 1, "symptoms" to "화면 안 나옴")).andExpect(status().isOk)
+        assertThat(getAs("rf-s1a", own)["symptoms"].asText()).isEqualTo("화면 안 나옴")
+        send("PUT", "rf-out", own, input).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_INVALID"))
+        assertThat(getAs("rf-out", own)["departmentId"].asLong()).isEqualTo(s2.id)
+        val list = getAs("rf-req", "/api/work/department-services")
+        assertThat(list.map { it["departmentId"].asLong() }).contains(s1.id)
+        assertThat(getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
+        send("PUT", "rf-c3a", own, mapOf("version" to 0, "systems" to "상위 부서 체계")).andExpect(status().isOk)
+        assertThat(getAs("rf-req", "/api/work/department-services").map { it["departmentId"].asLong() }).doesNotContain(c3.id)
+    }
+
+    @Test
+    fun `scheduled support requires an exact request date and both times without creating a confirmed work plan`() {
+        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "통역 지원", sortOrder = 1).also { it.scheduleMode = "EXACT_REQUIRED" })
+        val base = (intakeBody() - "preferredSlots") + mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to type.id)))))
+        val date = mapOf("startDate" to "2026-11-10", "startTime" to "09:00", "endTime" to "11:00")
+        send("POST", "rf-req", "/api/work/requests", base).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", base + ("requestedSchedule" to (date - "endTime"))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", base + ("requestedSchedule" to (date + ("endTime" to "08:00")))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_INVALID"))
+        val id = create("rf-req", base + ("requestedSchedule" to date))
+        val request = detail("rf-req", id)
+        assertThat(request["schedule"]["startTime"].asText()).startsWith("09:00")
+        assertThat(request["schedule"]["endTime"].asText()).startsWith("11:00")
+        val doc = getAs("rf-req", "/api/approvals/docs/${request["docs"][0]["id"].asLong()}")
+        assertThat(doc["subject"]["request"]["startTime"].asText()).startsWith("09:00")
+        val itemId = itemOf(id, s1)
+        workItemService.receive("rf-s1a", itemId, ReceiveInput())
+        assertThat(workItemRepository.findById(itemId).get().startDate).isNull()
+        assertThat(getAs("rf-s1a", "/api/work/items/$itemId")["request"]["departmentIntake"].asBoolean()).isTrue()
+    }
+
+    @Test
+    fun `optional send approval waits for the selected route and then delivers the department request`() {
+        val base = intakeBody() - "preferredSlots"
+        send("POST", "rf-req", "/api/work/requests", base + ("approvalRequested" to true)).andExpect(status().isBadRequest)
+        val id = create("rf-req", base + mapOf("approvalRequested" to true, "steps" to line("rf-req", approve("rf-s3b"))))
+        val waiting = detail("rf-req", id)
+        assertThat(waiting["phase"].asText()).isEqualTo("SEND_APPROVAL")
+        assertThat(waiting["approvalRequested"].asBoolean()).isTrue()
+        assertThat(waiting["items"].size()).isZero()
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/approve").andExpect(status().isNoContent)
+        assertThat(detail("rf-req", id)["phase"].asText()).isEqualTo("SENT")
+        assertThat(detail("rf-req", id)["items"].size()).isEqualTo(1)
+        val direct = create("rf-req", base)
+        assertThat(detail("rf-req", direct)["phase"].asText()).isEqualTo("SENT")
+        assertThat(detail("rf-req", direct)["approvalRequested"].asBoolean()).isFalse()
     }
 
     @Test

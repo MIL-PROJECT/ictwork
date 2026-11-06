@@ -140,6 +140,7 @@ data class RequestDetail(
     val priority: String, // 업무 등록의 처음 우선순위(고쳐 다시 올리기 처음 값, DEC-065)
     val attachments: List<AttachmentView>, // 요청 첨부 (REQ-115): 다시 올리기 화면의 처음 값이기도 하다
     val forms: Map<Long, FormDefinition>, // targets의 유형들이 쓴 양식 판 정의 (판 id → 정의, REQ-118)
+    val approvalRequested: Boolean = false,
 )
 
 data class ItemDetail(
@@ -185,6 +186,7 @@ data class RequestSummary(
     val sentAt: LocalDateTime?,
     val attachments: List<AttachmentView>, // 요청 첨부 (REQ-115)
     val forms: Map<Long, FormDefinition>, // types가 쓴 양식 판 정의 (판 id → 정의, REQ-118)
+    val departmentIntake: Boolean = false,
 )
 
 /** 지원 인원 후보: 사용 중 인원이라 계급·연락처를 함께 보인다 (REQ-402) */
@@ -372,6 +374,7 @@ class WorkQueryService(
             // 요청 첨부는 요청 공통 칸이라 요청을 볼 수 있는 사람 모두에게 보인다 (REQ-115). 화면 기준 보기는 처리 건 쪽만 줄인다(slices/11 2.8)
             workAttachments.ofRequest(id),
             requestTargetTypes.formsOf(targets.flatMap { it.types }),
+            request.approvalRequested,
         )
     }
 
@@ -563,14 +566,14 @@ class WorkQueryService(
         }
     }
 
-    private fun schedule(request: WorkRequest) = ScheduleView(request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime, preferredSlots(request))
+    private fun schedule(request: WorkRequest) = ScheduleView(request.requestedStartDate ?: request.workStartDate, request.requestedStartTime ?: request.workStartTime, request.requestedEndDate ?: request.workEndDate, request.requestedEndTime ?: request.workEndTime, preferredSlots(request))
 
     private fun summary(request: WorkRequest, item: WorkItem): RequestSummary {
         val types = requestTargetTypes.ofItem(item)
         return RequestSummary(
             checkNotNull(request.id), request.kind, request.title, request.place, request.content,
             requestFields.assignees(request), requestFields.applicant(request), schedule(request), types, accountName(request.requesterAccountId),
-            request.requesterDepartmentId, request.sentAt, workAttachments.ofRequest(checkNotNull(request.id)), requestTargetTypes.formsOf(types),
+            request.requesterDepartmentId, request.sentAt, workAttachments.ofRequest(checkNotNull(request.id)), requestTargetTypes.formsOf(types), request.departmentIntake,
         )
     }
 
@@ -593,7 +596,7 @@ class RequestFields(private val personnelRepository: PersonnelRepository) {
     /** 결재 문서의 대상 요청 칸 (G-6) */
     fun subject(request: WorkRequest) = SubjectRequest(
         request.kind, request.title, request.place, request.content, assignees(request),
-        request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime, applicant(request), request.sentAt, preferredSlots(request),
+        request.requestedStartDate ?: request.workStartDate, request.requestedStartTime ?: request.workStartTime, request.requestedEndDate ?: request.workEndDate, request.requestedEndTime ?: request.workEndTime, applicant(request), request.sentAt, preferredSlots(request), request.departmentIntake,
     )
 }
 

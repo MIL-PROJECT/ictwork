@@ -156,7 +156,8 @@
       "taskReceipt": "Task Receipt",
       "workTypes": "Work Types",
       "approvalRoutes": "Approval Routes",
-      "taskRequest": "Task Request"
+      "taskRequest": "Task Request",
+      "departmentService": "Department services"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",

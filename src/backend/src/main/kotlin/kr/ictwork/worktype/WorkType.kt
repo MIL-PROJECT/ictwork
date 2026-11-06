@@ -40,6 +40,9 @@ class WorkType(
     @Column(name = "current_form_version_id")
     var currentFormVersionId: Long? = null
 
+    @Column(name = "schedule_mode", nullable = false, length = 20)
+    var scheduleMode: String = "OPTIONAL"
+
     @Version
     var version: Long = 0
 

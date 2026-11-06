@@ -26,6 +26,7 @@ import IctStatus from "./pages/IctStatus/IctStatus";
 import EquipmentDetail from "./pages/Department/EquipmentDetail";
 import EquipmentList from "./pages/Department/EquipmentList";
 import OrgChart from "./pages/Department/OrgChart";
+import DepartmentService from "./pages/Department/DepartmentService";
 import PeopleList from "./pages/Department/PeopleList";
 import NotFound from "./pages/OtherPage/NotFound";
 import NotSupported from "./pages/OtherPage/NotSupported";
@@ -90,6 +91,7 @@ export default function App() {
             <Route path="/approvals/in-progress" element={<MyDrafts />} />
             <Route path="/approvals/docs/:id" element={<ApprovalDoc />} />
             <Route path="/department/org-chart" element={<OrgChart />} />
+            <Route path="/department/services" element={<DepartmentService />} />
             <Route path="/department/people" element={<PeopleList />} />
             <Route path="/department/equipment" element={<EquipmentList />} />
             {/* 등록과 상세가 같은 화면이라 key를 달리해 등록 뒤 상세로 갈 때 상태를 새로 시작한다 */}

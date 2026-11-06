@@ -149,6 +149,7 @@ const menuGroups: MenuGroup[] = [
         key: "orgChart",
         path: "/department/org-chart",
       },
+      { icon: <DocsIcon fontSize={24} />, name: "부서 업무 안내", key: "departmentService", path: "/department/services" },
       {
         icon: <GroupIcon fontSize={24} />,
         name: "인원",

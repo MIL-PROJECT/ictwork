@@ -1,4 +1,5 @@
 import PreferredScheduleFields from "@/components/work/PreferredScheduleFields";
+import { exactRequestScheduleValid } from "@/components/work/requestSchedule";
 import { emptyPreference, preferencesValid, preferenceInputs, type PreferredDraft } from "@/components/work/preferredSchedule";
 import DepartmentRecommendations from "@/components/work/DepartmentRecommendations";
 import { ApiError } from "@/api/client";
@@ -52,6 +53,7 @@ import {
   useActiveAccountIds,
   useRankName,
   useWorkError,
+  formatSchedule,
 } from "@/components/work/format";
 import PlanEditor from "@/components/work/PlanEditor";
 import ScheduleFields, {
@@ -143,6 +145,8 @@ const SERVER_FIELDS: Record<string, string> = {
   ORIGINS_INVALID: "request-origins",
   STEPS_INVALID: "request-steps",
   STEPS_REQUIRED: "request-steps",
+  REQUEST_SCHEDULE_REQUIRED: "request-schedule-section",
+  REQUEST_SCHEDULE_INVALID: "request-schedule-section",
   APPROVER_INVALID: "request-steps",
 };
 
@@ -204,6 +208,8 @@ export default function RequestForm({
   const [viewerDepartments, setViewerDepartments] = useState<number[]>([]);
   const [viewerPeople, setViewerPeople] = useState<number[]>([]);
   const [steps, setSteps] = useState<StepRow[]>([]);
+  const [approvalRequested, setApprovalRequested] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleValue>({
     startDate: "",
     startTime: "",
@@ -303,6 +309,7 @@ export default function RequestForm({
           ),
         );
         setTitle(r.title);
+        setApprovalRequested(r.approvalRequested ?? false);
         setPlace(r.place);
         setContent(r.content);
         setAssignees(r.assignees.map((a) => a.personnelId));
@@ -394,7 +401,9 @@ export default function RequestForm({
             .map((a) => a.departmentId).filter((id): id is number => id !== null),
         )
       : null;
-  const scheduleReady = intake ? preferencesValid(preferences) : periodOk(
+  const exactRequired = intake && typeTargets.some((d) => typeOptions[d]?.some((type) => (chosenTypes[d] ?? []).includes(type.typeId) && type.scheduleMode === "EXACT_REQUIRED"));
+  const hasPreferences = preferences.some((slot) => !!slot.date || !!slot.period);
+  const scheduleReady = intake ? (exactRequired ? exactRequestScheduleValid(schedule) : !hasPreferences || preferencesValid(preferences)) : periodOk(
     schedule.startDate,
     schedule.startTime,
     schedule.endDate,
@@ -512,16 +521,16 @@ export default function RequestForm({
     scheduleReady &&
     supportReady &&
     !stale &&
-    (intake || !inactiveRoute) &&
+    ((intake && !approvalRequested) || !inactiveRoute) &&
     (register ? ownDepartment !== null : targets.length > 0) &&
     viewerCount > 0 &&
-    (intake || stepsReady(steps));
+    ((intake && !approvalRequested) || stepsReady(steps));
   const missing = (text: string) => tried && text.trim() === "";
   const invalid = (text: string) => ({
     "aria-invalid": missing(text) || undefined,
     "aria-describedby": missing(text) ? "request-error" : undefined,
   });
-  const selfOnly = intake || (steps.length === 1 && steps[0].accountId === user?.accountId);
+  const selfOnly = (intake && !approvalRequested) || (steps.length === 1 && steps[0].accountId === user?.accountId);
 
   // 양식 답 검사 (서버가 다시 봄): 지나는 구역의 필수·응답 검증. 화면 순서대로 첫 번째로 틀린 양식
   const formProblem = () => {
@@ -550,12 +559,13 @@ export default function RequestForm({
     if (answer) return `request-form-${answer.form.key.replace(":", "-")}`;
     if (viewerCount === 0) return "request-viewers";
     if (!supportReady) return "request-support";
-    if (!intake && (!stepsReady(steps) || inactiveRoute)) return "request-steps";
+    if ((!intake || approvalRequested) && (!stepsReady(steps) || inactiveRoute)) return "request-steps";
     return null;
   };
   const stepForField = (id: string) => {
     if (id === "request-targets") return 0;
-    if (id.startsWith("request-types")) return intake ? 1 : 0;
+    if (id.startsWith("request-types")) return 0;
+    if (intake && id === "request-schedule-section") return 1;
     if (
       [
         "request-assignees",
@@ -573,11 +583,10 @@ export default function RequestForm({
     setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
   };
   const flowProblems = () => intake ? [
-    targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : null,
-    typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types"
-      : formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : null,
-    !scheduleReady ? "request-schedule-section" : null,
-    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : null,
+    targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types" : null,
+    formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : !scheduleReady ? "request-schedule-section" : null,
+    null,
+    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : approvalRequested && (!stepsReady(steps) || inactiveRoute) ? "request-steps" : null,
   ] : [
     targets.length === 0 || targets.some(staleDepartment)
       ? "request-targets"
@@ -618,7 +627,7 @@ export default function RequestForm({
       if (problem) {
         setTried(true);
         if (stepForField(problem) === 1) setShowRequired(true);
-        setError(t(`flow.errors.${stepForField(problem)}`));
+        setError(t(`${intake ? "guidance.flow" : "flow"}.errors.${stepForField(problem)}`));
         focusField(problem);
         return;
       }
@@ -673,7 +682,7 @@ export default function RequestForm({
       if (problem) {
         setTried(true);
         setShowRequired(true);
-        setError(t(`flow.errors.${stepForField(problem)}`));
+        setError(t(`${intake ? "guidance.flow" : "flow"}.errors.${stepForField(problem)}`));
         focusField(problem);
         return;
       }
@@ -726,7 +735,9 @@ export default function RequestForm({
     const input: RequestInput = {
       kind,
       departmentIntake: intake,
-      preferredSlots: intake ? preferenceInputs(preferences) : [],
+      approvalRequested: intake && approvalRequested,
+      requestedSchedule: exactRequired ? { ...schedule, endDate: schedule.endDate || null } : null,
+      preferredSlots: intake && !exactRequired ? preferenceInputs(preferences) : [],
       title: intake ? "" : title,
       place,
       content,
@@ -764,7 +775,7 @@ export default function RequestForm({
           : null,
       priority: register ? priority : null,
       viewers: { departmentIds: viewerDepartments, personnelIds: viewerPeople },
-      steps: intake ? [] : toStepInputs(steps),
+      steps: intake && !approvalRequested ? [] : toStepInputs(steps),
       attachmentIds: attachmentIds(attachments),
     };
     try {
@@ -778,6 +789,7 @@ export default function RequestForm({
         navigate(`/work/requests/${created.id}?from=mine`);
       }
     } catch (err) {
+      if (err instanceof ApiError && err.code === "REQUEST_SCHEDULE_REQUIRED") await Promise.all(typeTargets.map(loadTypeOptions));
       if (err instanceof ApiError && err.code === "FORM_CHANGED") {
         await reloadForms();
         setError(tw("request.formChanged"));
@@ -806,7 +818,7 @@ export default function RequestForm({
   const add = (list: number[], set: (ids: number[]) => void, value: number) =>
     !list.includes(value) && set([...list, value]);
   const addTarget = (d: number) => {
-    if (intake) { setFlowStep(1); setError(null); setFocusRequest((prev) => ({ id: "request-flow-heading", n: (prev?.n ?? 0) + 1 })); }
+    if (intake) setError(null);
     if (targets.includes(d)) return;
     setTargets([...targets, d]);
     loadTypeOptions(d);
@@ -908,8 +920,9 @@ export default function RequestForm({
           icon={<GroupIcon />}
           title={t("register.targets")}
         >
-          <DepartmentRecommendations departments={departments} paths={paths} receivers={receivers} selected={targets} onSelect={(departmentId, issue) => { addTarget(departmentId); if (!content.trim()) setContent(issue); }} />
-          <RequestDisclosure title={t("recommend.manual")}>
+          <DepartmentRecommendations departments={departments} paths={paths} receivers={receivers} selected={targets} onSelect={(departmentId, issue) => { addTarget(departmentId); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
+          <RequestDisclosure title={t("recommend.manual")} open={manualOpen} onOpenChange={setManualOpen}>
+          <div id="request-manual-departments" tabIndex={-1}>
           <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
           <OrgPicker
             label={t("register.targets")}
@@ -919,7 +932,7 @@ export default function RequestForm({
               receivers !== null && receivers.has(d.id) && !departments.some((child) => child.parentId === d.id)
             }
           />
-          </RequestDisclosure>
+          </div></RequestDisclosure>
           <SelectedList
             title={t("register.targets")}
             items={targetItems}
@@ -1148,6 +1161,17 @@ export default function RequestForm({
             <div><label htmlFor="request-place" className={LABEL_CLASS}>{t("intake.place")} <span className="text-error-500">*</span></label><input id="request-place" value={place} onChange={(event) => setPlace(clip(event, 100))} {...invalid(place)} className={INPUT_CLASS} /></div>
             <div><label htmlFor="request-content" className={LABEL_CLASS}>{t("intake.details")} <span className="text-error-500">*</span></label><textarea id="request-content" rows={4} value={content} onChange={(event) => setContent(clip(event, 2000))} {...invalid(content)} className={TEXTAREA_CLASS} /></div>
           </div>}
+          {intake && <div id="request-schedule-section" className="mt-5 space-y-3">
+            {exactRequired ? <div className="space-y-3 rounded-xl border border-brand-200 p-4 dark:border-brand-800">
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t("guidance.exactTitle")}</h3>
+              <p className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
+              <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} />
+            </div> : <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
+              <p className="text-sm text-gray-500">{t("guidance.optionalHelp")}</p>
+              <PreferredScheduleFields value={preferences} onChange={setPreferences} invalid={tried && !scheduleReady} />
+              {hasPreferences && <button type="button" className="text-sm text-gray-500 underline" onClick={() => setPreferences([emptyPreference(), emptyPreference()])}>{t("guidance.clearSchedule")}</button>}
+            </RequestDisclosure>}
+          </div>}
         </Section>
       )}
     </>
@@ -1330,7 +1354,7 @@ export default function RequestForm({
             </p>
             <RequestDisclosure
               title={t("flow.editRoute")}
-              initiallyOpen={register}
+              initiallyOpen={register || (intake && approvalRequested)}
             >
               <StepsEditor
                 docType="SEND"
@@ -1419,7 +1443,6 @@ export default function RequestForm({
   ) : (
     <p className="text-sm text-gray-400">{t("flow.destinationEmpty")}</p>
   );
-  const preferredScheduleSection = <Section id="request-schedule-section" icon={<CalenderIcon />} title={t("intake.scheduleTitle")}><PreferredScheduleFields value={preferences} onChange={setPreferences} invalid={tried && !scheduleReady} /></Section>;
   const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><p className="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => paths.get(d)).join(" · ")}</p></Section>;
   const reviewSection = (
     <Section
@@ -1444,7 +1467,7 @@ export default function RequestForm({
         <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")}>
           {intake ? t("intake.departmentDelivery") : assigneeItems.map((item) => item.label).join(", ")}
         </InfoRow>
-        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{preferenceInputs(preferences).map((slot, i) => <p key={i}>{t("intake.preference", { n: i + 1 })}: {slot.date} {t(`intake.${slot.period}`)}</p>)}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
+        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{exactRequired ? formatSchedule(schedule) : hasPreferences ? preferenceInputs(preferences).map((slot, i) => <p key={i}>{t("intake.preference", { n: i + 1 })}: {slot.date} {t(`intake.${slot.period}`)}</p>) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
           {[schedule.startDate, schedule.startTime].filter(Boolean).join(" ")}
           {schedule.endDate || schedule.endTime
             ? ` → ${schedule.endDate || schedule.startDate} ${schedule.endTime}`
@@ -1477,7 +1500,7 @@ export default function RequestForm({
         className="mt-4 text-sm font-semibold text-brand-600"
         onClick={() => goToStep(2)}
       >
-        {t("flow.editSchedule")}
+        {t(intake ? "guidance.editDelivery" : "flow.editSchedule")}
       </button>
     </Section>
   );
@@ -1531,14 +1554,14 @@ export default function RequestForm({
               </>
             ) : (
               <RequestFlow
+                intake={intake}
                 step={flowStep}
                 panels={[
                   <>
                     {targetSection}
-                    {!intake && typesSection}
+                    {typesSection}
                   </>,
                   <>
-                    {intake && typesSection}
                     {forms.length > 0 || intake ? (
                       formsSection
                     ) : (
@@ -1549,7 +1572,7 @@ export default function RequestForm({
                     {!intake && fieldsSection}
                   </>,
                   <>
-                    {intake ? preferredScheduleSection : scheduleSection}
+                    {!intake && scheduleSection}
                     {intake ? departmentDelivery : assigneeSection}
                     {attachmentsSection}
                     {!profile?.contact && applicantSection}
@@ -1557,9 +1580,13 @@ export default function RequestForm({
                   <>
                     {reviewSection}
                     {viewersSection}
-                    {!intake && stepsSection}
+                    {intake && <Section icon={<ListIcon />} title={t("guidance.approvalTitle")}>
+                      <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200"><input id="request-approval-enabled" type="checkbox" checked={approvalRequested} onChange={(event) => setApprovalRequested(event.target.checked)} />{t("guidance.approvalCheck")}</label>
+                      <p className="mt-2 text-sm text-gray-500">{t("guidance.approvalHelp")}</p>
+                    </Section>}
+                    {(!intake || approvalRequested) && stepsSection}
                     <p className="px-1 text-sm text-gray-500">
-                      {t(intake ? "intake.sendNotice" : selfOnly ? "flow.selfNotice" : "flow.approvalNotice")}
+                      {t(intake && !approvalRequested ? "intake.sendNotice" : selfOnly ? "flow.selfNotice" : "flow.approvalNotice")}
                     </p>
                   </>,
                 ]}
@@ -1593,7 +1620,7 @@ export default function RequestForm({
                 busy={submitting}
                 uploading={uploading}
                 submitLabel={
-                  intake ? t("intake.send") : editId !== null
+                  intake ? t(approvalRequested ? "guidance.submitApproval" : "intake.send") : editId !== null
                     ? t("register.resubmit")
                     : selfOnly
                       ? t("register.submitSelf")

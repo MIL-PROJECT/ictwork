@@ -18,6 +18,7 @@ data class TypeOption(
     val isOther: Boolean,
     val formVersionId: Long?,
     val definition: FormDefinition? = null, // 지금 판 정의 (고르기 목록 API에서만 채움)
+    val scheduleMode: String = "OPTIONAL",
 )
 
 /** 걸러 보기의 유형 한 줄 (REQ-117 ③): active는 유형, departmentActive는 만든 부서의 사용 여부(화면이 "(사용 중지)"·"(삭제된 부서)"를 붙임) */
@@ -81,7 +82,7 @@ class WorkTypeResolver(private val workTypeRepository: WorkTypeRepository, priva
     }
 
     fun option(tree: DepartmentTree, type: WorkType, label: String = type.name) =
-        TypeOption(checkNotNull(type.id), label, type.name, type.departmentId, path(tree, type.departmentId), type.isOther, type.currentFormVersionId)
+        TypeOption(checkNotNull(type.id), label, type.name, type.departmentId, path(tree, type.departmentId), type.isOther, type.currentFormVersionId, scheduleMode = type.scheduleMode)
 
     /** 상위 부서부터 이어 붙인 전체 경로 ("1대대 1중대 1반") */
     fun path(tree: DepartmentTree, departmentId: Long): String =

@@ -206,7 +206,7 @@ class WorkFilterMatcher(
             val status = statusOf(request, items)
             (filter.statuses.isEmpty() || status in filter.statuses) &&
                 (period == null || when (period.basis) {
-                    PeriodBases.WORK -> period.overlaps(request.workStartDate, request.workEndDate)
+                    PeriodBases.WORK -> period.overlaps(request.requestedStartDate ?: request.workStartDate, request.requestedEndDate ?: request.workEndDate)
                     PeriodBases.APPLIED -> period.contains(request.sentAt)
                     PeriodBases.COMPLETED -> period.contains(completedOn(status, items))
                     else -> period.contains(request.updatedAt)
