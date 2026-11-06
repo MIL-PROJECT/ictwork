@@ -26,6 +26,8 @@ export type RequestStatus = "SEND_APPROVAL" | "SEND_REJECTED" | "SEND_WITHDRAWN"
 export interface NamedRef {
   id: number;
   name: string;
+  rankCode?: string | null; // 계획의 지원 인원만: 계급
+  contact?: string | null; // 계획의 지원 인원만: 연락처
 }
 
 export interface StepInput {

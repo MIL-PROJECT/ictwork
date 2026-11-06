@@ -754,5 +754,26 @@
         "Check visibility and any selected approval route."
       ]
     }
+  },
+  "progress": {
+    "title": "Progress",
+    "flow": "Processing steps",
+    "now": "Now",
+    "state": "State",
+    "receiveApproval": "The department is approving the receipt.",
+    "completeApproval": "Work is finished and the completion approval is in progress.",
+    "received": "Received",
+    "completed": "Completed",
+    "transferred": "Transferred to another department. Check that department's progress as well.",
+    "waiting": "The department has not received it yet.",
+    "summary": "{done} of {total} departments done · {open} in progress",
+    "planTitle": "Plan",
+    "noPlan": "Schedule not set · Dates and staff appear once the department makes a plan.",
+    "noPlanClosed": "No plan.",
+    "noPeople": "Staff not set",
+    "noContact": "No contact",
+    "myRequest": "My request",
+    "resultFiles": "Result files",
+    "etc": "Other (viewers · send approval)"
   }
 }

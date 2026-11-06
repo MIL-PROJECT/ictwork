@@ -85,8 +85,8 @@ data class SlotView(
 /** 결재 문서의 계획 제안: 머리(자동 완료)와 칸 (접수·등록 결재) */
 data class DocPlan(val autoComplete: Boolean, val slots: List<PlanSlot>)
 
-/** 이름이 붙은 참조 (지원 인원·장비) */
-data class NamedRef(val id: Long, val name: String)
+/** 이름이 붙은 참조 (지원 인원·장비). 계획의 지원 인원은 계급·연락처도 싣는다(요청자가 누가 오는지·누구에게 연락할지 본다) */
+data class NamedRef(val id: Long, val name: String, val rankCode: String? = null, val contact: String? = null)
 
 /** 계획의 장비: 장비명(시리얼넘버)·상태·반출 여부를 함께 보인다 (REQ-108 "계획에 '고장'이 보인다", E-30) */
 data class PlanEquipment(val id: Long, val name: String, val status: String, val carryOut: String)
@@ -97,7 +97,7 @@ class PlanNames(private val personnelRepository: PersonnelRepository, private va
     /** 칸은 저장 순서(sortOrder)대로. 처리 건 작업 기간은 시작이 가장 이른 칸 ~ 가장 늦게 끝나는 칸 */
     fun view(slots: List<PlanSlot>, autoComplete: Boolean): PlanView {
         val ordered = slots.sortedBy { it.sortOrder }
-        val people = personnelRepository.findAllById(ordered.flatMap { it.personnelIds }.toSet()).associate { checkNotNull(it.id) to NamedRef(checkNotNull(it.id), it.name) }
+        val people = personnelRepository.findAllById(ordered.flatMap { it.personnelIds }.toSet()).associate { checkNotNull(it.id) to NamedRef(checkNotNull(it.id), it.name, it.rankCode, it.contact) }
         val equipment = equipmentRepository.findAllById(ordered.flatMap { it.equipmentIds }.toSet())
             .associate { checkNotNull(it.id) to PlanEquipment(checkNotNull(it.id), it.displayName, it.status, it.carryOut) }
         val first = ordered.minByOrNull { it.startAt() }

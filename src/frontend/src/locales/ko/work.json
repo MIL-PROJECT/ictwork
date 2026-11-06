@@ -753,5 +753,26 @@
         "열람 범위와 선택한 결재 경로를 확인해 주세요."
       ]
     }
+  },
+  "progress": {
+    "title": "진행 상황",
+    "flow": "처리 단계",
+    "now": "현재",
+    "state": "상태",
+    "receiveApproval": "부서에서 접수 결재를 진행하고 있습니다.",
+    "completeApproval": "작업을 마치고 완료 결재를 진행하고 있습니다.",
+    "received": "접수",
+    "completed": "완료",
+    "transferred": "다른 부서로 이송되었습니다. 이송받은 부서의 진행 상황을 함께 확인하세요.",
+    "waiting": "부서에서 아직 접수하지 않았습니다.",
+    "summary": "{total}개 부서 중 {done}개 완료 · 진행 중 {open}개",
+    "planTitle": "계획",
+    "noPlan": "일정 미정 · 부서에서 계획을 세우면 날짜와 지원 인원이 보입니다.",
+    "noPlanClosed": "계획이 없습니다.",
+    "noPeople": "지원 인원 미정",
+    "noContact": "연락처 미등록",
+    "myRequest": "내가 요청한 내용",
+    "resultFiles": "처리 결과 파일",
+    "etc": "기타 정보 (열람 범위·발송 결재)"
   }
 }
