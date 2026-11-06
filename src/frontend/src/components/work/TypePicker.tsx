@@ -30,6 +30,8 @@ export default function TypePicker({
     return acc;
   }, []);
   const keptHere = kept.filter((k) => selected.includes(k.typeId) && !(options ?? []).some((o) => o.typeId === k.typeId));
+  // 묶음이 하나뿐이면(부서 접수 요청) "기타"도 그 칸 안 맨 끝에 둔다
+  const otherInside = groups.length === 1;
 
   return (
     <div className="space-y-2">
@@ -43,7 +45,7 @@ export default function TypePicker({
           <details key={group.departmentId} open className="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
             <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">{group.path}</summary>
             <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-              {group.items.map((o) => (
+              {[...group.items, ...(otherInside ? others : [])].map((o) => (
                 <li key={o.typeId}>
                   <label className="inline-flex items-center gap-2 text-sm text-gray-800 dark:text-white/90">
                     <input type="checkbox" checked={selected.includes(o.typeId)} onChange={() => toggle(o.typeId)} />
@@ -54,7 +56,7 @@ export default function TypePicker({
             </ul>
           </details>
           ))}
-          {others.map((o) => (
+          {!otherInside && others.map((o) => (
             <label key={o.typeId} className="flex items-center gap-2 px-3 text-sm text-gray-800 dark:text-white/90">
               <input type="checkbox" checked={selected.includes(o.typeId)} onChange={() => toggle(o.typeId)} />
               {o.label}

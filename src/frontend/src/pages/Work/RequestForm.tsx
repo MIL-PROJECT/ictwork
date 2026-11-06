@@ -958,9 +958,10 @@ export default function RequestForm({
           <div className="space-y-5">
             {typeTargets.map((d) => (
               <div key={d} id={`request-types-${d}`}>
-                <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
+                {/* 부서 접수 요청은 유형 칸 제목이 곧 받는 부서라 위 부서명을 따로 두지 않는다 */}
+                {!intake && <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
                   {paths.get(d) ?? t("register.inactiveItem")}
-                </p>
+                </p>}
                 {typeErrors[d] && (
                   <p role="alert" className="mb-3 text-sm text-error-600">
                     {t("flow.typeFailed")}{" "}
