@@ -676,6 +676,7 @@
     "scheduleHelp": "Enter a preferred date and time; the receiving department uses it to set the actual schedule. Time is optional.",
     "date": "Preferred date",
     "time": "Preferred time",
+    "quickTime": "Common times",
     "deliveryTitle": "Receiving department",
     "departmentDelivery": "Send to the selected department without assigning an individual.",
     "scheduleNotice": "These are preferences, not a confirmed work schedule.",

@@ -675,6 +675,7 @@
     "scheduleHelp": "희망 일자와 시각을 적으면 받는 부서가 참고해 실제 작업 일정을 정합니다. 시각은 비워도 됩니다.",
     "date": "희망 일자",
     "time": "희망 시각",
+    "quickTime": "자주 쓰는 시각",
     "deliveryTitle": "접수 부서",
     "departmentDelivery": "개인 담당자 지정 없이 선택한 부서 전체로 요청합니다.",
     "scheduleNotice": "희망 일정이며 확정된 작업 일정은 아닙니다.",

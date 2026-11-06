@@ -1458,17 +1458,18 @@ export default function RequestForm({
         <InfoRow label={t(intake ? "intake.details" : "register.content")} long>
           {content}
         </InfoRow>
-        <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")}>
-          {intake ? t("intake.departmentDelivery") : assigneeItems.map((item) => item.label).join(", ")}
+        {/* 부서 접수 요청: 접수 부서(한 줄에 하나)·희망 일정·첨부파일을 옆이 아닌 위아래로 */}
+        <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")} wide={intake}>
+          {intake ? targets.map((d) => paths.get(d)).join("\n") : assigneeItems.map((item) => item.label).join(", ")}
         </InfoRow>
-        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{exactRequired ? formatSchedule(schedule) : hasPreferences ? formatSchedule({ startDate: null, startTime: null, endDate: null, endTime: null, preferences: preferenceInputs(preference) }) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
+        {intake ? <InfoRow label={t("intake.scheduleTitle")} wide>{exactRequired ? formatSchedule(schedule) : hasPreferences ? formatSchedule({ startDate: null, startTime: null, endDate: null, endTime: null, preferences: preferenceInputs(preference) }) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
           {[schedule.startDate, schedule.startTime].filter(Boolean).join(" ")}
           {schedule.endDate || schedule.endTime
             ? ` → ${schedule.endDate || schedule.startDate} ${schedule.endTime}`
             : ""}
         </InfoRow>
 </>}
-        <InfoRow label={tf("title")}>
+        <InfoRow label={tf("title")} wide={intake}>
           {attachments.map((item) => item.name).join(", ") || t("flow.none")}
         </InfoRow>
       </InfoGrid>
