@@ -6,6 +6,8 @@ import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, FileIcon, FolderIcon, Horizon
 import { cn } from "@/utils";
 import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import FilePreviewDialog from "@/components/file/preview/FilePreviewDialog";
+import { previewKind } from "@/components/file/preview/previewKind";
 import { formatTime, type SortKey, type SortState } from "./docUtil";
 
 export interface DocRowActions {
@@ -49,6 +51,8 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
   caption: string;
 }) {
   const { t } = useTranslation("docbox");
+  // 미리보기 창: PDF·그림·txt·한글·워드는 새 탭 대신 체계 안에서 본다
+  const [previewing, setPreviewing] = useState<{ id: number; name: string } | null>(null);
   const showShared = items.some((i) => i.shared !== null);
   const showIndex = items.some((i) => i.indexStatus !== null);
 
@@ -89,8 +93,8 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
       if (node.indexStatus === "FAILED") list.push({ key: "reindex", label: t("actions.reindex"), onSelect: () => actions.onReindex(node) });
     }
     if (actions.canEdit || actions.canDeleteOnly) list.push({ key: "trash", label: t("actions.trash"), onSelect: () => actions.onTrash(node), danger: true });
-    if (list.length > 0 && node.kind === "FILE" && node.viewable)
-      list.unshift({ key: "view", label: t("actions.view"), onSelect: () => window.open(docViewUrl(node.id), "_blank", "noopener") });
+    if (list.length > 0 && node.kind === "FILE" && previewKind(node.name))
+      list.unshift({ key: "view", label: t("actions.view"), onSelect: () => setPreviewing({ id: node.id, name: node.name }) });
     return list;
   };
 
@@ -136,11 +140,10 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
                       <button type="button" onClick={() => actions.onOpen(node)} className={nameLink}>
                         {node.name}
                       </button>
-                    ) : node.viewable ? (
-                      <a href={docViewUrl(node.id)} target="_blank" rel="noopener" className={nameLink}>
+                    ) : previewKind(node.name) ? (
+                      <button type="button" onClick={() => setPreviewing({ id: node.id, name: node.name })} className={nameLink}>
                         {node.name}
-                        <span className="sr-only"> {t("actions.newTab")}</span>
-                      </a>
+                      </button>
                     ) : (
                       <a href={docDownloadUrl(node.id)} className={nameLink}>
                         {node.name}
@@ -195,6 +198,9 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
           })}
         </tbody>
       </table>
+      {previewing && (
+        <FilePreviewDialog key={previewing.id} name={previewing.name} viewUrl={docViewUrl(previewing.id)} downloadUrl={docDownloadUrl(previewing.id)} onClose={() => setPreviewing(null)} />
+      )}
     </div>
   );
 }

@@ -35,5 +35,7 @@ export function uploadFile(purpose: FilePurpose, file: File) {
 
 // 내려받기 주소: 서버가 attachment로 보내 브라우저가 열지 않고 저장한다
 export const fileUrl = (id: number) => `/api/files/${id}`;
+// 화면에서 바로 보기 (PDF·PNG·JPG·txt). 권한은 내려받기와 같다
+export const fileViewUrl = (id: number) => `/api/files/${id}/view`;
 
 export const deleteTempFile = (id: number) => apiFetch<void>(`/api/files/${id}`, { method: "DELETE" });
