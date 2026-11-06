@@ -13,22 +13,24 @@ export default function RequestFields({
   assignees,
   applicant,
   sentAt,
+  departmentIntake = false,
 }: {
   place: string;
   content: string;
   assignees: Assignee[];
   applicant: Applicant;
   sentAt: string | null;
+  departmentIntake?: boolean;
 }) {
   const { t } = useTranslation("work");
   const rankName = useRankName();
   return (
     <>
-      <InfoRow label={t("register.place")}>{place}</InfoRow>
-      <InfoRow label={t("register.content")} long>
+      <InfoRow label={t(departmentIntake ? "intake.place" : "register.place")}>{place}</InfoRow>
+      <InfoRow label={t(departmentIntake ? "intake.details" : "register.content")} long>
         {content}
       </InfoRow>
-      <InfoRow label={t("register.assignees")}>{assignees.map(rankName).join(", ") || t("none")}</InfoRow>
+      <InfoRow label={t(departmentIntake ? "intake.deliveryTitle" : "register.assignees")}>{departmentIntake ? t("intake.departmentDelivery") : assignees.map(rankName).join(", ") || t("none")}</InfoRow>
       <InfoRow label={t("applicant.person")}>{[applicant.departmentName, rankName(applicant)].filter(Boolean).join(" ")}</InfoRow>
       <InfoRow label={t("applicant.contact")}>{applicant.contact ?? t("none")}</InfoRow>
       <InfoRow label={t("applicant.sentAt")}>{sentAt?.slice(0, 10) ?? t("applicant.notSent")}</InfoRow>

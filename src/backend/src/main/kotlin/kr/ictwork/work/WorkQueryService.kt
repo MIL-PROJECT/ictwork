@@ -89,7 +89,7 @@ data class ItemFilter(
 }
 
 /** 작업 일자 (DEC-062) */
-data class ScheduleView(val startDate: LocalDate?, val startTime: LocalTime?, val endDate: LocalDate?, val endTime: LocalTime?)
+data class ScheduleView(val startDate: LocalDate?, val startTime: LocalTime?, val endDate: LocalDate?, val endTime: LocalTime?, val preferences: List<PreferredSlot> = emptyList())
 
 data class ViewerResponse(val departmentIds: List<Long>, val personnelIds: List<Long>)
 
@@ -136,6 +136,7 @@ data class RequestDetail(
     val mine: Boolean,
     val editable: Boolean, // 발송 반려: 고쳐 다시 올림
     val cancelable: Boolean, // 보내기 전: 취소
+    val departmentIntake: Boolean,
     val priority: String, // 업무 등록의 처음 우선순위(고쳐 다시 올리기 처음 값, DEC-065)
     val attachments: List<AttachmentView>, // 요청 첨부 (REQ-115): 다시 올리기 화면의 처음 값이기도 하다
     val forms: Map<Long, FormDefinition>, // targets의 유형들이 쓴 양식 판 정의 (판 id → 정의, REQ-118)
@@ -366,6 +367,7 @@ class WorkQueryService(
             request.sentAt, request.createdAt, itemList(visibleItems), docs, mine,
             drafter && request.phase in RequestPhases.EDITABLE,
             (mine || drafter) && (request.phase == RequestPhases.SEND_APPROVAL || request.phase in RequestPhases.EDITABLE),
+            request.departmentIntake,
             request.priority,
             // 요청 첨부는 요청 공통 칸이라 요청을 볼 수 있는 사람 모두에게 보인다 (REQ-115). 화면 기준 보기는 처리 건 쪽만 줄인다(slices/11 2.8)
             workAttachments.ofRequest(id),
@@ -561,7 +563,7 @@ class WorkQueryService(
         }
     }
 
-    private fun schedule(request: WorkRequest) = ScheduleView(request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime)
+    private fun schedule(request: WorkRequest) = ScheduleView(request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime, preferredSlots(request))
 
     private fun summary(request: WorkRequest, item: WorkItem): RequestSummary {
         val types = requestTargetTypes.ofItem(item)
@@ -591,7 +593,7 @@ class RequestFields(private val personnelRepository: PersonnelRepository) {
     /** 결재 문서의 대상 요청 칸 (G-6) */
     fun subject(request: WorkRequest) = SubjectRequest(
         request.kind, request.title, request.place, request.content, assignees(request),
-        request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime, applicant(request), request.sentAt,
+        request.workStartDate, request.workStartTime, request.workEndDate, request.workEndTime, applicant(request), request.sentAt, preferredSlots(request),
     )
 }
 

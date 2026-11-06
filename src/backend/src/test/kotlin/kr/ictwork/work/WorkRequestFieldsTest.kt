@@ -52,6 +52,7 @@ class WorkRequestFieldsTest(
     @Autowired private val workItemService: WorkItemService,
     @Autowired private val notificationRepository: NotificationRepository,
 ) : AttachmentTestSupport(mockMvc, objectMapper, accountRepository, departmentRepository, personnelRepository, roleAssignmentRepository, workTypeRepository, passwordEncoder) {
+    @Autowired private lateinit var intakeTypes: WorkTypeRepository
     private lateinit var s1: Department
     private lateinit var s2: Department
     private lateinit var s3: Department
@@ -97,6 +98,57 @@ class WorkRequestFieldsTest(
     private fun itemIds(node: JsonNode) = node["items"].map { it["id"].asLong() }
 
     private fun itemOf(requestId: Long, department: Department) = workItemRepository.findByRequestIdOrderByIdAsc(requestId).first { it.departmentId == department.id }.id!!
+
+    private fun intakeBody() = (body("rf-req", s1) - "title" - "workStartDate" - "steps" - "assigneePersonnelIds") + mapOf(
+        "departmentIntake" to true,
+        "preferredSlots" to listOf(mapOf("date" to "2026-11-10", "period" to "AM"), mapOf("date" to "2026-11-09", "period" to "PM")),
+    )
+
+    @Test
+    fun `department intake sends without assignees or chosen approvers and preserves ranked preferences`() {
+        val id = create("rf-req", intakeBody())
+        val request = detail("rf-req", id)
+        assertThat(request["phase"].asText()).isEqualTo("SENT")
+        assertThat(request["departmentIntake"].asBoolean()).isTrue()
+        assertThat(request["assignees"].size()).isZero()
+        assertThat(request["title"].asText()).contains("가대대 통신실", "회선 품질 저하")
+        assertThat(request["schedule"]["startDate"].isNull).isTrue()
+        assertThat(request["schedule"]["preferences"].map { it["date"].asText() }).containsExactly("2026-11-10", "2026-11-09")
+        assertThat(request["docs"].size()).isEqualTo(1)
+        assertThat(request["docs"].first()["status"].asText()).isEqualTo(kr.ictwork.approval.DocStatuses.DONE)
+        for (member in listOf("rf-s1a", "rf-s1b")) {
+            val receipt = getAs(member, "/api/work/receipts").first { it["requestId"].asLong() == id }
+            assertThat(receipt["requestedSchedule"]["preferences"].size()).isEqualTo(2)
+        }
+        val itemId = itemOf(id, s1)
+        workItemService.receive("rf-s1a", itemId, ReceiveInput())
+        val item = getAs("rf-s1b", "/api/work/items/$itemId")
+        assertThat(item["request"]["schedule"]["preferences"].size()).isEqualTo(2)
+        assertThat(workItemRepository.findById(itemId).get().startDate).isNull()
+    }
+
+    @Test
+    fun `department intake rejects missing duplicate or invalid preferences but allows one choice`() {
+        val am = mapOf("date" to "2026-11-10", "period" to "AM")
+        val invalid = listOf(emptyList(), listOf(am, am), listOf(am, am, am), listOf(mapOf("date" to "2026-11-10", "period" to "NIGHT")))
+        invalid.forEach { slots ->
+            send("POST", "rf-req", "/api/work/requests", intakeBody() + ("preferredSlots" to slots))
+                .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        }
+        val id = create("rf-req", intakeBody() + ("preferredSlots" to listOf(am)))
+        assertThat(detail("rf-req", id)["schedule"]["preferences"].size()).isEqualTo(1)
+    }
+
+    @Test
+    fun `department intake rejects parent destinations inherited types and register mode`() {
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mapOf("kind" to "REGISTER"))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_KIND_INVALID"))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + ("targets" to listOf(mapOf("departmentId" to c3.id))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("TARGETS_INVALID"))
+        val parentType = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.parentId!!, "상위 부서 전용", sortOrder = 1))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + ("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to parentType.id))))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_INVALID"))
+    }
 
     private fun open(loginId: String, path: String) = mockMvc.perform(get(path).with(signedIn(loginId, accountRepository)))
 

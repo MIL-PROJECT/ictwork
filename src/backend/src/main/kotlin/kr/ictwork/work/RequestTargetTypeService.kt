@@ -69,6 +69,7 @@ class RequestTargetTypeService(
             picked.map { choice ->
                 val type = byId[choice.workTypeId]
                 val ok = type != null && (choice.workTypeId in listed || (choice.workTypeId in kept && resolver.stillUsable(actor.tree, target, type)))
+                if (request.departmentIntake && (type?.departmentId != target || type.active != true)) throw badRequest("WORK_TYPE_INVALID", "선택한 말단 부서가 등록한 업무 유형만 고르세요.")
                 if (!ok) throw badRequest("WORK_TYPE_INVALID", "고를 수 없는 업무 유형입니다. 사용 중인 유형을 다시 고르세요.")
                 Wanted(target, checkNotNull(type), choice)
             }

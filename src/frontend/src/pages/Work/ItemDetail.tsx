@@ -177,7 +177,7 @@ function ItemDetailPage() {
             <InfoGrid>
               <InfoRow label={t("columns.type")}>{item.request.types.map(typeLabel).join(", ")}</InfoRow>
               <InfoRow label={t(item.request.kind === "REGISTER" ? "schedule.title" : "schedule.requested")}>{formatSchedule(item.request.schedule) || t("none")}</InfoRow>
-              <RequestFields place={item.request.place} content={item.request.content} assignees={item.request.assignees} applicant={item.request.applicant} sentAt={item.request.sentAt} />
+              <RequestFields departmentIntake={!!item.request.schedule.preferences?.length} place={item.request.place} content={item.request.content} assignees={item.request.assignees} applicant={item.request.applicant} sentAt={item.request.sentAt} />
               <InfoRow label={tf("requestFiles")} wide>
                 <AttachmentList items={item.request.attachments} />
               </InfoRow>

@@ -153,7 +153,7 @@ function RequestDetailPage() {
                   )}
                 </span>
               </InfoRow>
-              <RequestFields place={request.place} content={request.content} assignees={request.assignees} applicant={request.applicant} sentAt={request.sentAt} />
+              <RequestFields departmentIntake={request.departmentIntake} place={request.place} content={request.content} assignees={request.assignees} applicant={request.applicant} sentAt={request.sentAt} />
               <InfoRow label={tf("title")} wide>
                 <AttachmentList items={request.attachments} />
               </InfoRow>
@@ -188,8 +188,8 @@ function RequestDetailPage() {
           )}
 
           {request.docs.length > 0 && (
-            <Section icon={<TimeIcon />} title={t("requestDetail.sendHistory")}>
-              <DocHistory docs={request.docs} />
+            <Section icon={<TimeIcon />} title={t(request.departmentIntake ? "intake.sendHistory" : "requestDetail.sendHistory")}>
+              <DocHistory docs={request.docs} showSteps={!request.departmentIntake} />
             </Section>
           )}
         </div>

@@ -549,7 +549,8 @@
     "FILE_NOT_TEMP": "Some attachments have expired or cannot be used. Remove them and upload again.",
     "FORM_CHANGED": "The form changed while you were writing. The new form was loaded; check it and submit again.",
     "ANSWER_INVALID": "Check the form answers.",
-    "FORM_INVALID": "Check the form."
+    "FORM_INVALID": "Check the form.",
+    "PREFERRED_SCHEDULE_INVALID": "Check the date and time of day for both choices. Duplicate preferences are not allowed."
   },
   "applicant": {
     "title": "Applicant",
@@ -584,5 +585,101 @@
     "NORMAL": "Normal",
     "URGENT": "Urgent",
     "urgentTag": "[Urgent]"
+  },
+  "flow": {
+    "navigation": "Request steps",
+    "steps": [
+      "Department",
+      "Request details",
+      "Preferred dates",
+      "Review & send"
+    ],
+    "headings": [
+      "Who should receive this request?",
+      "Follow the department’s guidance",
+      "When would you prefer the work?",
+      "Review your request"
+    ],
+    "descriptions": [
+      "Describe your issue for department recommendations, or choose a leaf department directly.",
+      "Choose the department’s work type and complete its form, including location and details.",
+      "Choose your preferred dates and attach files. The request goes to the whole department.",
+      "Review your details, preferred dates and visibility before sending."
+    ],
+    "stepOf": "Step {step} of 4",
+    "summary": "Request summary",
+    "destination": "Departments · Work types",
+    "help": "Use the selected departments’ guidance and forms. Your entries are kept when you move between steps.",
+    "footer": "Your request is sent after the final review.",
+    "previous": "Back",
+    "next": "Next",
+    "sending": "Sending…",
+    "chooseViewers": "Choose / change viewers",
+    "editRoute": "Review / change approval route",
+    "chooseAssignees": "Choose / change persons in charge",
+    "errors": [
+      "Check the receiving departments and their work types.",
+      "Complete the required details and department forms.",
+      "Check the date and time of day for both choices. Duplicate preferences are not allowed.",
+      "Check who can view this request."
+    ],
+    "destinationEmpty": "No department selected yet.",
+    "typePending": "Choose a work type.",
+    "contactLater": "You can add a contact number in the preferred dates step.",
+    "noForm": "This work type has no additional form. Enter the request details below.",
+    "reviewTitle": "Request to send",
+    "editContent": "Edit details",
+    "editSchedule": "Edit dates and attachments",
+    "none": "None",
+    "selfNotice": "This request will be sent immediately with self approval. Receiving departments start with receipt.",
+    "approvalNotice": "The request will be sent to the selected departments after approval.",
+    "typeFailed": "Could not load work types.",
+    "retry": "Retry"
+  },
+  "recommend": {
+    "issue": "Which system needs help, and what is the issue?",
+    "placeholder": "For example: I cannot connect to the tactical network.",
+    "basis": "Compare your issue with work types registered directly by leaf departments. Review up to three candidates and choose a department.",
+    "loading": "Loading departments…",
+    "search": "Find recommended departments",
+    "failed": "Could not load department information.",
+    "changed": "Your description changed. Search again to update the recommendations.",
+    "results": "Candidates: {count}",
+    "limit": "Up to 3 · You choose",
+    "empty": "No registered work types of leaf departments match. Specify the system name or choose a department below.",
+    "systems": "Registered responsibilities",
+    "guide": "Department form guidance",
+    "guideLoading": "Loading guidance…",
+    "guideFailed": "Could not load guidance. Check the form after selecting the department.",
+    "noGuide": "No separate guidance is registered. Check the responsibilities before selecting.",
+    "reason": "Why this department",
+    "matched": "Your description includes this department’s registered work type: {names}.",
+    "select": "Choose this department",
+    "selected": "Selected department",
+    "manual": "Find a leaf department manually",
+    "manualHelp": "Expand the organization tree. Only leaf departments with available receiving staff can be added.",
+    "fields": "This work form asks about: {names}."
+  },
+  "intake": {
+    "typeHelp": "Choose work types registered directly by the selected leaf department, then complete its form.",
+    "context": "Request location and details",
+    "place": "Request location",
+    "details": "Details",
+    "scheduleTitle": "Preferred work dates",
+    "scheduleHelp": "The first choice is required; the second is optional. Choose a date and AM/PM. The receiving department confirms the actual schedule.",
+    "first": "First choice (required)",
+    "second": "Second choice (optional)",
+    "preference": "Choice {n}",
+    "date": "Date",
+    "period": "Time of day",
+    "AM": "AM",
+    "PM": "PM",
+    "removeSecond": "Clear second choice",
+    "deliveryTitle": "Receiving department",
+    "departmentDelivery": "Send to the selected department without assigning an individual.",
+    "scheduleNotice": "These are preferences, not a confirmed work schedule.",
+    "sendNotice": "Sending places this request in the selected department’s receipt queue.",
+    "sendHistory": "Send history",
+    "send": "Send request"
   }
 }

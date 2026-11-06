@@ -1,3 +1,6 @@
+import PreferredScheduleFields from "@/components/work/PreferredScheduleFields";
+import { emptyPreference, preferencesValid, preferenceInputs, type PreferredDraft } from "@/components/work/preferredSchedule";
+import DepartmentRecommendations from "@/components/work/DepartmentRecommendations";
 import { ApiError } from "@/api/client";
 import { deleteTempFile, uploadFile } from "@/api/files";
 import { fetchProfile, type Profile } from "@/api/me";
@@ -20,7 +23,14 @@ import {
 } from "@/api/work";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
-import { InfoGrid, InfoRow, PriorityField, RejectionNote, Section, SelectedList } from "@/components/work/common";
+import {
+  InfoGrid,
+  InfoRow,
+  PriorityField,
+  RejectionNote,
+  Section,
+  SelectedList,
+} from "@/components/work/common";
 import {
   idParam,
   inactiveSteps,
@@ -44,26 +54,65 @@ import {
   useWorkError,
 } from "@/components/work/format";
 import PlanEditor from "@/components/work/PlanEditor";
-import ScheduleFields, { type ScheduleValue } from "@/components/work/ScheduleFields";
+import ScheduleFields, {
+  type ScheduleValue,
+} from "@/components/work/ScheduleFields";
 import OrgPicker from "@/components/work/OrgPicker";
 import StepsEditor from "@/components/work/StepsEditor";
 import TypePicker from "@/components/work/TypePicker";
 import AttachmentInput from "@/components/file/AttachmentInput";
-import { type AttachmentItem, attachmentIds, attachmentsBusy, fromAttachments } from "@/components/file/attachments";
+import {
+  type AttachmentItem,
+  attachmentIds,
+  attachmentsBusy,
+  fromAttachments,
+} from "@/components/file/attachments";
 import Button from "@/components/ui/button/Button";
+import RequestFlow, { RequestDisclosure } from "@/components/work/RequestFlow";
 import { useAuth } from "@/context/AuthContext";
 import { useOrgData } from "@/hooks/useOrgData";
-import { BoltIcon, BoxIconLine, CalenderIcon, DocsIcon, EyeIcon, FolderIcon, GroupIcon, ListIcon, PageIcon, PaperClipIcon, TaskIcon, UserIcon } from "@/icons";
-import { type FillValue, emptyFill, fillAnswers, fillBusy, fillFrom, fillHasAnswers, fillProblem } from "@/components/workform/fill";
+import {
+  BoltIcon,
+  BoxIconLine,
+  CalenderIcon,
+  DocsIcon,
+  EyeIcon,
+  FolderIcon,
+  GroupIcon,
+  ListIcon,
+  PageIcon,
+  PaperClipIcon,
+  TaskIcon,
+  UserIcon,
+} from "@/icons";
+import {
+  type FillValue,
+  emptyFill,
+  fillAnswers,
+  fillBusy,
+  fillFrom,
+  fillHasAnswers,
+  fillProblem,
+} from "@/components/workform/fill";
 import FormFill from "@/components/workform/FormFill";
-import { type FormDefinition, normalize } from "@/components/workform/questions";
+import {
+  type FormDefinition,
+  normalize,
+} from "@/components/workform/questions";
 import { clip, cn } from "@/utils";
-import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useState } from "react";
+import {
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
 // 초점을 받을 수 있는 칸 (올리기 실패 때 첫 오류 칸으로 옮김, REQ-101)
-const FOCUSABLE = 'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])';
+const FOCUSABLE =
+  'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])';
 
 // 서버가 칸 오류로 거부한 코드 → 그 칸(구역) id. 대응 칸이 없는 코드는 초점을 옮기지 않는다
 const SERVER_FIELDS: Record<string, string> = {
@@ -78,6 +127,7 @@ const SERVER_FIELDS: Record<string, string> = {
   ASSIGNEES_INVALID: "request-assignees",
   WORK_DATE_INVALID: "request-schedule-section",
   WORK_DATE_REQUIRED: "request-schedule-section",
+  PREFERRED_SCHEDULE_INVALID: "request-schedule-section",
   ANSWER_INVALID: "request-forms",
   VIEWERS_INVALID: "request-viewers",
   VIEWERS_REQUIRED: "request-viewers",
@@ -111,7 +161,11 @@ const SERVER_FIELDS: Record<string, string> = {
  * 칸 순서 (REQ-101·114, G-2·G-32·G-70): 받는 부서 → 업무 유형 → 제목 → 장소 → 사유 → 담당자 → 작업 일자 → 첨부 → 유형별 양식 → 열람 범위 → (업무 등록 전용: 지원 계획·우선순위·요청받은 부서) → 결재 경로.
  * 신청자 정보(G-4)는 맨 위에 내 인원 정보로 보이고 고칠 수 없다. 내 연락처가 비어 있으면 그 칸만 적는다(선택). 다시 올리면 다시 올린 사람의 정보가 된다
  */
-export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: RequestKind }) {
+export default function RequestForm({
+  kind: initialKind = "REQUEST",
+}: {
+  kind?: RequestKind;
+}) {
   const { t } = useTranslation("work");
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("workform");
@@ -125,13 +179,19 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   const { departments, personnel, paths } = useOrgData({ personnel: true });
   const [kind, setKind] = useState<RequestKind>(initialKind);
   // 받는 부서마다 고르기 목록·고른 유형·(다시 올릴 때) 원래 고른 유형. 업무 등록은 우리 부서 하나
-  const [typeOptions, setTypeOptions] = useState<Record<number, TypeOption[] | null>>({});
+  const [typeOptions, setTypeOptions] = useState<
+    Record<number, TypeOption[] | null>
+  >({});
   const [chosenTypes, setChosenTypes] = useState<Record<number, number[]>>({});
   const [keptTypes, setKeptTypes] = useState<Record<number, TypeView[]>>({});
   // 유형별 양식 답: "받는 부서:유형" → 채운 값. 다시 올릴 때 원래 유형의 지금 판 정의는 상세의 forms에서 (REQ-118)
   const [fills, setFills] = useState<Record<string, FillValue>>({});
   const [requestForms, setRequestForms] = useState<FormMap>({});
   const [showRequired, setShowRequired] = useState(false);
+  const [flowStep, setFlowStep] = useState(0);
+  const [departmentIntake, setDepartmentIntake] = useState(!editing);
+  const [preferences, setPreferences] = useState<PreferredDraft[]>([emptyPreference(), emptyPreference()]);
+  const [typeErrors, setTypeErrors] = useState<Record<number, boolean>>({});
   const [title, setTitle] = useState("");
   const [place, setPlace] = useState("");
   const [content, setContent] = useState("");
@@ -144,9 +204,17 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   const [viewerDepartments, setViewerDepartments] = useState<number[]>([]);
   const [viewerPeople, setViewerPeople] = useState<number[]>([]);
   const [steps, setSteps] = useState<StepRow[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleValue>({ startDate: "", startTime: "", endDate: "", endTime: "" });
+  const [schedule, setSchedule] = useState<ScheduleValue>({
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+  });
   // 업무 등록의 지원 계획 칸(자동 완료 없음). 칸 0개 = 지원 계획 없음
-  const [support, setSupport] = useState<PlanForm>({ autoComplete: false, slots: [] });
+  const [support, setSupport] = useState<PlanForm>({
+    autoComplete: false,
+    slots: [],
+  });
   // 서버가 칸 오류로 거부한 칸 번호(rows, 1부터). 지원 계획을 고치면 지운다(칸 순서가 바뀔 수 있음)
   const [supportErrorSlots, setSupportErrorSlots] = useState<number[]>([]);
   // 업무 등록의 우선순위: 등록자(접수자)가 정함, 기본 일반 (DEC-065)
@@ -156,7 +224,10 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   // 빈 칸으로 보내려 한 뒤부터 비어 있는 제목·장소·사유 칸을 오류로 표시하고 오류 문구와 잇는다 (F8-9)
   const [tried, setTried] = useState(false);
   // 올리려 했는데 빠지거나 틀린 칸: 다음 그리기 뒤 그 칸으로 초점·스크롤 (n은 같은 칸을 다시 눌러도 옮기게)
-  const [focusRequest, setFocusRequest] = useState<{ id: string; n: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{
+    id: string;
+    n: number;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadedEdit, setLoadedEdit] = useState(!editing);
   // 고칠 수 없는 요청(상세의 editable 거짓)을 주소로 열면 편집 칸 대신 안내와 상세로 가는 길 (서버도 막음)
@@ -177,11 +248,14 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   }, []);
 
   // 받는 부서를 더하면 그 부서와 위아래 부서의 유형 목록을 읽는다 (REQ-118, G-33). 실패하면 빈 목록
-  const loadTypeOptions = (d: number) =>
-    fetchTypeOptions(d).then(
+  const loadTypeOptions = (d: number) => {
+    setTypeErrors((prev) => ({ ...prev, [d]: false }));
+    setTypeOptions((prev) => ({ ...prev, [d]: null }));
+    return fetchTypeOptions(d).then(
       (list) => setTypeOptions((prev) => ({ ...prev, [d]: list })),
-      () => setTypeOptions((prev) => ({ ...prev, [d]: [] })),
+      () => setTypeErrors((prev) => ({ ...prev, [d]: true })),
     );
+  };
 
   // 고쳐 다시 올리기: 지금 값과 지난 발송 결재 경로로 시작
   useEffect(() => {
@@ -193,16 +267,37 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
           return;
         }
         setKind(r.kind);
-        setChosenTypes(Object.fromEntries(r.targets.map((x) => [x.departmentId, x.types.map((type) => type.typeId)])));
-        setKeptTypes(Object.fromEntries(r.targets.map((x) => [x.departmentId, x.types])));
+        setDepartmentIntake(r.departmentIntake ?? false);
+        setPreferences([r.schedule.preferences?.[0] ?? emptyPreference(), r.schedule.preferences?.[1] ?? emptyPreference()]);
+        setChosenTypes(
+          Object.fromEntries(
+            r.targets.map((x) => [
+              x.departmentId,
+              x.types.map((type) => type.typeId),
+            ]),
+          ),
+        );
+        setKeptTypes(
+          Object.fromEntries(r.targets.map((x) => [x.departmentId, x.types])),
+        );
         setRequestForms(r.forms);
         // 지난 답을 지금 판으로 이어받는다: 같은 질문(key) 답만, 파일 답은 이미 묶인 파일로 (REQ-118)
         setFills(
           Object.fromEntries(
             r.targets.flatMap((x) =>
               x.types.flatMap((type) => {
-                const current = type.currentFormVersionId != null ? r.forms[String(type.currentFormVersionId)] : undefined;
-                return current ? [[fillKey(x.departmentId, type.typeId), fillFrom(normalize(current), type.answers, type.files)]] : [];
+                const current =
+                  type.currentFormVersionId != null
+                    ? r.forms[String(type.currentFormVersionId)]
+                    : undefined;
+                return current
+                  ? [
+                      [
+                        fillKey(x.departmentId, type.typeId),
+                        fillFrom(normalize(current), type.answers, type.files),
+                      ],
+                    ]
+                  : [];
               }),
             ),
           ),
@@ -212,9 +307,11 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
         setContent(r.content);
         setAssignees(r.assignees.map((a) => a.personnelId));
         // 같은 사람이 다시 올리면 지난번에 적은 신청자 연락처로 시작한다(인원 연락처가 있으면 서버가 그 값을 씀)
-        if (r.requesterAccountId === myAccountId) setApplicantContact(r.applicant.contact ?? "");
+        if (r.requesterAccountId === myAccountId)
+          setApplicantContact(r.applicant.contact ?? "");
         setTargets(r.targetDepartmentIds);
-        if (r.kind === "REQUEST") r.targetDepartmentIds.forEach(loadTypeOptions);
+        if (r.kind === "REQUEST")
+          r.targetDepartmentIds.forEach(loadTypeOptions);
         setOrigins(r.originDepartmentIds);
         setViewerDepartments(r.viewers.departmentIds);
         setViewerPeople(r.viewers.personnelIds);
@@ -228,24 +325,53 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
         setSendDoc(doc ?? null);
         setPriority(r.priority);
         setAttachments(fromAttachments(r.attachments));
-        if (doc?.proposal) setSupport({ ...planFormOf(doc.proposal), autoComplete: false });
+        if (doc?.proposal)
+          setSupport({ ...planFormOf(doc.proposal), autoComplete: false });
         // 지난 회차의 첫 단계(그 회차 기안자)를 본인으로 바꿔 시작한다(회수한 부서원이 올릴 수 있음, DEC-063)
         const rest = (doc?.steps ?? [])
-          .filter((s) => s.round === doc?.round && s.stepOrder > 1 && s.assigneeAccountId !== myAccountId)
-          .map((s) => ({ key: newStepKey(), kind: s.kind, accountId: s.assigneeAccountId, name: s.assigneeName }));
-        const self: StepRow[] = myAccountId != null ? [{ key: newStepKey(), kind: "REVIEW", accountId: myAccountId, name: myName }] : [];
+          .filter(
+            (s) =>
+              s.round === doc?.round &&
+              s.stepOrder > 1 &&
+              s.assigneeAccountId !== myAccountId,
+          )
+          .map((s) => ({
+            key: newStepKey(),
+            kind: s.kind,
+            accountId: s.assigneeAccountId,
+            name: s.assigneeName,
+          }));
+        const self: StepRow[] =
+          myAccountId != null
+            ? [
+                {
+                  key: newStepKey(),
+                  kind: "REVIEW",
+                  accountId: myAccountId,
+                  name: myName,
+                },
+              ]
+            : [];
         setSteps(normalizeSteps([...self, ...rest]));
         setLoadedEdit(true);
       },
-      (err) => setError(t(isNotFound(err) ? "requestDetail.notFound" : "loadFailed")),
+      (err) =>
+        setError(t(isNotFound(err) ? "requestDetail.notFound" : "loadFailed")),
     );
   }, [editId, t, myAccountId, myName]);
 
   const register = kind === "REGISTER";
+  const intake = !register && departmentIntake;
   const ownDepartment = user?.departmentId ?? null;
   // 유형을 고르는 받는 부서: 업무 요청은 고른 받는 부서, 업무 등록은 우리 부서(다시 올리기는 처음 정한 부서, 서버가 유지)
-  const registerTarget = register ? (Object.keys(chosenTypes).map(Number)[0] ?? ownDepartment) : null;
-  const typeTargets = register ? (registerTarget !== null ? [registerTarget] : []) : targets;
+  const registerTarget = register
+    ? (Object.keys(chosenTypes).map(Number)[0] ?? ownDepartment)
+    : null;
+  const typeTargets = register
+    ? registerTarget !== null
+      ? [registerTarget]
+      : []
+    : targets;
 
   // 업무 등록은 우리 부서 기준 목록 (REQ-114)
   useEffect(() => {
@@ -257,28 +383,65 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   }, [register, registerTarget]);
   const viewerCount = viewerDepartments.length + viewerPeople.length;
   // 받는 부서로 고를 수 있는 부서: 접수할 사람(사용 중 계정이 있는 사용 중 소속 인원)이 있는 부서 (서버 TARGET_NO_RECEIVER와 같은 기준). 목록을 읽기 전에는 모두
-  const activePeople = new Set(personnel.filter((p) => p.active).map((p) => p.id));
-  const receivers = accounts !== null && personnel.length > 0 ? new Set(accounts.filter((a) => activePeople.has(a.personnelId)).map((a) => a.departmentId)) : null;
-  const scheduleReady = periodOk(schedule.startDate, schedule.startTime, schedule.endDate, schedule.endTime);
+  const activePeople = new Set(
+    personnel.filter((p) => p.active).map((p) => p.id),
+  );
+  const receivers =
+    accounts !== null && personnel.length > 0
+      ? new Set(
+          accounts
+            .filter((a) => activePeople.has(a.personnelId))
+            .map((a) => a.departmentId).filter((id): id is number => id !== null),
+        )
+      : null;
+  const scheduleReady = intake ? preferencesValid(preferences) : periodOk(
+    schedule.startDate,
+    schedule.startTime,
+    schedule.endDate,
+    schedule.endTime,
+  );
   const supportReady = !register || planReady(support, true);
   // 고쳐 올릴 때 그사이 사용 중지된 부서·사람 (목록을 읽은 뒤에만 판단)
-  const staleDepartment = (d: number) => departments.length > 0 && !paths.has(d);
-  const stalePerson = (p: number) => personnel.length > 0 && personnel.find((x) => x.id === p)?.active !== true;
+  const staleDepartment = (d: number) =>
+    departments.length > 0 && !paths.has(d);
+  const stalePerson = (p: number) =>
+    personnel.length > 0 && personnel.find((x) => x.id === p)?.active !== true;
   // 다시 올릴 때 원래 고른 유형 중 사용 중지된 것(서버가 usable false로 알림)은 빼야 올린다 (G-64)
-  const staleType = typeTargets.some((d) => (keptTypes[d] ?? []).some((k) => k.usable === false && (chosenTypes[d] ?? []).includes(k.typeId)));
-  const stale = staleType || [...targets, ...origins, ...viewerDepartments].some(staleDepartment) || [...viewerPeople, ...assignees].some(stalePerson);
+  const staleType = typeTargets.some((d) =>
+    (keptTypes[d] ?? []).some(
+      (k) => k.usable === false && (chosenTypes[d] ?? []).includes(k.typeId),
+    ),
+  );
+  const stale =
+    staleType ||
+    [...targets, ...origins, ...viewerDepartments].some(staleDepartment) ||
+    [...viewerPeople, ...assignees].some(stalePerson);
   // 결재 경로의 사용 중지 계정은 빼야 올린다 (DEC-063)
-  const inactiveRoute = inactiveSteps(steps, activeAccounts, myAccountId).length > 0;
+  const inactiveRoute =
+    inactiveSteps(steps, activeAccounts, myAccountId).length > 0;
   // 고른 유형의 지금 판 양식: 고르기 목록 줄의 정의, 목록에 없는 원래 유형(다시 올리기)은 상세의 지금 판. "기타"는 양식이 없다
-  const currentForm = (d: number, typeId: number): { versionId: number; definition: FormDefinition } | null => {
+  const currentForm = (
+    d: number,
+    typeId: number,
+  ): { versionId: number; definition: FormDefinition } | null => {
     const option = (typeOptions[d] ?? []).find((o) => o.typeId === typeId);
-    if (option) return option.formVersionId !== null && option.definition ? { versionId: option.formVersionId, definition: normalize(option.definition) } : null;
+    if (option)
+      return option.formVersionId !== null && option.definition
+        ? {
+            versionId: option.formVersionId,
+            definition: normalize(option.definition),
+          }
+        : null;
     const kept = (keptTypes[d] ?? []).find((k) => k.typeId === typeId);
     const id = kept?.currentFormVersionId;
-    return id != null && requestForms[String(id)] ? { versionId: id, definition: normalize(requestForms[String(id)]) } : null;
+    return id != null && requestForms[String(id)]
+      ? { versionId: id, definition: normalize(requestForms[String(id)]) }
+      : null;
   };
   const typeName = (d: number, typeId: number) =>
-    (typeOptions[d] ?? []).find((o) => o.typeId === typeId)?.label ?? (keptTypes[d] ?? []).find((k) => k.typeId === typeId)?.name ?? "";
+    (typeOptions[d] ?? []).find((o) => o.typeId === typeId)?.label ??
+    (keptTypes[d] ?? []).find((k) => k.typeId === typeId)?.name ??
+    "";
   const forms = typeTargets.flatMap((d) =>
     (chosenTypes[d] ?? []).flatMap((typeId) => {
       const form = currentForm(d, typeId);
@@ -288,13 +451,32 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
   const setFill =
     (key: string): Dispatch<SetStateAction<FillValue>> =>
     (next) =>
-      setFills((prev) => ({ ...prev, [key]: typeof next === "function" ? next(prev[key] ?? emptyFill()) : next }));
-  const dropFills = (keys: string[]) => setFills((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !keys.includes(key))));
+      setFills((prev) => ({
+        ...prev,
+        [key]:
+          typeof next === "function" ? next(prev[key] ?? emptyFill()) : next,
+      }));
+  const dropFills = (keys: string[]) =>
+    setFills((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([key]) => !keys.includes(key)),
+      ),
+    );
   // 유형을 빼면 그 양식 답을 지운다. 적은 답이 있으면 먼저 묻는다 (REQ-118 "빼면 경고")
   const changeTypes = (d: number, ids: number[]) => {
     const removed = (chosenTypes[d] ?? []).filter((id) => !ids.includes(id));
-    const answered = removed.filter((id) => fillHasAnswers(fills[fillKey(d, id)]));
-    if (answered.length > 0 && !window.confirm(tw("request.removeTypeConfirm", { name: answered.map((id) => typeName(d, id)).join(", ") }))) return;
+    const answered = removed.filter((id) =>
+      fillHasAnswers(fills[fillKey(d, id)]),
+    );
+    if (
+      answered.length > 0 &&
+      !window.confirm(
+        tw("request.removeTypeConfirm", {
+          name: answered.map((id) => typeName(d, id)).join(", "),
+        }),
+      )
+    )
+      return;
     dropFills(removed.map((id) => fillKey(d, id)));
     setChosenTypes((prev) => ({ ...prev, [d]: ids }));
   };
@@ -309,25 +491,45 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
     if (editId !== null) {
       const r = await fetchRequest(editId).catch(() => null);
       if (r) {
-        setKeptTypes(Object.fromEntries(r.targets.map((x) => [x.departmentId, x.types])));
+        setKeptTypes(
+          Object.fromEntries(r.targets.map((x) => [x.departmentId, x.types])),
+        );
         setRequestForms(r.forms);
       }
     }
   };
 
-  const uploading = attachmentsBusy(attachments) || Object.values(fills).some(fillBusy);
+  const uploading =
+    attachmentsBusy(attachments) || Object.values(fills).some(fillBusy);
   const ready =
     !uploading &&
-    typeTargets.length > 0 && typeTargets.every((d) => (chosenTypes[d] ?? []).length > 0) && title.trim() !== "" && place.trim() !== "" && content.trim() !== "" && assignees.length > 0 && scheduleReady && supportReady && !stale && !inactiveRoute &&
-    (register ? ownDepartment !== null : targets.length > 0) && viewerCount > 0 && stepsReady(steps);
+    typeTargets.length > 0 &&
+    typeTargets.every((d) => (chosenTypes[d] ?? []).length > 0) &&
+    (intake || title.trim() !== "") &&
+    place.trim() !== "" &&
+    content.trim() !== "" &&
+    (intake || assignees.length > 0) &&
+    scheduleReady &&
+    supportReady &&
+    !stale &&
+    (intake || !inactiveRoute) &&
+    (register ? ownDepartment !== null : targets.length > 0) &&
+    viewerCount > 0 &&
+    (intake || stepsReady(steps));
   const missing = (text: string) => tried && text.trim() === "";
-  const invalid = (text: string) => ({ "aria-invalid": missing(text) || undefined, "aria-describedby": missing(text) ? "request-error" : undefined });
-  const selfOnly = steps.length === 1 && steps[0].accountId === user?.accountId;
+  const invalid = (text: string) => ({
+    "aria-invalid": missing(text) || undefined,
+    "aria-describedby": missing(text) ? "request-error" : undefined,
+  });
+  const selfOnly = intake || (steps.length === 1 && steps[0].accountId === user?.accountId);
 
   // 양식 답 검사 (서버가 다시 봄): 지나는 구역의 필수·응답 검증. 화면 순서대로 첫 번째로 틀린 양식
   const formProblem = () => {
     for (const form of forms) {
-      const problem = fillProblem(form.definition, fills[form.key] ?? emptyFill());
+      const problem = fillProblem(
+        form.definition,
+        fills[form.key] ?? emptyFill(),
+      );
       if (problem) return { form, problem };
     }
     return null;
@@ -339,31 +541,143 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
     // 받는 부서가 여럿이면 유형이 빠진 그 부서의 유형 칸
     const noType = typeTargets.find((d) => (chosenTypes[d] ?? []).length === 0);
     if (noType !== undefined) return `request-types-${noType}`;
-    if (title.trim() === "") return "request-title";
+    if (!intake && title.trim() === "") return "request-title";
     if (place.trim() === "") return "request-place";
     if (content.trim() === "") return "request-content";
-    if (assignees.length === 0) return "request-assignees";
+    if (!intake && assignees.length === 0) return "request-assignees";
     if (!scheduleReady) return "request-schedule-section";
     const answer = formProblem();
     if (answer) return `request-form-${answer.form.key.replace(":", "-")}`;
     if (viewerCount === 0) return "request-viewers";
     if (!supportReady) return "request-support";
-    if (!stepsReady(steps) || inactiveRoute) return "request-steps";
+    if (!intake && (!stepsReady(steps) || inactiveRoute)) return "request-steps";
     return null;
   };
-  const focusField = (id: string) => setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
+  const stepForField = (id: string) => {
+    if (id === "request-targets") return 0;
+    if (id.startsWith("request-types")) return intake ? 1 : 0;
+    if (
+      [
+        "request-assignees",
+        "request-contact",
+        "request-schedule-section",
+        "request-attachments",
+      ].includes(id)
+    )
+      return 2;
+    if (["request-viewers", "request-steps"].includes(id)) return 3;
+    return 1;
+  };
+  const focusField = (id: string) => {
+    if (!register) setFlowStep(stepForField(id));
+    setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
+  };
+  const flowProblems = () => intake ? [
+    targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : null,
+    typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types"
+      : formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : null,
+    !scheduleReady ? "request-schedule-section" : null,
+    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : null,
+  ] : [
+    targets.length === 0 || targets.some(staleDepartment)
+      ? "request-targets"
+      : typeTargets.find(
+            (d) =>
+              typeErrors[d] ||
+              typeOptions[d] == null ||
+              !chosenTypes[d]?.length,
+          ) !== undefined || staleType
+        ? "request-types"
+        : null,
+    !title.trim()
+      ? "request-title"
+      : !place.trim()
+        ? "request-place"
+        : !content.trim()
+          ? "request-content"
+          : formProblem()
+            ? `request-form-${formProblem()!.form.key.replace(":", "-")}`
+            : null,
+    assignees.length === 0 || assignees.some(stalePerson)
+      ? "request-assignees"
+      : !scheduleReady
+        ? "request-schedule-section"
+        : null,
+    viewerCount === 0 ||
+    viewerDepartments.some(staleDepartment) ||
+    viewerPeople.some(stalePerson)
+      ? "request-viewers"
+      : !stepsReady(steps) || inactiveRoute
+        ? "request-steps"
+        : null,
+  ];
+  const goToStep = (next: number) => {
+    if (submitting) return;
+    if (next > flowStep) {
+      const problem = flowProblems().slice(0, next).find(Boolean);
+      if (problem) {
+        setTried(true);
+        if (stepForField(problem) === 1) setShowRequired(true);
+        setError(t(`flow.errors.${stepForField(problem)}`));
+        focusField(problem);
+        return;
+      }
+    }
+    setError(null);
+    setFlowStep(next);
+    setFocusRequest((prev) => ({
+      id: "request-flow-heading",
+      n: (prev?.n ?? 0) + 1,
+    }));
+  };
   useEffect(() => {
     if (!focusRequest) return;
     const box = document.getElementById(focusRequest.id);
     if (!box) return;
     // 양식 답은 틀린 질문 칸(aria-invalid)부터, 구역이면 그 안의 첫 입력 칸
-    const target = box.matches(FOCUSABLE) ? box : (box.querySelector<HTMLElement>('[aria-invalid="true"]') ?? box.querySelector<HTMLElement>(FOCUSABLE));
+    let parent = box.parentElement;
+    while (parent) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
+    const invalidControl = box.querySelector<HTMLElement>(
+      '[aria-invalid="true"]',
+    );
+    parent = invalidControl?.parentElement ?? null;
+    while (parent && parent !== box) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
+    box.querySelectorAll<HTMLDetailsElement>("details").forEach((detail) => {
+      detail.open = true;
+    });
+    const target =
+      box.id === "request-flow-heading"
+        ? box
+        : box.matches(FOCUSABLE)
+          ? box
+          : (box.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+            box.querySelector<HTMLElement>(FOCUSABLE));
     box.scrollIntoView({ block: "center" });
     target?.focus({ preventScroll: true });
   }, [focusRequest]);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!register && flowStep < 3) {
+      goToStep(flowStep + 1);
+      return;
+    }
+    if (!register) {
+      const problem = flowProblems().find(Boolean);
+      if (problem) {
+        setTried(true);
+        setShowRequired(true);
+        setError(t(`flow.errors.${stepForField(problem)}`));
+        focusField(problem);
+        return;
+      }
+    }
     if (!ready || submitting) {
       if (!ready) {
         setTried(true);
@@ -377,18 +691,18 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
           uploading
             ? "register.uploading"
             : stale
-            ? "register.staleItems"
-            : inactiveRoute
-              ? "errors.APPROVER_INVALID"
-              : schedule.startDate !== "" && !scheduleReady
-                ? "errors.WORK_DATE_INVALID"
-                : firstProblem() === "request-support"
-                  ? overlapSlots(support).some((others) => others.length > 0)
-                    ? "errors.PLAN_EQUIPMENT_OVERLAP"
-                    : "errors.PLAN_PERIOD_INVALID"
-                  : register
-                  ? "register.needFieldsRegister"
-                  : "register.needFields",
+              ? "register.staleItems"
+              : inactiveRoute
+                ? "errors.APPROVER_INVALID"
+                : schedule.startDate !== "" && !scheduleReady
+                  ? "errors.WORK_DATE_INVALID"
+                  : firstProblem() === "request-support"
+                    ? overlapSlots(support).some((others) => others.length > 0)
+                      ? "errors.PLAN_EQUIPMENT_OVERLAP"
+                      : "errors.PLAN_PERIOD_INVALID"
+                    : register
+                      ? "register.needFieldsRegister"
+                      : "register.needFields",
         ),
       );
       return;
@@ -397,7 +711,12 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
     if (answer) {
       const { form, problem } = answer;
       setShowRequired(true);
-      setError(tw("request.answerProblem", { type: typeName(form.d, form.typeId), message: tw(problem.message, problem.values) }));
+      setError(
+        tw("request.answerProblem", {
+          type: typeName(form.d, form.typeId),
+          message: tw(problem.message, problem.values),
+        }),
+      );
       focusField(`request-form-${form.key.replace(":", "-")}`);
       return;
     }
@@ -406,30 +725,46 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
     setSupportErrorSlots([]);
     const input: RequestInput = {
       kind,
-      title,
+      departmentIntake: intake,
+      preferredSlots: intake ? preferenceInputs(preferences) : [],
+      title: intake ? "" : title,
       place,
       content,
-      assigneePersonnelIds: assignees,
+      assigneePersonnelIds: intake ? [] : assignees,
       // 내 인원 연락처가 있으면 서버가 그 값을 쓴다. 비어 있을 때만 적은 값을 보낸다
-      applicantContact: profile?.contact ? null : applicantContact.trim() || null,
+      applicantContact: profile?.contact
+        ? null
+        : applicantContact.trim() || null,
       // 받는 부서마다 고른 유형 (REQ-118). 업무 등록은 부서를 서버가 정한다
       // 양식이 있으면 채운 판과 답(건너뛴 구역 답은 뺌)을 함께 보낸다 (REQ-118)
       targets: typeTargets.map((d) => ({
         departmentId: register ? null : d,
         types: (chosenTypes[d] ?? []).map((workTypeId) => {
           const form = currentForm(d, workTypeId);
-          return { workTypeId, formVersionId: form?.versionId ?? null, answers: form ? fillAnswers(form.definition, fills[fillKey(d, workTypeId)] ?? emptyFill()) : null };
+          return {
+            workTypeId,
+            formVersionId: form?.versionId ?? null,
+            answers: form
+              ? fillAnswers(
+                  form.definition,
+                  fills[fillKey(d, workTypeId)] ?? emptyFill(),
+                )
+              : null,
+          };
         }),
       })),
       originDepartmentIds: register ? origins : [],
-      workStartDate: schedule.startDate,
-      workStartTime: schedule.startTime || null,
-      workEndDate: schedule.endDate || null,
-      workEndTime: schedule.endTime || null,
-      supportPlan: register && support.slots.length > 0 ? { slots: toPlanInput(support).slots } : null,
+      workStartDate: intake ? null : schedule.startDate,
+      workStartTime: intake ? null : schedule.startTime || null,
+      workEndDate: intake ? null : schedule.endDate || null,
+      workEndTime: intake ? null : schedule.endTime || null,
+      supportPlan:
+        register && support.slots.length > 0
+          ? { slots: toPlanInput(support).slots }
+          : null,
       priority: register ? priority : null,
       viewers: { departmentIds: viewerDepartments, personnelIds: viewerPeople },
-      steps: toStepInputs(steps),
+      steps: intake ? [] : toStepInputs(steps),
       attachmentIds: attachmentIds(attachments),
     };
     try {
@@ -446,6 +781,10 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
       if (err instanceof ApiError && err.code === "FORM_CHANGED") {
         await reloadForms();
         setError(tw("request.formChanged"));
+        if (!register) {
+          setShowRequired(true);
+          focusField("request-forms");
+        }
       } else if (err instanceof ApiError && err.code === "ANSWER_INVALID") {
         setShowRequired(true);
         setError(err.message);
@@ -453,184 +792,327 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
         setError(describeError(err));
       }
       // 칸 오류로 거부되면 그 칸으로 (REQ-101). 지원 계획 칸 오류는 rows의 칸 번호로 그 칸 카드를 편다 (J11)
-      const field = err instanceof ApiError ? SERVER_FIELDS[err.code] : undefined;
-      if (field === "request-support" && err instanceof ApiError) setSupportErrorSlots((err.rows ?? []).filter((n): n is number => typeof n === "number"));
+      const field =
+        err instanceof ApiError ? SERVER_FIELDS[err.code] : undefined;
+      if (field === "request-support" && err instanceof ApiError)
+        setSupportErrorSlots(
+          (err.rows ?? []).filter((n): n is number => typeof n === "number"),
+        );
       if (field) focusField(field);
       setSubmitting(false);
     }
   };
 
-  const add = (list: number[], set: (ids: number[]) => void, value: number) => !list.includes(value) && set([...list, value]);
+  const add = (list: number[], set: (ids: number[]) => void, value: number) =>
+    !list.includes(value) && set([...list, value]);
   const addTarget = (d: number) => {
+    if (intake) { setFlowStep(1); setError(null); setFocusRequest((prev) => ({ id: "request-flow-heading", n: (prev?.n ?? 0) + 1 })); }
     if (targets.includes(d)) return;
     setTargets([...targets, d]);
     loadTypeOptions(d);
   };
   const departmentItems = (ids: number[], set: (ids: number[]) => void) =>
-    ids.map((d) => ({ key: `d-${d}`, label: paths.get(d) ?? t("register.inactiveItem"), onRemove: () => set(ids.filter((x) => x !== d)) }));
+    ids.map((d) => ({
+      key: `d-${d}`,
+      label: paths.get(d) ?? t("register.inactiveItem"),
+      onRemove: () => set(ids.filter((x) => x !== d)),
+    }));
   // 받는 부서를 빼면 고른 유형도 빠진다. 고른 유형이 있으면 먼저 묻는다 (REQ-118 "빼면 경고")
   const targetItems = targets.map((d) => ({
     key: `d-${d}`,
     label: paths.get(d) ?? t("register.inactiveItem"),
     onRemove: () => {
-      if ((chosenTypes[d] ?? []).length > 0 && !window.confirm(t("register.removeTargetConfirm", { name: paths.get(d) ?? "" }))) return;
+      if (
+        (chosenTypes[d] ?? []).length > 0 &&
+        !window.confirm(
+          t("register.removeTargetConfirm", { name: paths.get(d) ?? "" }),
+        )
+      )
+        return;
       setTargets(targets.filter((x) => x !== d));
       dropFills((chosenTypes[d] ?? []).map((id) => fillKey(d, id)));
-      setChosenTypes((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) !== d)));
+      setChosenTypes((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).filter(([key]) => Number(key) !== d),
+        ),
+      );
     },
   }));
   const personName = new Map(
-    personnel.map((p) => [p.id, `${p.name} (${paths.get(p.departmentId) ?? ""})${p.active ? "" : ` — ${t("register.inactiveItem")}`}`]),
+    personnel.map((p) => [
+      p.id,
+      `${p.name} (${paths.get(p.departmentId) ?? ""})${p.active ? "" : ` — ${t("register.inactiveItem")}`}`,
+    ]),
   );
 
-  const assigneeItems = assignees.map((p) => ({ key: `a-${p}`, label: personName.get(p) ?? String(p), onRemove: () => setAssignees(assignees.filter((x) => x !== p)) }));
+  const assigneeItems = assignees.map((p) => ({
+    key: `a-${p}`,
+    label: personName.get(p) ?? String(p),
+    onRemove: () => setAssignees(assignees.filter((x) => x !== p)),
+  }));
 
-  const pageKey = editing ? "register.editTitle" : register ? "register.titleRegister" : "register.titleRequest";
-  const pageTitle = t(pageKey);
-
-  return (
-    <div>
-      <PageMeta titleKey={`work:${pageKey}`} />
-      <PageBreadcrumb
-        pageTitle={pageTitle}
-        description={t(register ? "register.descRegister" : "register.descRequest")}
-        // 고쳐 다시 올리기 화면만 [이전으로] (업무 등록·업무 요청은 메뉴 화면)
-        back={editId !== null ? `/work/requests/${editId}?from=mine` : undefined}
-      />
-      {loadedEdit && (
-        // OMNIS 입력 화면: 구역마다 카드(아이콘 + 제목), 맨 아래 오른쪽 정렬 동작 띠
-        <form onSubmit={submit} noValidate className="space-y-5">
-          <RejectionNote doc={sendDoc} />
-          {stale && (
-            <p role="alert" className="text-sm text-error-600 dark:text-error-400">
-              {t("register.staleItems")}
-            </p>
-          )}
-          {/* 신청자 정보 (G-4): 내 인원 정보로 채우고 고칠 수 없다. 연락처가 비어 있으면 그 칸만 적는다(선택) */}
-          <Section icon={<UserIcon />} title={t("applicant.title")}>
-            <InfoGrid>
-              <InfoRow label={t("applicant.department")}>{profile?.department ?? ""}</InfoRow>
-              <InfoRow label={t("applicant.name")}>{profile ? (profile.rankCode ? rankName({ rankCode: profile.rankCode, name: profile.displayName }) : profile.displayName) : ""}</InfoRow>
-              <InfoRow label={t("applicant.contact")}>
-                {profile?.contact ? (
-                  profile.contact
-                ) : (
-                  <input
-                    id="request-contact"
-                    aria-label={t("applicant.contactInput")}
-                    value={applicantContact}
-                    onChange={(e) => setApplicantContact(clip(e, 30))}
-                    placeholder={t("applicant.contactPlaceholder")}
-                    className={INPUT_CLASS}
-                  />
-                )}
-              </InfoRow>
-              <InfoRow label={t("applicant.sentAt")}>{t("applicant.sentAtHelp")}</InfoRow>
-            </InfoGrid>
-          </Section>
-
-          {register ? (
-            <Section icon={<GroupIcon />} title={t("register.targets")}>
-              <p className="text-sm text-gray-800 dark:text-white/90">
-                {ownDepartment !== null ? (paths.get(ownDepartment) ?? "") : t("register.noDepartment")}
-              </p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("register.targetsFixed")}</p>
-            </Section>
-          ) : (
-            <Section id="request-targets" icon={<GroupIcon />} title={t("register.targets")}>
-              <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{`${t("register.targetsHelp")} ${t("register.targetsNoReceiver")}`}</p>
-              <OrgPicker
-                label={t("register.targets")}
-                departments={departments}
-                pickDepartment={(d: Department) => addTarget(d.id)}
-                departmentAllowed={(d: Department) => receivers === null || receivers.has(d.id)}
-              />
-              <SelectedList title={t("register.targets")} items={targetItems} emptyText={t("register.pickRequired")} />
-            </Section>
-          )}
-
-          <Section id="request-types" icon={<TaskIcon />} title={t("register.type")}>
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t(register ? "register.typeHelpRegister" : "register.typeHelp")}</p>
-            {typeTargets.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t("register.typeNeedTarget")}</p>
+  const applicantSection = (
+    <>
+      <Section icon={<UserIcon />} title={t("applicant.title")}>
+        <InfoGrid>
+          <InfoRow label={t("applicant.department")}>
+            {profile?.department ?? ""}
+          </InfoRow>
+          <InfoRow label={t("applicant.name")}>
+            {profile
+              ? profile.rankCode
+                ? rankName({
+                    rankCode: profile.rankCode,
+                    name: profile.displayName ?? myName,
+                  })
+                : profile.displayName
+              : ""}
+          </InfoRow>
+          <InfoRow label={t("applicant.contact")}>
+            {profile?.contact ? (
+              profile.contact
             ) : (
-              <div className="space-y-5">
-                {typeTargets.map((d) => (
-                  <div key={d} id={`request-types-${d}`}>
-                    <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">{paths.get(d) ?? t("register.inactiveItem")}</p>
-                    <TypePicker
-                      idPrefix={`request-type-${d}`}
-                      options={typeOptions[d] ?? null}
-                      selected={chosenTypes[d] ?? []}
-                      kept={keptTypes[d] ?? []}
-                      onChange={(ids) => changeTypes(d, ids)}
-                    />
-                  </div>
-                ))}
-              </div>
+              <input
+                id="request-contact"
+                aria-label={t("applicant.contactInput")}
+                value={applicantContact}
+                onChange={(e) => setApplicantContact(clip(e, 30))}
+                placeholder={t("applicant.contactPlaceholder")}
+                className={INPUT_CLASS}
+              />
             )}
-          </Section>
-
-          <Section icon={<DocsIcon />} title={t("register.fields")}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="request-title" className={LABEL_CLASS}>
-                  {t("register.requestTitle")}
-                </label>
-                <input id="request-title" value={title} onChange={(e) => setTitle(clip(e, 100))} {...invalid(title)} className={cn(INPUT_CLASS, missing(title) && "border-error-500 dark:border-error-500")} />
-              </div>
-              <div>
-                <label htmlFor="request-place" className={LABEL_CLASS}>
-                  {t("register.place")}
-                </label>
-                <input id="request-place" value={place} onChange={(e) => setPlace(clip(e, 100))} {...invalid(place)} className={cn(INPUT_CLASS, missing(place) && "border-error-500 dark:border-error-500")} />
-              </div>
-              <div>
-                <label htmlFor="request-content" className={LABEL_CLASS}>
-                  {t("register.content")}
-                </label>
-                <textarea id="request-content" rows={6} value={content} onChange={(e) => setContent(clip(e, 2000))} {...invalid(content)} className={cn(TEXTAREA_CLASS, missing(content) && "border-error-500 dark:border-error-500")} />
-              </div>
-              <div id="request-assignees">
-                <p className={LABEL_CLASS}>{t("register.assignees")}</p>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("register.assigneesHelp")}</p>
-                <OrgPicker
-                  label={t("register.assignees")}
-                  departments={departments}
-                  personnel={personnel}
-                  withPeople
-                  pickPerson={(p: PersonnelItem) => assignees.length < 20 && add(assignees, setAssignees, p.id)}
+          </InfoRow>
+          <InfoRow label={t("applicant.sentAt")}>
+            {t("applicant.sentAtHelp")}
+          </InfoRow>
+        </InfoGrid>
+      </Section>
+    </>
+  );
+  const targetSection = (
+    <>
+      {register ? (
+        <Section icon={<GroupIcon />} title={t("register.targets")}>
+          <p className="text-sm text-gray-800 dark:text-white/90">
+            {ownDepartment !== null
+              ? (paths.get(ownDepartment) ?? "")
+              : t("register.noDepartment")}
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {t("register.targetsFixed")}
+          </p>
+        </Section>
+      ) : (
+        <Section
+          id="request-targets"
+          icon={<GroupIcon />}
+          title={t("register.targets")}
+        >
+          <DepartmentRecommendations departments={departments} paths={paths} receivers={receivers} selected={targets} onSelect={(departmentId, issue) => { addTarget(departmentId); if (!content.trim()) setContent(issue); }} />
+          <RequestDisclosure title={t("recommend.manual")}>
+          <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
+          <OrgPicker
+            label={t("register.targets")}
+            departments={departments}
+            pickDepartment={(d: Department) => addTarget(d.id)}
+            departmentAllowed={(d: Department) =>
+              receivers !== null && receivers.has(d.id) && !departments.some((child) => child.parentId === d.id)
+            }
+          />
+          </RequestDisclosure>
+          <SelectedList
+            title={t("register.targets")}
+            items={targetItems}
+            emptyText={t("register.pickRequired")}
+          />
+        </Section>
+      )}
+    </>
+  );
+  const typesSection = (
+    <>
+      <Section
+        id="request-types"
+        icon={<TaskIcon />}
+        title={t("register.type")}
+      >
+        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+          {t(intake ? "intake.typeHelp" : register ? "register.typeHelpRegister" : "register.typeHelp")}
+        </p>
+        {typeTargets.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t("register.typeNeedTarget")}
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {typeTargets.map((d) => (
+              <div key={d} id={`request-types-${d}`}>
+                <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
+                  {paths.get(d) ?? t("register.inactiveItem")}
+                </p>
+                {typeErrors[d] && (
+                  <p role="alert" className="mb-3 text-sm text-error-600">
+                    {t("flow.typeFailed")}{" "}
+                    <button
+                      type="button"
+                      onClick={() => void loadTypeOptions(d)}
+                      className="underline"
+                    >
+                      {t("flow.retry")}
+                    </button>
+                  </p>
+                )}
+                <TypePicker
+                  idPrefix={`request-type-${d}`}
+                  options={typeOptions[d] == null ? null : intake ? typeOptions[d].filter((option) => option.departmentId === d) : typeOptions[d]}
+                  selected={chosenTypes[d] ?? []}
+                  kept={intake ? (keptTypes[d] ?? []).filter((kept) => typeOptions[d]?.some((option) => option.typeId === kept.typeId && option.departmentId === d)) : keptTypes[d] ?? []}
+                  onChange={(ids) => changeTypes(d, ids)}
                 />
-                <SelectedList title={t("register.assignees")} items={assigneeItems} emptyText={t("register.pickRequired")} />
               </div>
-            </div>
-          </Section>
-
-          <Section id="request-schedule-section" icon={<CalenderIcon />} title={t("schedule.title")}>
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t(register ? "schedule.registerHelp" : "schedule.requestHelp")}</p>
-            <ScheduleFields idPrefix="request-schedule" value={schedule} onChange={(patch) => setSchedule({ ...schedule, ...patch })} />
-          </Section>
-
-          <Section icon={<PaperClipIcon />} title={tf("title")}>
-            <AttachmentInput
-              items={attachments}
-              setItems={setAttachments}
-              upload={(file) => uploadFile("REQUEST", file)}
-              onRemoveTemp={(fileId) => void deleteTempFile(fileId).catch(() => undefined)}
+            ))}
+          </div>
+        )}
+      </Section>
+    </>
+  );
+  const originalAssignees = (
+    <div id="request-assignees">
+      <p className={LABEL_CLASS}>{t("register.assignees")}</p>
+      <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+        {t("register.assigneesHelp")}
+      </p>
+      <OrgPicker
+        label={t("register.assignees")}
+        departments={departments}
+        personnel={personnel}
+        withPeople
+        pickPerson={(p: PersonnelItem) =>
+          assignees.length < 20 && add(assignees, setAssignees, p.id)
+        }
+      />
+      <SelectedList
+        title={t("register.assignees")}
+        items={assigneeItems}
+        emptyText={t("register.pickRequired")}
+      />
+    </div>
+  );
+  const fieldsSection = (
+    <>
+      <Section icon={<DocsIcon />} title={t("register.fields")}>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="request-title" className={LABEL_CLASS}>
+              {t("register.requestTitle")}{" "}
+              <span className="text-error-500">*</span>
+            </label>
+            <input
+              id="request-title"
+              value={title}
+              onChange={(e) => setTitle(clip(e, 100))}
+              {...invalid(title)}
+              className={cn(
+                INPUT_CLASS,
+                missing(title) && "border-error-500 dark:border-error-500",
+              )}
             />
-          </Section>
-
-          {/* 유형별 양식 칸 (REQ-101·118): 첨부 다음, 열람 범위 앞 */}
-          {forms.length > 0 && (
-            <Section id="request-forms" icon={<PageIcon />} title={tw("request.formTitle")}>
-              <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{tw("request.formHelp")}</p>
-              <div className="space-y-6">
-                {forms.map((form) => (
-                  <div key={form.key} id={`request-form-${form.key.replace(":", "-")}`} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                    <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
-                      {`${paths.get(form.d) ?? ""} · ${typeName(form.d, form.typeId)}`}
-                    </h3>
+          </div>
+          <div>
+            <label htmlFor="request-place" className={LABEL_CLASS}>
+              {t("register.place")} <span className="text-error-500">*</span>
+            </label>
+            <input
+              id="request-place"
+              value={place}
+              onChange={(e) => setPlace(clip(e, 100))}
+              {...invalid(place)}
+              className={cn(
+                INPUT_CLASS,
+                missing(place) && "border-error-500 dark:border-error-500",
+              )}
+            />
+          </div>
+          <div>
+            <label htmlFor="request-content" className={LABEL_CLASS}>
+              {t("register.content")} <span className="text-error-500">*</span>
+            </label>
+            <textarea
+              id="request-content"
+              rows={6}
+              value={content}
+              onChange={(e) => setContent(clip(e, 2000))}
+              {...invalid(content)}
+              className={cn(
+                TEXTAREA_CLASS,
+                missing(content) && "border-error-500 dark:border-error-500",
+              )}
+            />
+          </div>
+          {register && originalAssignees}
+        </div>
+      </Section>
+    </>
+  );
+  const scheduleSection = (
+    <>
+      <Section
+        id="request-schedule-section"
+        icon={<CalenderIcon />}
+        title={t("schedule.title")}
+      >
+        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+          {t(register ? "schedule.registerHelp" : "schedule.requestHelp")}
+        </p>
+        <ScheduleFields
+          idPrefix="request-schedule"
+          value={schedule}
+          onChange={(patch) => setSchedule({ ...schedule, ...patch })}
+        />
+      </Section>
+    </>
+  );
+  const attachmentsSection = (
+    <>
+      <Section
+        id="request-attachments"
+        icon={<PaperClipIcon />}
+        title={tf("title")}
+      >
+        <AttachmentInput
+          items={attachments}
+          setItems={setAttachments}
+          upload={(file) => uploadFile("REQUEST", file)}
+          onRemoveTemp={(fileId) =>
+            void deleteTempFile(fileId).catch(() => undefined)
+          }
+        />
+      </Section>
+    </>
+  );
+  const formsSection = (
+    <>
+      {/* 같은 양식과 검증을 사용하고 요청에서만 안내 구역을 접어 표시한다. */}
+      {(forms.length > 0 || intake) && (
+        <Section
+          id="request-forms"
+          icon={<PageIcon />}
+          title={tw("request.formTitle")}
+        >
+          <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            {tw("request.formHelp")}
+          </p>
+          <div className="space-y-6">
+            {forms.map((form, index) => (
+              <div
+                key={form.key}
+                id={`request-form-${form.key.replace(":", "-")}`}
+              >
+                {register ? (
+                  <>
+                    <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">{`${paths.get(form.d) ?? ""} · ${typeName(form.d, form.typeId)}`}</h3>{" "}
                     <FormFill
+                      guided={!register}
                       key={form.versionId}
                       definition={form.definition}
                       value={fills[form.key] ?? emptyFill()}
@@ -639,77 +1121,511 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
                       upload={(file) => uploadFile("FORM_ANSWER", file)}
                       showRequired={showRequired}
                     />
-                  </div>
-                ))}
+                  </>
+                ) : (
+                  <RequestDisclosure
+                    title={`${paths.get(form.d) ?? ""} · ${typeName(form.d, form.typeId)}`}
+                    initiallyOpen={index === 0}
+                  >
+                    {" "}
+                    <FormFill
+                      guided={!register}
+                      key={form.versionId}
+                      definition={form.definition}
+                      value={fills[form.key] ?? emptyFill()}
+                      onChange={setFill(form.key)}
+                      idPrefix={`form-${form.key.replace(":", "-")}`}
+                      upload={(file) => uploadFile("FORM_ANSWER", file)}
+                      showRequired={showRequired}
+                    />
+                  </RequestDisclosure>
+                )}
               </div>
-            </Section>
-          )}
-
-          <Section id="request-viewers" icon={<EyeIcon />} title={t("register.viewers")}>
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("register.viewersHelp")}</p>
+            ))}
+          </div>
+          {intake && <div className="mt-5 space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t("intake.context")}</p>
+            <div><label htmlFor="request-place" className={LABEL_CLASS}>{t("intake.place")} <span className="text-error-500">*</span></label><input id="request-place" value={place} onChange={(event) => setPlace(clip(event, 100))} {...invalid(place)} className={INPUT_CLASS} /></div>
+            <div><label htmlFor="request-content" className={LABEL_CLASS}>{t("intake.details")} <span className="text-error-500">*</span></label><textarea id="request-content" rows={4} value={content} onChange={(event) => setContent(clip(event, 2000))} {...invalid(content)} className={TEXTAREA_CLASS} /></div>
+          </div>}
+        </Section>
+      )}
+    </>
+  );
+  const viewersSection = (
+    <>
+      {register ? (
+        <>
+          {" "}
+          <Section
+            id="request-viewers"
+            icon={<EyeIcon />}
+            title={t("register.viewers")}
+          >
+            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t("register.viewersHelp")}
+            </p>
             <OrgPicker
               label={t("register.viewers")}
               departments={departments}
               personnel={personnel}
               withPeople
-              pickDepartment={(d: Department) => add(viewerDepartments, setViewerDepartments, d.id)}
-              pickPerson={(p: PersonnelItem) => add(viewerPeople, setViewerPeople, p.id)}
+              pickDepartment={(d: Department) =>
+                add(viewerDepartments, setViewerDepartments, d.id)
+              }
+              pickPerson={(p: PersonnelItem) =>
+                add(viewerPeople, setViewerPeople, p.id)
+              }
             />
             <SelectedList
               title={t("register.viewers")}
               items={[
                 ...departmentItems(viewerDepartments, setViewerDepartments),
-                ...viewerPeople.map((p) => ({ key: `p-${p}`, label: personName.get(p) ?? String(p), onRemove: () => setViewerPeople(viewerPeople.filter((x) => x !== p)) })),
+                ...viewerPeople.map((p) => ({
+                  key: `p-${p}`,
+                  label: personName.get(p) ?? String(p),
+                  onRemove: () =>
+                    setViewerPeople(viewerPeople.filter((x) => x !== p)),
+                })),
               ]}
               emptyText={t("register.pickRequired")}
             />
+          </Section>{" "}
+        </>
+      ) : (
+        <>
+          {" "}
+          <Section
+            id="request-viewers"
+            icon={<EyeIcon />}
+            title={t("register.viewers")}
+          >
+            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t("register.viewersHelp")}
+            </p>
+            <RequestDisclosure
+              title={t("flow.chooseViewers")}
+              initiallyOpen={register}
+            >
+              <OrgPicker
+                label={t("register.viewers")}
+                departments={departments}
+                personnel={personnel}
+                withPeople
+                pickDepartment={(d: Department) =>
+                  add(viewerDepartments, setViewerDepartments, d.id)
+                }
+                pickPerson={(p: PersonnelItem) =>
+                  add(viewerPeople, setViewerPeople, p.id)
+                }
+              />
+            </RequestDisclosure>
+            <SelectedList
+              title={t("register.viewers")}
+              items={[
+                ...departmentItems(viewerDepartments, setViewerDepartments),
+                ...viewerPeople.map((p) => ({
+                  key: `p-${p}`,
+                  label: personName.get(p) ?? String(p),
+                  onRemove: () =>
+                    setViewerPeople(viewerPeople.filter((x) => x !== p)),
+                })),
+              ]}
+              emptyText={t("register.pickRequired")}
+            />
+          </Section>{" "}
+        </>
+      )}
+    </>
+  );
+  const registrationSections = (
+    <>
+      {/* 업무 등록 전용 칸은 결재 경로 바로 앞 (REQ-114, G-70) */}
+      {register && (
+        <>
+          <Section
+            id="request-support"
+            icon={<BoxIconLine />}
+            title={t("plan.support")}
+          >
+            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t("plan.supportHelp")}
+            </p>
+            <PlanEditor
+              paths={paths}
+              value={support}
+              onChange={(next) => {
+                setSupport(next);
+                setSupportErrorSlots((prev) => (prev.length > 0 ? [] : prev));
+              }}
+              showAuto={false}
+              allowEmpty
+              errorSlots={supportErrorSlots}
+              selectedNames={sendDoc?.proposal}
+              newSlotPeriod={schedule}
+            />
           </Section>
-
-          {/* 업무 등록 전용 칸은 결재 경로 바로 앞 (REQ-114, G-70) */}
-          {register && (
-            <>
-              <Section id="request-support" icon={<BoxIconLine />} title={t("plan.support")}>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("plan.supportHelp")}</p>
-                <PlanEditor
-                  paths={paths}
-                  value={support}
-                  onChange={(next) => {
-                    setSupport(next);
-                    setSupportErrorSlots((prev) => (prev.length > 0 ? [] : prev));
-                  }}
-                  showAuto={false}
-                  allowEmpty
-                  errorSlots={supportErrorSlots}
-                  selectedNames={sendDoc?.proposal}
-                  newSlotPeriod={schedule}
+          <Section
+            id="request-priority-section"
+            icon={<BoltIcon />}
+            title={t("priority.label")}
+          >
+            <PriorityField
+              id="request-priority"
+              value={priority}
+              onChange={setPriority}
+            />
+          </Section>
+          <Section
+            id="request-origins"
+            icon={<FolderIcon />}
+            title={t("register.origins")}
+          >
+            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t("register.originsHelp")}
+            </p>
+            <OrgPicker
+              label={t("register.origins")}
+              departments={departments}
+              pickDepartment={(d: Department) => add(origins, setOrigins, d.id)}
+            />
+            <SelectedList
+              title={t("register.origins")}
+              items={departmentItems(origins, setOrigins)}
+              emptyText={t("register.originsEmpty")}
+            />
+          </Section>
+        </>
+      )}
+    </>
+  );
+  const stepsSection = (
+    <>
+      {register ? (
+        <>
+          {" "}
+          <Section
+            id="request-steps"
+            icon={<ListIcon />}
+            title={t("steps.title")}
+          >
+            <StepsEditor
+              docType="SEND"
+              rows={steps}
+              onChange={setSteps}
+              showTitle={false}
+            />
+          </Section>{" "}
+        </>
+      ) : (
+        <>
+          {" "}
+          <Section
+            id="request-steps"
+            icon={<ListIcon />}
+            title={t("steps.title")}
+          >
+            <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+              {steps.map((row) => row.name).join(" → ") || t("loading")}
+            </p>
+            <RequestDisclosure
+              title={t("flow.editRoute")}
+              initiallyOpen={register}
+            >
+              <StepsEditor
+                docType="SEND"
+                rows={steps}
+                onChange={setSteps}
+                showTitle={false}
+              />
+            </RequestDisclosure>
+          </Section>{" "}
+        </>
+      )}
+    </>
+  );
+  const assigneeSection = (
+    <>
+      <Section icon={<GroupIcon />} title={t("register.assignees")}>
+        {register ? (
+          <>
+            {" "}
+            <div id="request-assignees">
+              <p className={LABEL_CLASS}>{t("register.assignees")}</p>
+              <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                {t("register.assigneesHelp")}
+              </p>
+              <OrgPicker
+                label={t("register.assignees")}
+                departments={departments}
+                personnel={personnel}
+                withPeople
+                pickPerson={(p: PersonnelItem) =>
+                  assignees.length < 20 && add(assignees, setAssignees, p.id)
+                }
+              />
+              <SelectedList
+                title={t("register.assignees")}
+                items={assigneeItems}
+                emptyText={t("register.pickRequired")}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            {" "}
+            <div id="request-assignees">
+              <p className={LABEL_CLASS}>{t("register.assignees")}</p>
+              <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                {t("register.assigneesHelp")}
+              </p>
+              <RequestDisclosure title={t("flow.chooseAssignees")}>
+                <OrgPicker
+                  label={t("register.assignees")}
+                  departments={departments}
+                  personnel={personnel}
+                  withPeople
+                  pickPerson={(p: PersonnelItem) =>
+                    assignees.length < 20 && add(assignees, setAssignees, p.id)
+                  }
                 />
-              </Section>
-              <Section id="request-priority-section" icon={<BoltIcon />} title={t("priority.label")}>
-                <PriorityField id="request-priority" value={priority} onChange={setPriority} />
-              </Section>
-              <Section id="request-origins" icon={<FolderIcon />} title={t("register.origins")}>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("register.originsHelp")}</p>
-                <OrgPicker label={t("register.origins")} departments={departments} pickDepartment={(d: Department) => add(origins, setOrigins, d.id)}  />
-                <SelectedList title={t("register.origins")} items={departmentItems(origins, setOrigins)} emptyText={t("register.originsEmpty")} />
-              </Section>
-            </>
-          )}
+              </RequestDisclosure>
+              <SelectedList
+                title={t("register.assignees")}
+                items={assigneeItems}
+                emptyText={t("register.pickRequired")}
+              />
+            </div>
+          </>
+        )}
+      </Section>
+    </>
+  );
 
-          <Section id="request-steps" icon={<ListIcon />} title={t("steps.title")}>
-            <StepsEditor docType="SEND" rows={steps} onChange={setSteps} showTitle={false} />
-          </Section>
+  const destinationSummary = targets.length ? (
+    <ul className="space-y-3">
+      {targets.map((d) => (
+        <li key={d} className="text-sm">
+          <p className="font-semibold text-gray-800 dark:text-gray-200">
+            {paths.get(d)}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-gray-500">
+            {(chosenTypes[d] ?? []).map((id) => typeName(d, id)).join(" · ") ||
+              t("flow.typePending")}
+          </p>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p className="text-sm text-gray-400">{t("flow.destinationEmpty")}</p>
+  );
+  const preferredScheduleSection = <Section id="request-schedule-section" icon={<CalenderIcon />} title={t("intake.scheduleTitle")}><PreferredScheduleFields value={preferences} onChange={setPreferences} invalid={tried && !scheduleReady} /></Section>;
+  const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><p className="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => paths.get(d)).join(" · ")}</p></Section>;
+  const reviewSection = (
+    <Section
+      icon={<DocsIcon />}
+      title={t("flow.reviewTitle")}
+      actions={
+        <button
+          type="button"
+          className="text-sm font-semibold text-brand-600"
+          onClick={() => goToStep(1)}
+        >
+          {t("flow.editContent")}
+        </button>
+      }
+    >
+      <InfoGrid>
+        {!intake && <InfoRow label={t("register.requestTitle")}>{title}</InfoRow>}
+        <InfoRow label={t(intake ? "intake.place" : "register.place")}>{place}</InfoRow>
+        <InfoRow label={t(intake ? "intake.details" : "register.content")} long>
+          {content}
+        </InfoRow>
+        <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")}>
+          {intake ? t("intake.departmentDelivery") : assigneeItems.map((item) => item.label).join(", ")}
+        </InfoRow>
+        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{preferenceInputs(preferences).map((slot, i) => <p key={i}>{t("intake.preference", { n: i + 1 })}: {slot.date} {t(`intake.${slot.period}`)}</p>)}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
+          {[schedule.startDate, schedule.startTime].filter(Boolean).join(" ")}
+          {schedule.endDate || schedule.endTime
+            ? ` → ${schedule.endDate || schedule.startDate} ${schedule.endTime}`
+            : ""}
+        </InfoRow>
+</>}
+        <InfoRow label={tf("title")}>
+          {attachments.map((item) => item.name).join(", ") || t("flow.none")}
+        </InfoRow>
+      </InfoGrid>
+      <div className="mt-4 space-y-3">
+        {forms.map((form) => (
+          <RequestDisclosure
+            key={form.key}
+            title={`${paths.get(form.d)} · ${typeName(form.d, form.typeId)}`}
+          >
+            <fieldset disabled>
+              <FormFill
+                definition={form.definition}
+                value={fills[form.key] ?? emptyFill()}
+                onChange={() => undefined}
+                idPrefix={`review-form-${form.key.replace(":", "-")}`}
+              />
+            </fieldset>
+          </RequestDisclosure>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="mt-4 text-sm font-semibold text-brand-600"
+        onClick={() => goToStep(2)}
+      >
+        {t("flow.editSchedule")}
+      </button>
+    </Section>
+  );
 
-          {/* 동작 띠 (OMNIS 대화상자 바닥): 옅은 바탕·위 경계선, 오류 문구는 왼쪽, 올리기 단추는 오른쪽 */}
-          <div className="flex flex-wrap items-center justify-end gap-3 rounded-2xl border-t border-gray-200 bg-gray-50 px-[22px] py-3 dark:border-gray-800 dark:bg-white/3">
-            {error && (
-              <p id="request-error" role="alert" className="me-auto text-sm text-error-600 dark:text-error-400">
-                {error}
+  const pageKey = editing
+    ? "register.editTitle"
+    : register
+      ? "register.titleRegister"
+      : "register.titleRequest";
+  const pageTitle = t(pageKey);
+
+  return (
+    <div>
+      <PageMeta titleKey={`work:${pageKey}`} />
+      <PageBreadcrumb
+        pageTitle={pageTitle}
+        description={t(
+          register ? "register.descRegister" : "register.descRequest",
+        )}
+        // 고쳐 다시 올리기 화면만 [이전으로] (업무 등록·업무 요청은 메뉴 화면)
+        back={
+          editId !== null ? `/work/requests/${editId}?from=mine` : undefined
+        }
+      />
+      {loadedEdit && (
+        // OMNIS 입력 화면: 구역마다 카드(아이콘 + 제목), 맨 아래 오른쪽 정렬 동작 띠
+        <form onSubmit={submit} noValidate className="space-y-5">
+          <fieldset disabled={submitting} className="min-w-0 space-y-5">
+            <RejectionNote doc={sendDoc} />
+            {stale && (
+              <p
+                role="alert"
+                className="text-sm text-error-600 dark:text-error-400"
+              >
+                {t("register.staleItems")}
               </p>
             )}
-            <Button size="sm" disabled={submitting}>
-              {editId !== null ? t("register.resubmit") : selfOnly ? t("register.submitSelf") : t("register.submitApproval")}
-            </Button>
-          </div>
+            {/* 신청자 정보 (G-4): 내 인원 정보로 채우고 고칠 수 없다. 연락처가 비어 있으면 그 칸만 적는다(선택) */}
+            {register ? (
+              <>
+                {applicantSection}
+                {targetSection}
+                {typesSection}
+                {fieldsSection}
+                {scheduleSection}
+                {attachmentsSection}
+                {formsSection}
+                {viewersSection}
+                {registrationSections}
+                {stepsSection}
+              </>
+            ) : (
+              <RequestFlow
+                step={flowStep}
+                panels={[
+                  <>
+                    {targetSection}
+                    {!intake && typesSection}
+                  </>,
+                  <>
+                    {intake && typesSection}
+                    {forms.length > 0 || intake ? (
+                      formsSection
+                    ) : (
+                      <p className="rounded-xl bg-brand-50 px-5 py-4 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                        {t("flow.noForm")}
+                      </p>
+                    )}
+                    {!intake && fieldsSection}
+                  </>,
+                  <>
+                    {intake ? preferredScheduleSection : scheduleSection}
+                    {intake ? departmentDelivery : assigneeSection}
+                    {attachmentsSection}
+                    {!profile?.contact && applicantSection}
+                  </>,
+                  <>
+                    {reviewSection}
+                    {viewersSection}
+                    {!intake && stepsSection}
+                    <p className="px-1 text-sm text-gray-500">
+                      {t(intake ? "intake.sendNotice" : selfOnly ? "flow.selfNotice" : "flow.approvalNotice")}
+                    </p>
+                  </>,
+                ]}
+                complete={flowProblems().map((problem) => problem === null)}
+                onStep={goToStep}
+                onNext={() => goToStep(flowStep + 1)}
+                applicant={
+                  <>
+                    <p className="font-semibold">
+                      {profile
+                        ? profile.rankCode
+                          ? rankName({
+                              rankCode: profile.rankCode,
+                              name: profile.displayName,
+                            })
+                          : profile.displayName
+                        : myName}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {profile?.department}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {profile?.contact ||
+                        applicantContact ||
+                        t("flow.contactLater")}
+                    </p>
+                  </>
+                }
+                summary={destinationSummary}
+                error={error}
+                busy={submitting}
+                uploading={uploading}
+                submitLabel={
+                  intake ? t("intake.send") : editId !== null
+                    ? t("register.resubmit")
+                    : selfOnly
+                      ? t("register.submitSelf")
+                      : t("register.submitApproval")
+                }
+              />
+            )}
+
+            {register && (
+              <>
+                {/* 동작 띠 (OMNIS 대화상자 바닥): 옅은 바탕·위 경계선, 오류 문구는 왼쪽, 올리기 단추는 오른쪽 */}
+                <div className="flex flex-wrap items-center justify-end gap-3 rounded-2xl border-t border-gray-200 bg-gray-50 px-[22px] py-3 dark:border-gray-800 dark:bg-white/3">
+                  {error && (
+                    <p
+                      id="request-error"
+                      role="alert"
+                      className="me-auto text-sm text-error-600 dark:text-error-400"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  <Button size="sm" disabled={submitting}>
+                    {editId !== null
+                      ? t("register.resubmit")
+                      : selfOnly
+                        ? t("register.submitSelf")
+                        : t("register.submitApproval")}
+                  </Button>
+                </div>
+              </>
+            )}
+          </fieldset>
         </form>
       )}
       {!loadedEdit && (error || (editing && editId === null)) && (
@@ -719,10 +1635,16 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
       )}
       {notEditable && editId !== null && (
         <div className="space-y-3">
-          <p role="alert" className="text-sm text-error-600 dark:text-error-400">
+          <p
+            role="alert"
+            className="text-sm text-error-600 dark:text-error-400"
+          >
             {t("register.notEditable")}
           </p>
-          <Link to={`/work/requests/${editId}`} className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
+          <Link
+            to={`/work/requests/${editId}`}
+            className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
             {t("register.toDetail")}
           </Link>
         </div>
@@ -732,4 +1654,5 @@ export default function RequestForm({ kind: initialKind = "REQUEST" }: { kind?: 
 }
 
 /** 양식 답 자리: 받는 부서와 유형 */
-const fillKey = (departmentId: number, typeId: number) => `${departmentId}:${typeId}`;
+const fillKey = (departmentId: number, typeId: number) =>
+  `${departmentId}:${typeId}`;

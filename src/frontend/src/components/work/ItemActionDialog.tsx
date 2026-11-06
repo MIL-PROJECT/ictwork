@@ -1,3 +1,4 @@
+import { formatSchedule } from "./format";
 import type { Attachment } from "@/api/files";
 import { type Department, fetchPersonnel } from "@/api/org";
 import {
@@ -99,6 +100,7 @@ export default function ItemActionDialog({
   const common = { onClose, onDone, describeError };
   const requestFiles = (
     <>
+      {!!item.schedule?.preferences?.length && <p className="mb-4 rounded-lg bg-brand-50 p-3 text-sm text-brand-700">{t("schedule.requested")}: {formatSchedule(item.schedule)}<br />{t("intake.scheduleNotice")}</p>}
       {item.requestAttachments && item.requestAttachments.length > 0 && <RequestFiles items={item.requestAttachments} />}
       {item.answers}
     </>

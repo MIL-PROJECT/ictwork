@@ -120,6 +120,18 @@ class WorkRequest(
     @Column(name = "work_end_time")
     var workEndTime: LocalTime? = null
 
+    @Column(name = "department_intake", nullable = false)
+    var departmentIntake: Boolean = false
+
+    @Column(name = "preferred_date_1")
+    var preferredDate1: LocalDate? = null
+    @Column(name = "preferred_period_1", length = 2)
+    var preferredPeriod1: String? = null
+    @Column(name = "preferred_date_2")
+    var preferredDate2: LocalDate? = null
+    @Column(name = "preferred_period_2", length = 2)
+    var preferredPeriod2: String? = null
+
     /** 우선순위 (V12, DEC-065): 업무 등록의 처음 값. 결재가 끝나 처리 건이 생기면 옮긴다. 업무 요청은 늘 일반(처리 쪽이 정함) */
     @Column(nullable = false, length = 10)
     var priority: String = Priorities.NORMAL

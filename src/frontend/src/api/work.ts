@@ -133,6 +133,7 @@ export interface Applicant {
 
 // 결재 문서의 대상 요청 칸 (REQ-210, G-6)
 export interface DocSubjectRequest {
+  preferences?: PreferredSlot[];
   kind: RequestKind;
   title: string;
   place: string;
@@ -251,7 +252,10 @@ export interface ItemListItem {
 }
 
 // 작업 일자 (DEC-062): 업무 요청은 희망 작업일, 업무 등록은 작업 일자
+export interface PreferredSlot { date: string; period: "AM" | "PM" }
+
 export interface Schedule {
+  preferences?: PreferredSlot[];
   startDate: string | null;
   startTime: string | null;
   endDate: string | null;
@@ -262,6 +266,7 @@ export interface Schedule {
 export type ViewFrom = "mine" | "viewable" | "department" | "receipts";
 
 export interface RequestDetail {
+  departmentIntake?: boolean;
   id: number;
   kind: RequestKind;
   title: string;
@@ -348,6 +353,8 @@ export interface Roster {
 }
 
 export interface RequestInput {
+  departmentIntake?: boolean;
+  preferredSlots?: PreferredSlot[];
   kind: RequestKind;
   title: string;
   place: string;
@@ -356,7 +363,7 @@ export interface RequestInput {
   applicantContact: string | null; // 내 인원 연락처가 비어 있을 때만 쓴다 (G-4)
   targets: TargetInput[]; // 받는 부서마다 유형 하나 이상 (REQ-118). 업무 등록은 하나(우리 부서)
   originDepartmentIds: number[];
-  workStartDate: string;
+  workStartDate: string | null;
   workStartTime: string | null;
   workEndDate: string | null;
   workEndTime: string | null;

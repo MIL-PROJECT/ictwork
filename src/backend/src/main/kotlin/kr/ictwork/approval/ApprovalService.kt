@@ -147,6 +147,7 @@ data class SubjectRequest(
     val endTime: LocalTime?,
     val applicant: ApplicantView,
     val sentAt: LocalDateTime?,
+    val preferences: List<kr.ictwork.work.PreferredSlot> = emptyList(),
 )
 
 /**
