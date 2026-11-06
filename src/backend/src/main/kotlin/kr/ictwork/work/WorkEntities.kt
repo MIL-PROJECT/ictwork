@@ -130,14 +130,11 @@ class WorkRequest(
     @Column(name = "requested_end_date") var requestedEndDate: LocalDate? = null
     @Column(name = "requested_end_time") var requestedEndTime: LocalTime? = null
 
-    @Column(name = "preferred_date_1")
-    var preferredDate1: LocalDate? = null
-    @Column(name = "preferred_period_1", length = 2)
-    var preferredPeriod1: String? = null
-    @Column(name = "preferred_date_2")
-    var preferredDate2: LocalDate? = null
-    @Column(name = "preferred_period_2", length = 2)
-    var preferredPeriod2: String? = null
+    /** 간편 부서 요청의 희망 일자·시각(시각은 선택, V39) */
+    @Column(name = "preferred_date")
+    var preferredDate: LocalDate? = null
+    @Column(name = "preferred_time")
+    var preferredTime: LocalTime? = null
 
     /** 우선순위 (V12, DEC-065): 업무 등록의 처음 값. 결재가 끝나 처리 건이 생기면 옮긴다. 업무 요청은 늘 일반(처리 쪽이 정함) */
     @Column(nullable = false, length = 10)

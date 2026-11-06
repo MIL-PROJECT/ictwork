@@ -1,14 +1,13 @@
 import type { PreferredSlot } from "@/api/work";
 
-export type PreferredDraft = { date: string; period: "" | "AM" | "PM" };
-export const emptyPreference = (): PreferredDraft => ({ date: "", period: "" });
-export function preferencesValid(values: PreferredDraft[]) {
-  if (values.length !== 2) return false;
-  const valid = (value: PreferredDraft) => /^20\d{2}-\d{2}-\d{2}$/.test(value.date) &&
+/** 희망 일자 하나와 희망 시각(선택) */
+export type PreferredDraft = { date: string; time: string };
+export const emptyPreference = (): PreferredDraft => ({ date: "", time: "" });
+/** 날짜는 2000~2099년의 실제 날짜, 시각은 비우거나 HH:mm. 시각만 적고 날짜를 비우면 틀림 */
+export function preferenceValid(value: PreferredDraft) {
+  return /^20\d{2}-\d{2}-\d{2}$/.test(value.date) &&
     !Number.isNaN(Date.parse(value.date)) && new Date(value.date).toISOString().slice(0, 10) === value.date &&
-    (value.period === "AM" || value.period === "PM");
-  return valid(values[0]) && ((!values[1].date && !values[1].period) ||
-    (valid(values[1]) && (values[0].date !== values[1].date || values[0].period !== values[1].period)));
+    (value.time === "" || /^\d{2}:\d{2}$/.test(value.time));
 }
-export const preferenceInputs = (values: PreferredDraft[]): PreferredSlot[] => values.filter((value) => value.date && value.period).map((value) => ({ date: value.date, period: value.period as "AM" | "PM" }));
-
+export const preferenceInputs = (value: PreferredDraft): PreferredSlot[] =>
+  value.date ? [{ date: value.date, time: value.time || null }] : [];

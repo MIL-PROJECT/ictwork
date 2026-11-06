@@ -256,7 +256,7 @@ export interface ItemListItem {
 }
 
 // 작업 일자 (DEC-062): 업무 요청은 희망 작업일, 업무 등록은 작업 일자
-export interface PreferredSlot { date: string; period: "AM" | "PM" }
+export interface PreferredSlot { date: string; time: string | null }
 
 export interface Schedule {
   preferences?: PreferredSlot[];

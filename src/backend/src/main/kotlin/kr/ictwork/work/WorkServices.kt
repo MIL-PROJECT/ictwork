@@ -191,10 +191,8 @@ class WorkRequestService(
 
     /** 작업 일자 (DEC-062): 시작일 필수, 시작 시각·종료예정일·종료예정 시각 선택, 1년 이하 */
     private fun applySchedule(request: WorkRequest, input: RequestInput) {
-        request.preferredDate1 = null
-        request.preferredPeriod1 = null
-        request.preferredDate2 = null
-        request.preferredPeriod2 = null
+        request.preferredDate = null
+        request.preferredTime = null
         request.requestedStartDate = null
         request.requestedStartTime = null
         request.requestedEndDate = null
@@ -206,19 +204,16 @@ class WorkRequestService(
                 val end = exact.endDate ?: exact.startDate
                 if (exact.startTime == null || exact.endTime == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "희망 시작·종료 시간을 입력하세요.")
                 if (exact.startDate.year !in 2000..2099 || end.year !in 2000..2099 || end.isBefore(exact.startDate) || !end.isBefore(exact.startDate.plusYears(1)) || !end.atTime(exact.endTime).isAfter(exact.startDate.atTime(exact.startTime))) throw badRequest("REQUEST_SCHEDULE_INVALID", "희망 일정의 종료는 시작보다 뒤이고, 기간은 1년 이하여야 합니다.")
-                if (input.preferredSlots.isNotEmpty()) throw badRequest("REQUEST_SCHEDULE_INVALID", "정확한 일정과 1·2지망 일정을 함께 보낼 수 없습니다.")
+                if (input.preferredSlots.isNotEmpty()) throw badRequest("REQUEST_SCHEDULE_INVALID", "정확한 일정과 희망 일자를 함께 보낼 수 없습니다.")
                 request.requestedStartDate = exact.startDate
                 request.requestedStartTime = exact.startTime
                 request.requestedEndDate = end
                 request.requestedEndTime = exact.endTime
             }
             if (input.preferredSlots.isNotEmpty()) validatePreferredSlots(input.preferredSlots)
-            val first = input.preferredSlots.firstOrNull()
-            val second = input.preferredSlots.getOrNull(1)
-            request.preferredDate1 = first?.date
-            request.preferredPeriod1 = first?.period
-            request.preferredDate2 = second?.date
-            request.preferredPeriod2 = second?.period
+            val preferred = input.preferredSlots.firstOrNull()
+            request.preferredDate = preferred?.date
+            request.preferredTime = preferred?.time
             // 접수자가 확정하기 전에는 희망 일정을 작업 계획으로 복사하지 않는다.
             request.workStartDate = null
             request.workStartTime = null

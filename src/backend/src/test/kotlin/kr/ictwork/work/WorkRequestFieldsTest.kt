@@ -106,11 +106,11 @@ class WorkRequestFieldsTest(
 
     private fun intakeBody() = (body("rf-req", s1) - "title" - "workStartDate" - "steps" - "assigneePersonnelIds") + mapOf(
         "departmentIntake" to true,
-        "preferredSlots" to listOf(mapOf("date" to "2026-11-10", "period" to "AM"), mapOf("date" to "2026-11-09", "period" to "PM")),
+        "preferredSlots" to listOf(mapOf("date" to "2026-11-10", "time" to "14:30")),
     )
 
     @Test
-    fun `department intake sends without assignees or chosen approvers and preserves ranked preferences`() {
+    fun `department intake sends without assignees or chosen approvers and preserves the preferred date and time`() {
         val id = create("rf-req", intakeBody())
         val request = detail("rf-req", id)
         assertThat(request["phase"].asText()).isEqualTo("SENT")
@@ -118,30 +118,31 @@ class WorkRequestFieldsTest(
         assertThat(request["assignees"].size()).isZero()
         assertThat(request["title"].asText()).contains("가대대 통신실", "회선 품질 저하")
         assertThat(request["schedule"]["startDate"].isNull).isTrue()
-        assertThat(request["schedule"]["preferences"].map { it["date"].asText() }).containsExactly("2026-11-10", "2026-11-09")
+        assertThat(request["schedule"]["preferences"].map { it["date"].asText() }).containsExactly("2026-11-10")
+        assertThat(request["schedule"]["preferences"].first()["time"].asText()).startsWith("14:30")
         assertThat(request["docs"].size()).isEqualTo(1)
         assertThat(request["docs"].first()["status"].asText()).isEqualTo(kr.ictwork.approval.DocStatuses.DONE)
         for (member in listOf("rf-s1a", "rf-s1b")) {
             val receipt = getAs(member, "/api/work/receipts").first { it["requestId"].asLong() == id }
-            assertThat(receipt["requestedSchedule"]["preferences"].size()).isEqualTo(2)
+            assertThat(receipt["requestedSchedule"]["preferences"].size()).isEqualTo(1)
         }
         val itemId = itemOf(id, s1)
         workItemService.receive("rf-s1a", itemId, ReceiveInput())
         val item = getAs("rf-s1b", "/api/work/items/$itemId")
-        assertThat(item["request"]["schedule"]["preferences"].size()).isEqualTo(2)
+        assertThat(item["request"]["schedule"]["preferences"].size()).isEqualTo(1)
         assertThat(workItemRepository.findById(itemId).get().startDate).isNull()
     }
 
     @Test
-    fun `department intake allows absent preferences but rejects duplicate or invalid choices`() {
-        val am = mapOf("date" to "2026-11-10", "period" to "AM")
-        val invalid = listOf(listOf(am, am), listOf(am, am, am), listOf(mapOf("date" to "2026-11-10", "period" to "NIGHT")))
+    fun `department intake allows an absent preference or time but rejects more than one date or an out of range date`() {
+        val dateOnly = mapOf("date" to "2026-11-10")
+        val invalid = listOf(listOf(dateOnly, mapOf("date" to "2026-11-11")), listOf(mapOf("date" to "2100-01-01")))
         invalid.forEach { slots ->
             send("POST", "rf-req", "/api/work/requests", intakeBody() + ("preferredSlots" to slots))
                 .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
         }
-        val id = create("rf-req", intakeBody() + ("preferredSlots" to listOf(am)))
-        assertThat(detail("rf-req", id)["schedule"]["preferences"].size()).isEqualTo(1)
+        val id = create("rf-req", intakeBody() + ("preferredSlots" to listOf(dateOnly)))
+        assertThat(detail("rf-req", id)["schedule"]["preferences"].single()["time"].isNull).isTrue()
         val without = create("rf-req", intakeBody() - "preferredSlots")
         assertThat(detail("rf-req", without)["schedule"]["preferences"].size()).isZero()
     }

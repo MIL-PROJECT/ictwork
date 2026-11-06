@@ -1,6 +1,6 @@
 import PreferredScheduleFields from "@/components/work/PreferredScheduleFields";
 import { exactRequestScheduleValid } from "@/components/work/requestSchedule";
-import { emptyPreference, preferencesValid, preferenceInputs, type PreferredDraft } from "@/components/work/preferredSchedule";
+import { emptyPreference, preferenceValid, preferenceInputs, type PreferredDraft } from "@/components/work/preferredSchedule";
 import DepartmentRecommendations from "@/components/work/DepartmentRecommendations";
 import { ApiError } from "@/api/client";
 import { deleteTempFile, uploadFile } from "@/api/files";
@@ -194,7 +194,7 @@ export default function RequestForm({
   const [showRequired, setShowRequired] = useState(false);
   const [flowStep, setFlowStep] = useState(0);
   const [departmentIntake, setDepartmentIntake] = useState(!editing);
-  const [preferences, setPreferences] = useState<PreferredDraft[]>([emptyPreference(), emptyPreference()]);
+  const [preference, setPreference] = useState<PreferredDraft>(emptyPreference());
   const [typeErrors, setTypeErrors] = useState<Record<number, boolean>>({});
   const [title, setTitle] = useState("");
   const [place, setPlace] = useState("");
@@ -273,7 +273,8 @@ export default function RequestForm({
         }
         setKind(r.kind);
         setDepartmentIntake(r.departmentIntake ?? false);
-        setPreferences([r.schedule.preferences?.[0] ?? emptyPreference(), r.schedule.preferences?.[1] ?? emptyPreference()]);
+        const preferred = r.schedule.preferences?.[0];
+        setPreference(preferred ? { date: preferred.date, time: preferred.time?.slice(0, 5) ?? "" } : emptyPreference());
         setChosenTypes(
           Object.fromEntries(
             r.targets.map((x) => [
@@ -400,8 +401,8 @@ export default function RequestForm({
         )
       : null;
   const exactRequired = intake && typeTargets.some((d) => typeOptions[d]?.some((type) => (chosenTypes[d] ?? []).includes(type.typeId) && type.scheduleMode === "EXACT_REQUIRED"));
-  const hasPreferences = preferences.some((slot) => !!slot.date || !!slot.period);
-  const scheduleReady = intake ? (exactRequired ? exactRequestScheduleValid(schedule) : !hasPreferences || preferencesValid(preferences)) : periodOk(
+  const hasPreferences = !!preference.date || !!preference.time;
+  const scheduleReady = intake ? (exactRequired ? exactRequestScheduleValid(schedule) : !hasPreferences || preferenceValid(preference)) : periodOk(
     schedule.startDate,
     schedule.startTime,
     schedule.endDate,
@@ -735,7 +736,7 @@ export default function RequestForm({
       // 발송 결재는 고르지 않는다: 부서 접수 요청도 결재 경로(처음엔 본인 결재)를 거친다
       approvalRequested: intake,
       requestedSchedule: exactRequired ? { ...schedule, endDate: schedule.endDate || null } : null,
-      preferredSlots: intake && !exactRequired ? preferenceInputs(preferences) : [],
+      preferredSlots: intake && !exactRequired ? preferenceInputs(preference) : [],
       title: intake ? "" : title,
       place,
       content,
@@ -1165,9 +1166,7 @@ export default function RequestForm({
               <p className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
               <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} />
             </div> : <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
-              <p className="text-sm text-gray-500">{t("guidance.optionalHelp")}</p>
-              <PreferredScheduleFields value={preferences} onChange={setPreferences} invalid={tried && !scheduleReady} />
-              {hasPreferences && <button type="button" className="text-sm text-gray-500 underline" onClick={() => setPreferences([emptyPreference(), emptyPreference()])}>{t("guidance.clearSchedule")}</button>}
+              <PreferredScheduleFields value={preference} onChange={setPreference} invalid={tried && !scheduleReady} />
             </RequestDisclosure>}
           </div>}
         </Section>
@@ -1438,7 +1437,7 @@ export default function RequestForm({
   ) : (
     <p className="text-sm text-gray-400">{t("flow.destinationEmpty")}</p>
   );
-  const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><p className="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => paths.get(d)).join(" · ")}</p></Section>;
+  const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><ul className="mt-2 space-y-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => <li key={d}>{paths.get(d)}</li>)}</ul></Section>;
   const reviewSection = (
     <Section
       icon={<DocsIcon />}
@@ -1462,7 +1461,7 @@ export default function RequestForm({
         <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")}>
           {intake ? t("intake.departmentDelivery") : assigneeItems.map((item) => item.label).join(", ")}
         </InfoRow>
-        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{exactRequired ? formatSchedule(schedule) : hasPreferences ? preferenceInputs(preferences).map((slot, i) => <p key={i}>{t("intake.preference", { n: i + 1 })}: {slot.date} {t(`intake.${slot.period}`)}</p>) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
+        {intake ? <InfoRow label={t("intake.scheduleTitle")}>{exactRequired ? formatSchedule(schedule) : hasPreferences ? formatSchedule({ startDate: null, startTime: null, endDate: null, endTime: null, preferences: preferenceInputs(preference) }) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
           {[schedule.startDate, schedule.startTime].filter(Boolean).join(" ")}
           {schedule.endDate || schedule.endTime
             ? ` → ${schedule.endDate || schedule.startDate} ${schedule.endTime}`
@@ -1566,9 +1565,9 @@ export default function RequestForm({
                     )}
                     {!intake && fieldsSection}
                     {intake && <>
-                      {departmentDelivery}
                       {attachmentsSection}
                       {!profile?.contact && applicantSection}
+                      {departmentDelivery}
                     </>}
                   </>,
                   ...(!intake ? [<>

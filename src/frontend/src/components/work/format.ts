@@ -247,7 +247,7 @@ export const toPlanInput = (form: PlanForm): PlanInput => ({
 
 /** 작업 일자 글: "2026-10-20 09:00 ~ 2026-10-21 17:00" (비운 칸은 빼고) */
 export const formatSchedule = (s: { startDate: string | null; startTime: string | null; endDate: string | null; endTime: string | null; preferences?: import("@/api/work").PreferredSlot[] } | null | undefined) => {
-  if (s?.preferences?.length) return s.preferences.map((slot, i) => `${i18n.t("work:intake.preference", { n: i + 1 })}: ${slot.date} ${i18n.t(`work:intake.${slot.period}`)}`).join(" / ");
+  if (s?.preferences?.length) return s.preferences.map((slot) => `${i18n.t("work:intake.date")}: ${[slot.date, slot.time?.slice(0, 5)].filter(Boolean).join(" ")}`).join(" / ");
   if (!s?.startDate) return "";
   const start = [s.startDate, s.startTime?.slice(0, 5)].filter(Boolean).join(" ");
   const end = [s.endDate && s.endDate !== s.startDate ? s.endDate : null, s.endTime?.slice(0, 5)].filter(Boolean).join(" ");
