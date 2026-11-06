@@ -102,7 +102,6 @@
     "typeHelp": "Choose one or more work types for each receiving department. Types made by that department and the departments above and below it are grouped by the department that made them. \"Other\" can be chosen together with other types.",
     "typeHelpRegister": "Choose one or more types made by your department or the departments above and below it.",
     "typeNeedTarget": "Choose a receiving department first.",
-    "typeSearch": "Search types",
     "typeNone": "No types to choose.",
     "typeKept": "originally chosen type (hidden by a closer type with the same name, but kept as is)",
     "typeInactive": "deactivated. Remove it and choose another type",
@@ -608,7 +607,7 @@
       "Review your request"
     ],
     "descriptions": [
-      "Describe your issue for department recommendations, or choose a leaf department directly.",
+      "Describe your issue for department recommendations, or choose a department directly.",
       "Choose the department’s work type and complete its form, including location and details.",
       "Choose your preferred dates and attach files. The request goes to the whole department.",
       "Review your details, preferred dates and visibility before sending."
@@ -646,14 +645,14 @@
   "recommend": {
     "issue": "Which system needs help, and what is the issue?",
     "placeholder": "For example: I cannot connect to the tactical network.",
-    "basis": "Up to three leaf departments are recommended from their registered services, systems, symptoms and search terms.",
+    "basis": "Up to three departments are recommended from their registered services, systems, symptoms and search terms.",
     "loading": "Loading departments…",
     "search": "Find recommended departments",
     "failed": "Could not load department information.",
     "changed": "Your description changed. Search again to update the recommendations.",
     "results": "Candidates: {count}",
     "limit": "Up to 3 · You choose",
-    "empty": "No department matched. Use the expanded organization chart below to choose a leaf department.",
+    "empty": "No department matched. Use the expanded organization chart below to choose a department.",
     "systems": "Registered responsibilities",
     "guide": "Department form guidance",
     "guideLoading": "Loading guidance…",
@@ -664,12 +663,12 @@
     "select": "Choose this department",
     "selected": "Selected department",
     "manual": "Choose a department from the organization chart",
-    "manualHelp": "Expand the organization tree. Only leaf departments with available receiving staff can be added.",
+    "manualHelp": "Expand the organization tree. Only departments with available receiving staff can be added.",
     "fields": "This work form asks about: {names}.",
     "profileMatched": "Your description matches these registered terms: {names}."
   },
   "intake": {
-    "typeHelp": "Choose the selected leaf department’s work type before completing its form in the next step.",
+    "typeHelp": "Choose the selected department’s work type before completing its form in the next step.",
     "context": "Request location and details",
     "place": "Request location",
     "details": "Details",
@@ -686,9 +685,7 @@
     "deliveryTitle": "Receiving department",
     "departmentDelivery": "Send to the selected department without assigning an individual.",
     "scheduleNotice": "These are preferences, not a confirmed work schedule.",
-    "sendNotice": "Sending places this request in the selected department’s receipt queue.",
-    "sendHistory": "Send history",
-    "send": "Send request"
+    "sendHistory": "Send history"
   },
   "service": {
     "title": "Department services",
@@ -728,10 +725,6 @@
     "clearSchedule": "Clear preferred dates",
     "editDelivery": "Edit attachments and delivery",
     "noSchedule": "No preferred dates · coordinate with the department",
-    "approvalTitle": "Send approval (optional)",
-    "approvalCheck": "Send after approval",
-    "approvalHelp": "If selected, the request is sent after the approval route completes. Otherwise it goes directly to the department’s receipt list.",
-    "submitApproval": "Request send approval",
     "flow": {
       "steps": [
         "Department & type",
@@ -746,7 +739,7 @@
       "descriptions": [
         "Find a recommended department or choose one from the organization chart, then select a work type.",
         "Complete the department form, add any required schedule and attach files. The request goes to the selected department.",
-        "Review the request and visibility. Choose send approval if needed."
+        "Review the request, visibility and approval route. The route starts with your own approval."
       ],
       "errors": [
         "Select a department and one of its work types.",

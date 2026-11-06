@@ -54,6 +54,17 @@ export default function DepartmentRecommendations({
   const changed = searched !== null && searched !== query.trim();
   const short = (text: string) =>
     text.length > 160 ? `${text.slice(0, 160)}…` : text;
+  const canSearch = !loading && !failed && query.trim().length >= 2;
+  const search = () => {
+    setSearched(query.trim());
+    if (
+      receivers &&
+      profiles &&
+      recommendDepartments(query, departments, profiles, receivers).length ===
+        0
+    )
+      onNoResults();
+  };
   return (
     <div className="mb-5 space-y-4">
       <div className="rounded-xl bg-brand-50 p-4 dark:bg-brand-500/10">
@@ -69,6 +80,12 @@ export default function DepartmentRecommendations({
           maxLength={500}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          // 엔터로 추천 찾기, Shift+엔터는 줄 바꿈. 한글 조합 중 엔터는 조합 끝내기라 넘긴다
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            if (canSearch) search();
+          }}
           placeholder={t("recommend.placeholder")}
           className={INPUT_CLASS}
         />
@@ -77,17 +94,8 @@ export default function DepartmentRecommendations({
         </p>
         <button
           type="button"
-          disabled={loading || failed || query.trim().length < 2}
-          onClick={() => {
-            setSearched(query.trim());
-            if (
-              receivers &&
-              profiles &&
-              recommendDepartments(query, departments, profiles, receivers)
-                .length === 0
-            )
-              onNoResults();
-          }}
+          disabled={!canSearch}
+          onClick={search}
           className="mt-3 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {t(loading && !failed ? "recommend.loading" : "recommend.search")}

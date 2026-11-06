@@ -208,7 +208,6 @@ export default function RequestForm({
   const [viewerDepartments, setViewerDepartments] = useState<number[]>([]);
   const [viewerPeople, setViewerPeople] = useState<number[]>([]);
   const [steps, setSteps] = useState<StepRow[]>([]);
-  const [approvalRequested, setApprovalRequested] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleValue>({
     startDate: "",
@@ -309,7 +308,6 @@ export default function RequestForm({
           ),
         );
         setTitle(r.title);
-        setApprovalRequested(r.approvalRequested ?? false);
         setPlace(r.place);
         setContent(r.content);
         setAssignees(r.assignees.map((a) => a.personnelId));
@@ -521,16 +519,16 @@ export default function RequestForm({
     scheduleReady &&
     supportReady &&
     !stale &&
-    ((intake && !approvalRequested) || !inactiveRoute) &&
+    !inactiveRoute &&
     (register ? ownDepartment !== null : targets.length > 0) &&
     viewerCount > 0 &&
-    ((intake && !approvalRequested) || stepsReady(steps));
+    stepsReady(steps);
   const missing = (text: string) => tried && text.trim() === "";
   const invalid = (text: string) => ({
     "aria-invalid": missing(text) || undefined,
     "aria-describedby": missing(text) ? "request-error" : undefined,
   });
-  const selfOnly = (intake && !approvalRequested) || (steps.length === 1 && steps[0].accountId === user?.accountId);
+  const selfOnly = steps.length === 1 && steps[0].accountId === user?.accountId;
 
   // 양식 답 검사 (서버가 다시 봄): 지나는 구역의 필수·응답 검증. 화면 순서대로 첫 번째로 틀린 양식
   const formProblem = () => {
@@ -559,7 +557,7 @@ export default function RequestForm({
     if (answer) return `request-form-${answer.form.key.replace(":", "-")}`;
     if (viewerCount === 0) return "request-viewers";
     if (!supportReady) return "request-support";
-    if ((!intake || approvalRequested) && (!stepsReady(steps) || inactiveRoute)) return "request-steps";
+    if (!stepsReady(steps) || inactiveRoute) return "request-steps";
     return null;
   };
   const stepForField = (id: string) => {
@@ -585,7 +583,7 @@ export default function RequestForm({
   const flowProblems = () => intake ? [
     targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types" : null,
     formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : !scheduleReady ? "request-schedule-section" : null,
-    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : approvalRequested && (!stepsReady(steps) || inactiveRoute) ? "request-steps" : null,
+    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : !stepsReady(steps) || inactiveRoute ? "request-steps" : null,
   ] : [
     targets.length === 0 || targets.some(staleDepartment)
       ? "request-targets"
@@ -734,7 +732,8 @@ export default function RequestForm({
     const input: RequestInput = {
       kind,
       departmentIntake: intake,
-      approvalRequested: intake && approvalRequested,
+      // 발송 결재는 고르지 않는다: 부서 접수 요청도 결재 경로(처음엔 본인 결재)를 거친다
+      approvalRequested: intake,
       requestedSchedule: exactRequired ? { ...schedule, endDate: schedule.endDate || null } : null,
       preferredSlots: intake && !exactRequired ? preferenceInputs(preferences) : [],
       title: intake ? "" : title,
@@ -774,7 +773,7 @@ export default function RequestForm({
           : null,
       priority: register ? priority : null,
       viewers: { departmentIds: viewerDepartments, personnelIds: viewerPeople },
-      steps: intake && !approvalRequested ? [] : toStepInputs(steps),
+      steps: toStepInputs(steps),
       attachmentIds: attachmentIds(attachments),
     };
     try {
@@ -928,7 +927,7 @@ export default function RequestForm({
             departments={departments}
             pickDepartment={(d: Department) => addTarget(d.id)}
             departmentAllowed={(d: Department) =>
-              receivers !== null && receivers.has(d.id) && !departments.some((child) => child.parentId === d.id)
+              receivers !== null && receivers.has(d.id)
             }
           />
           </div></RequestDisclosure>
@@ -975,7 +974,6 @@ export default function RequestForm({
                   </p>
                 )}
                 <TypePicker
-                  idPrefix={`request-type-${d}`}
                   options={typeOptions[d] == null ? null : intake ? typeOptions[d].filter((option) => option.departmentId === d) : typeOptions[d]}
                   selected={chosenTypes[d] ?? []}
                   kept={intake ? (keptTypes[d] ?? []).filter((kept) => typeOptions[d]?.some((option) => option.typeId === kept.typeId && option.departmentId === d)) : keptTypes[d] ?? []}
@@ -1351,10 +1349,7 @@ export default function RequestForm({
             <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
               {steps.map((row) => row.name).join(" → ") || t("loading")}
             </p>
-            <RequestDisclosure
-              title={t("flow.editRoute")}
-              initiallyOpen={register || (intake && approvalRequested)}
-            >
+            <RequestDisclosure title={t("flow.editRoute")}>
               <StepsEditor
                 docType="SEND"
                 rows={steps}
@@ -1584,13 +1579,9 @@ export default function RequestForm({
                   <>
                     {reviewSection}
                     {viewersSection}
-                    {intake && <Section icon={<ListIcon />} title={t("guidance.approvalTitle")}>
-                      <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200"><input id="request-approval-enabled" type="checkbox" checked={approvalRequested} onChange={(event) => setApprovalRequested(event.target.checked)} />{t("guidance.approvalCheck")}</label>
-                      <p className="mt-2 text-sm text-gray-500">{t("guidance.approvalHelp")}</p>
-                    </Section>}
-                    {(!intake || approvalRequested) && stepsSection}
+                    {stepsSection}
                     <p className="px-1 text-sm text-gray-500">
-                      {t(intake && !approvalRequested ? "intake.sendNotice" : selfOnly ? "flow.selfNotice" : "flow.approvalNotice")}
+                      {t(selfOnly ? "flow.selfNotice" : "flow.approvalNotice")}
                     </p>
                   </>,
                 ]}
@@ -1624,7 +1615,7 @@ export default function RequestForm({
                 busy={submitting}
                 uploading={uploading}
                 submitLabel={
-                  intake ? t(approvalRequested ? "guidance.submitApproval" : "intake.send") : editId !== null
+                  editId !== null
                     ? t("register.resubmit")
                     : selfOnly
                       ? t("register.submitSelf")

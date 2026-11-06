@@ -39,9 +39,8 @@ class DepartmentServiceService(private val access: AccessPolicy, private val dep
     @Transactional(readOnly = true)
     fun list(login: String): List<DepartmentServiceView> {
         val tree = access.actor(login).tree
-        val parents = tree.all().filter { it.active }.mapNotNull { it.parentId }.toSet()
         val allTypes = types.findAll()
-        return profiles.findAll().filter { tree.find(it.departmentId)?.active == true && it.departmentId !in parents }.map { view(it, allTypes) }
+        return profiles.findAll().filter { tree.find(it.departmentId)?.active == true }.map { view(it, allTypes) }
     }
     @Transactional(readOnly = true)
     fun own(login: String): DepartmentServiceView = read(ownId(login))

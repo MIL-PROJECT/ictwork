@@ -164,7 +164,8 @@ class WorkRequestFieldsTest(
         val list = getAs("rf-req", "/api/work/department-services")
         assertThat(list.map { it["departmentId"].asLong() }).contains(s1.id)
         send("PUT", "rf-c3a", own, mapOf("version" to 0, "systems" to "상위 부서 체계")).andExpect(status().isOk)
-        assertThat(getAs("rf-req", "/api/work/department-services").map { it["departmentId"].asLong() }).doesNotContain(c3.id)
+        // 상위 부서도 안내를 올리면 추천 목록에 나온다(받는 부서를 말단으로 한정하지 않음)
+        assertThat(getAs("rf-req", "/api/work/department-services").map { it["departmentId"].asLong() }).contains(c3.id)
     }
 
     @Test
@@ -249,11 +250,13 @@ class WorkRequestFieldsTest(
     }
 
     @Test
-    fun `department intake rejects parent destinations inherited types and register mode`() {
+    fun `department intake accepts parent destinations but rejects inherited types and register mode`() {
         send("POST", "rf-req", "/api/work/requests", intakeBody() + mapOf("kind" to "REGISTER"))
             .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_KIND_INVALID"))
-        send("POST", "rf-req", "/api/work/requests", intakeBody() + ("targets" to listOf(mapOf("departmentId" to c3.id))))
-            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("TARGETS_INVALID"))
+        // 받는 부서는 말단으로 한정하지 않는다: 상위 부서(중대)도 자기 유형으로 받는다
+        val c3Type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(c3.id!!, "중대 접수", sortOrder = 1))
+        val toParent = create("rf-req", intakeBody() + ("targets" to listOf(mapOf("departmentId" to c3.id, "types" to listOf(mapOf("workTypeId" to c3Type.id))))))
+        assertThat(workItemRepository.findByRequestIdOrderByIdAsc(toParent).map { it.departmentId }).containsExactly(c3.id)
         val parentType = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.parentId!!, "상위 부서 전용", sortOrder = 1))
         send("POST", "rf-req", "/api/work/requests", intakeBody() + ("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to parentType.id))))))
             .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_INVALID"))

@@ -25,7 +25,7 @@ const profile = (
   types: [],
 });
 const receivers = new Set([1, 2, 3, 4, 5]);
-test("recommends at most three receiving leaf departments from their own registered information", () => {
+test("recommends at most three receiving departments, parents included, from their own registered information", () => {
   assert.deepEqual(
     recommendDepartments(
       "전장망 접속이 안 됩니다",
@@ -33,16 +33,16 @@ test("recommends at most three receiving leaf departments from their own registe
       [1, 2, 3, 4, 5, 6].map((id) => profile(id)),
       receivers,
     ).map((row) => row.department.id),
-    [2, 3, 4],
+    [1, 2, 3],
   );
-  assert.equal(
+  assert.deepEqual(
     recommendDepartments(
       "전화 고장",
       departments,
       [profile(1, "전화")],
       receivers,
-    ).length,
-    0,
+    ).map((row) => row.department.id),
+    [1],
   );
 });
 test("uses registered symptoms and scope exclusions, without padding missing matches", () => {

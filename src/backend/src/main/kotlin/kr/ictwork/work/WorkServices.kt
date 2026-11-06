@@ -271,9 +271,6 @@ class WorkRequestService(
             request.targetDepartmentIds = validTargets(actor, input.targets.map { it.departmentId ?: throw badRequest("TARGETS_INVALID", "받는 부서를 고르세요.") }).toMutableSet()
             request.originDepartmentIds = mutableSetOf()
         }
-        if (input.departmentIntake && request.targetDepartmentIds.any { target -> actor.tree.all().any { it.active && it.parentId == target } }) {
-            throw badRequest("TARGETS_INVALID", "말단 부서를 선택하세요.")
-        }
         request.viewers = validViewers(actor, input.viewers).toMutableSet()
     }
 

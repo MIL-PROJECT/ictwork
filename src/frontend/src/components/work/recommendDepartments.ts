@@ -36,7 +36,7 @@ const terms = (text: string) => [
       ),
   ),
 ];
-/** 추천 근거는 말단 부서가 직접 기록한 내용뿐이다. 제외 업무가 일치하면 후보에 넣지 않는다. */
+/** 추천 근거는 부서가 직접 기록한 내용뿐이다(상위 부서 포함). 제외 업무가 일치하면 후보에 넣지 않는다. */
 export function recommendDepartments(
   query: string,
   departments: Department[],
@@ -45,18 +45,12 @@ export function recommendDepartments(
 ) {
   const input = normalize(query);
   if (input.length < 2) return [];
-  const parents = new Set(departments.map((department) => department.parentId));
   return profiles
     .flatMap((profile) => {
       const department = departments.find(
         (row) => row.id === profile.departmentId,
       );
-      if (
-        !department ||
-        parents.has(department.id) ||
-        !receivers.has(department.id)
-      )
-        return [];
+      if (!department || !receivers.has(department.id)) return [];
       if (
         profile.exclusions
           .split(/[\n,;·/]+/)
