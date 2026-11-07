@@ -110,6 +110,17 @@ class WorkRequestFieldsTest(
     )
 
     @Test
+    fun `department intake viewers are optional but other requests still require them`() {
+        val noViewers = mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>())
+        val id = create("rf-req", intakeBody() + mapOf("viewers" to noViewers))
+        assertThat(detail("rf-req", id)["viewers"]["departmentIds"].size()).isZero()
+        // 보낸 뒤 열람 범위를 비워도 된다(업무 요청만)
+        send("PUT", "rf-req", "/api/work/requests/$id/viewers", noViewers).andExpect(status().isNoContent)
+        send("POST", "rf-req", "/api/work/requests", body("rf-req", s1) + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
     fun `department intake sends without assignees or chosen approvers and preserves the preferred date and time`() {
         val id = create("rf-req", intakeBody())
         val request = detail("rf-req", id)

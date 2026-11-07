@@ -337,7 +337,7 @@ function RequestDetailPage() {
           title={t("requestDetail.editViewers")}
           description={t("register.viewersHelp")}
           submitLabel={t("save")}
-          canSubmit={viewerDepartments.length + viewerPeople.length > 0}
+          canSubmit={request.departmentIntake || viewerDepartments.length + viewerPeople.length > 0}
           describeError={describeError}
           onSubmit={() => updateViewers(request.id, { departmentIds: viewerDepartments, personnelIds: viewerPeople })}
           onClose={() => setDialog(null)}

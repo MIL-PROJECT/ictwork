@@ -160,31 +160,33 @@ export default function DepartmentRecommendations({
                       {paths.get(department.id)}
                     </p>
                   </div>
-                  <dl className="space-y-2 text-sm leading-relaxed">
-                    {(
-                      ["systems", "responsibilities", "exclusions"] as const
-                    ).map(
-                      (key) =>
-                        profile[key] && (
-                          <div key={key}>
-                            <dt className="font-medium text-gray-700 dark:text-gray-300">
-                              {t(`service.${key}`)}
-                            </dt>
-                            <dd className="text-gray-600 dark:text-gray-400">
-                              {short(profile[key])}
-                            </dd>
-                          </div>
-                        ),
-                    )}
-                    <div className="rounded-lg bg-brand-50 px-3 py-2 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                      <dt className="font-medium">{t("recommend.reason")}</dt>
-                      <dd>
-                        {t("recommend.profileMatched", {
-                          names: matched.slice(0, 3).join(" · "),
-                        })}
-                      </dd>
-                    </div>
-                  </dl>
+                  <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm leading-relaxed text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                    <p className="font-medium">{t("recommend.reason")}</p>
+                    <p>
+                      {t("recommend.profileMatched", {
+                        names: matched.slice(0, 3).join(" · "),
+                      })}
+                    </p>
+                  </div>
+                  {/* 부서가 등록한 업무 정보는 원할 때만 펼쳐 본다 */}
+                  {(["systems", "responsibilities", "exclusions"] as const).some((key) => profile[key]) && (
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                        {t("recommend.details")}
+                      </summary>
+                      <dl className="mt-2 space-y-2 leading-relaxed">
+                        {(["systems", "responsibilities", "exclusions"] as const).map(
+                          (key) =>
+                            profile[key] && (
+                              <div key={key}>
+                                <dt className="font-medium text-gray-700 dark:text-gray-300">{t(`service.${key}`)}</dt>
+                                <dd className="text-gray-600 dark:text-gray-400">{short(profile[key])}</dd>
+                              </div>
+                            ),
+                        )}
+                      </dl>
+                    </details>
+                  )}
                   <button
                     type="button"
                     disabled={selected.includes(department.id)}

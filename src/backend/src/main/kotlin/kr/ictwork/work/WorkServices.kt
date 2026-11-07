@@ -266,7 +266,8 @@ class WorkRequestService(
             request.targetDepartmentIds = validTargets(actor, input.targets.map { it.departmentId ?: throw badRequest("TARGETS_INVALID", "받는 부서를 고르세요.") }).toMutableSet()
             request.originDepartmentIds = mutableSetOf()
         }
-        request.viewers = validViewers(actor, input.viewers).toMutableSet()
+        // 업무 요청(부서 접수)의 열람 범위는 선택: 요청자·받는 부서는 열람 범위와 관계없이 본다
+        request.viewers = validViewers(actor, input.viewers, required = !input.departmentIntake).toMutableSet()
     }
 
     /** 요청받은 부서: 0~20개, 사용 중인 부서 */
@@ -298,7 +299,7 @@ class WorkRequestService(
         val actor = accessPolicy.actor(loginId)
         val request = ownRequest(actor, id)
         if (request.phase != RequestPhases.SENT) throw conflict("REQUEST_STATE", "보낸 요청만 열람 범위를 바꿀 수 있습니다.")
-        request.viewers = validViewers(actor, input).toMutableSet()
+        request.viewers = validViewers(actor, input, required = !request.departmentIntake).toMutableSet()
         workRequestRepository.saveAndFlush(request)
     }
 
@@ -351,9 +352,9 @@ class WorkRequestService(
         return targets
     }
 
-    private fun validViewers(actor: Actor, input: ViewerInput): List<ViewerEntry> {
-        // 열람 범위는 필수 (DEC-061)
-        if (input.departmentIds.isEmpty() && input.personnelIds.isEmpty()) throw badRequest("VIEWERS_REQUIRED", "열람 범위를 하나 이상 정해야 합니다.")
+    private fun validViewers(actor: Actor, input: ViewerInput, required: Boolean = true): List<ViewerEntry> {
+        // 열람 범위는 필수 (DEC-061). 업무 요청(부서 접수)은 선택
+        if (required && input.departmentIds.isEmpty() && input.personnelIds.isEmpty()) throw badRequest("VIEWERS_REQUIRED", "열람 범위를 하나 이상 정해야 합니다.")
         if (input.departmentIds.toSet().size + input.personnelIds.toSet().size > 50) throw badRequest("VIEWERS_INVALID", "열람 범위는 50개까지 정할 수 있습니다.")
         input.departmentIds.toSet().forEach {
             val department = actor.tree.find(it)

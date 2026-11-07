@@ -522,7 +522,7 @@ export default function RequestForm({
     !stale &&
     !inactiveRoute &&
     (register ? ownDepartment !== null : targets.length > 0) &&
-    viewerCount > 0 &&
+    (intake || viewerCount > 0) &&
     stepsReady(steps);
   const missing = (text: string) => tried && text.trim() === "";
   const invalid = (text: string) => ({
@@ -556,15 +556,16 @@ export default function RequestForm({
     if (!scheduleReady) return "request-schedule-section";
     const answer = formProblem();
     if (answer) return `request-form-${answer.form.key.replace(":", "-")}`;
-    if (viewerCount === 0) return "request-viewers";
+    if (!intake && viewerCount === 0) return "request-viewers";
     if (!supportReady) return "request-support";
     if (!stepsReady(steps) || inactiveRoute) return "request-steps";
     return null;
   };
   const stepForField = (id: string) => {
+    // 업무 요청(부서 접수)은 두 단계: 부서·유형·양식·내용·일정·첨부(0) → 확인·발송(1)
+    if (intake) return ["request-viewers", "request-steps"].includes(id) ? 1 : 0;
     if (id === "request-targets") return 0;
     if (id.startsWith("request-types")) return 0;
-    if (intake && ["request-contact", "request-schedule-section", "request-attachments"].includes(id)) return 1;
     if (
       [
         "request-assignees",
@@ -574,7 +575,7 @@ export default function RequestForm({
       ].includes(id)
     )
       return 2;
-    if (["request-viewers", "request-steps"].includes(id)) return intake ? 2 : 3;
+    if (["request-viewers", "request-steps"].includes(id)) return 3;
     return 1;
   };
   const focusField = (id: string) => {
@@ -582,9 +583,9 @@ export default function RequestForm({
     setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
   };
   const flowProblems = () => intake ? [
-    targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types" : null,
-    formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : !scheduleReady ? "request-schedule-section" : null,
-    viewerCount === 0 || viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : !stepsReady(steps) || inactiveRoute ? "request-steps" : null,
+    targets.length === 0 || targets.some(staleDepartment) ? "request-targets" : typeTargets.some((d) => typeErrors[d] || typeOptions[d] == null || !chosenTypes[d]?.length || (chosenTypes[d] ?? []).some((id) => !typeOptions[d]?.some((option) => option.typeId === id && option.departmentId === d))) || staleType ? "request-types"
+      : formProblem() ? `request-form-${formProblem()!.form.key.replace(":", "-")}` : !place.trim() ? "request-place" : !content.trim() ? "request-content" : !scheduleReady ? "request-schedule-section" : null,
+    viewerDepartments.some(staleDepartment) || viewerPeople.some(stalePerson) ? "request-viewers" : !stepsReady(steps) || inactiveRoute ? "request-steps" : null,
   ] : [
     targets.length === 0 || targets.some(staleDepartment)
       ? "request-targets"
@@ -624,7 +625,7 @@ export default function RequestForm({
       const problem = flowProblems().slice(0, next).find(Boolean);
       if (problem) {
         setTried(true);
-        if (stepForField(problem) === 1) setShowRequired(true);
+        if (stepForField(problem) === (intake ? 0 : 1)) setShowRequired(true);
         setError(t(`${intake ? "guidance.flow" : "flow"}.errors.${stepForField(problem)}`));
         focusField(problem);
         return;
@@ -671,7 +672,7 @@ export default function RequestForm({
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!register && flowStep < (intake ? 2 : 3)) {
+    if (!register && flowStep < (intake ? 1 : 3)) {
       goToStep(flowStep + 1);
       return;
     }
@@ -1213,6 +1214,33 @@ export default function RequestForm({
             />
           </Section>{" "}
         </>
+      ) : intake ? (
+        // 업무 요청(부서 접수): 열람 범위는 선택이라 처음엔 접어 둔다
+        <div id="request-viewers">
+          <RequestDisclosure title={`${t("intake.viewersOptional")}${viewerCount > 0 ? ` · ${viewerCount}` : ""}`} initiallyOpen={viewerCount > 0}>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t("intake.viewersHelp")}</p>
+            <OrgPicker
+              label={t("register.viewers")}
+              departments={departments}
+              personnel={personnel}
+              withPeople
+              pickDepartment={(d: Department) => add(viewerDepartments, setViewerDepartments, d.id)}
+              pickPerson={(p: PersonnelItem) => add(viewerPeople, setViewerPeople, p.id)}
+            />
+            <SelectedList
+              title={t("register.viewers")}
+              items={[
+                ...departmentItems(viewerDepartments, setViewerDepartments),
+                ...viewerPeople.map((p) => ({
+                  key: `p-${p}`,
+                  label: personName.get(p) ?? String(p),
+                  onRemove: () => setViewerPeople(viewerPeople.filter((x) => x !== p)),
+                })),
+              ]}
+              emptyText={t("intake.viewersNone")}
+            />
+          </RequestDisclosure>
+        </div>
       ) : (
         <>
           {" "}
@@ -1446,7 +1474,7 @@ export default function RequestForm({
         <button
           type="button"
           className="text-sm font-semibold text-brand-600"
-          onClick={() => goToStep(1)}
+          onClick={() => goToStep(intake ? 0 : 1)}
         >
           {t("flow.editContent")}
         </button>
@@ -1493,7 +1521,7 @@ export default function RequestForm({
       <button
         type="button"
         className="mt-4 text-sm font-semibold text-brand-600"
-        onClick={() => goToStep(intake ? 1 : 2)}
+        onClick={() => goToStep(intake ? 0 : 2)}
       >
         {t(intake ? "guidance.editDelivery" : "flow.editSchedule")}
       </button>
@@ -1552,31 +1580,33 @@ export default function RequestForm({
                 intake={intake}
                 step={flowStep}
                 panels={[
-                  <>
+                  ...(intake ? [<>
+                    {targetSection}
+                    {typesSection}
+                    {formsSection}
+                    {attachmentsSection}
+                    {!profile?.contact && applicantSection}
+                    {departmentDelivery}
+                  </>] : [<>
                     {targetSection}
                     {typesSection}
                   </>,
                   <>
-                    {forms.length > 0 || intake ? (
+                    {forms.length > 0 ? (
                       formsSection
                     ) : (
                       <p className="rounded-xl bg-brand-50 px-5 py-4 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                         {t("flow.noForm")}
                       </p>
                     )}
-                    {!intake && fieldsSection}
-                    {intake && <>
-                      {attachmentsSection}
-                      {!profile?.contact && applicantSection}
-                      {departmentDelivery}
-                    </>}
+                    {fieldsSection}
                   </>,
-                  ...(!intake ? [<>
+                  <>
                     {scheduleSection}
                     {assigneeSection}
                     {attachmentsSection}
                     {!profile?.contact && applicantSection}
-                  </>] : []),
+                  </>]),
                   <>
                     {reviewSection}
                     {viewersSection}

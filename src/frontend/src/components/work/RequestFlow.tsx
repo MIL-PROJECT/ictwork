@@ -192,8 +192,10 @@ export default function RequestFlow({
             {t("flow.previous")}
           </button>
         )}
+        {/* 다음·보내기는 key로 다른 요소로 둔다: 같은 요소를 다시 쓰면 "다음"을 누르는 순간 type이 submit으로 바뀌어 확인 없이 바로 보내진다 */}
         {step < panels.length - 1 ? (
           <button
+            key="next"
             type="button"
             disabled={busy || uploading}
             onClick={onNext}
@@ -206,6 +208,7 @@ export default function RequestFlow({
           </button>
         ) : (
           <button
+            key="submit"
             type="submit"
             disabled={busy || uploading}
             className={cn(
