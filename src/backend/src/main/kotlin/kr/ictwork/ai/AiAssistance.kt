@@ -153,7 +153,7 @@ class AiAssistance(
 
 /** A small, explainable lexical matcher. A match is never presented as a probability or a diagnosis. */
 object AiCaseSearch {
-    private val ignored = setOf("고장", "사례", "유사", "분석", "증상", "업무", "찾아줘", "찾아주세요", "알려줘", "알려주세요", "보여줘", "해주세요", "문제", "안됨", "확인", "요청", "지원", "관련", "비슷한", "발생", "발생했어요", "있어요", "입니다", "됩니다")
+    private val ignored = setOf("고장", "사례", "유사", "분석", "증상", "업무", "업무용", "행정용", "사용자", "오늘", "어제", "현재", "찾아줘", "찾아주세요", "알려줘", "알려주세요", "보여줘", "해주세요", "문제", "안됨", "확인", "요청", "지원", "관련", "비슷한", "발생", "발생했어요", "있어요", "입니다", "됩니다")
     private fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase().replace(Regex("컴퓨터|피씨"), "pc")
     private val equipmentGroups = listOf(listOf("pc", "노트북"), listOf("프린터", "복합기"), listOf("전화기", "전화"), listOf("무전기"), listOf("중계기"), listOf("스위치"), listOf("라우터"), listOf("서버"), listOf("방송"), listOf("발전기"), listOf("ups", "무정전"))
     private fun hasEquipment(text: String, word: String) = if (word == "pc" || word == "ups") Regex("(?<![a-z0-9])$word(?![a-z0-9])").containsMatchIn(text) else text.contains(word)
@@ -163,6 +163,10 @@ object AiCaseSearch {
         .filter { it.length >= 2 && it !in ignored }.distinct().toList()
     fun matches(question: String, text: String): List<String> {
         val haystack = normalized(text)
+        // A lending or event-support record is not a fault example merely because it mentions the same equipment.
+        val faultQuestion = Regex("고장|오류|에러|불량|불가|잡음|끊|장애|먹통|파손|않|안\\s*(켜|돼|됨|나)|켜지지").containsMatchIn(question)
+        val faultRecord = Regex("고장|오류|에러|불량|불가|잡음|끊|장애|먹통|파손|이상|교체|수리|정비|점검|않|안\\s*(켜|돼|됨|나)|켜지지").containsMatchIn(text)
+        if (faultQuestion && !faultRecord) return emptyList()
         val equipment = equipmentGroups.filter { group -> group.any { hasEquipment(normalized(question), it) } }
         if (equipment.isNotEmpty() && equipment.none { group -> group.any { hasEquipment(haystack, it) } }) return emptyList()
         return words(question).filter { word ->
