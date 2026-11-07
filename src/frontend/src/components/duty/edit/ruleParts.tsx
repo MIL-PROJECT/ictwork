@@ -1,4 +1,5 @@
 import type { DayCode } from "@/api/duty";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import Checkbox from "@/components/form/input/Checkbox";
 import Badge from "@/components/ui/badge/Badge";
 import { AngleDownIcon, AngleUpIcon } from "@/icons";
@@ -35,11 +36,15 @@ export function PersonFlags({ active, transferred }: { active: boolean; transfer
 }
 
 /** 적용 날 8개 체크 (월~일·공휴일)와 빠른 고르기 [평일]·[주말·공휴일]·[모두] */
-export function DayChecks({ value, onChange, legend }: { value: DayCode[]; onChange: (days: DayCode[]) => void; legend: string }) {
+/** marked: AI 업무지원이 넣은 값 그대로 ("AI가 채움", slices/21 12.5) */
+export function DayChecks({ value, onChange, legend, marked = false }: { value: DayCode[]; onChange: (days: DayCode[]) => void; legend: string; marked?: boolean }) {
   const { t } = useTranslation("duty", { keyPrefix: "days" });
   return (
     <fieldset>
-      <legend className={labelClass}>{legend}</legend>
+      <legend className={labelClass}>
+        {legend}
+        {marked && <AiFilledMark />}
+      </legend>
       <div className="mb-2 flex flex-wrap gap-2">
         {DAY_PRESETS.map((p) => (
           <button
@@ -67,12 +72,13 @@ export function DayChecks({ value, onChange, legend }: { value: DayCode[]; onCha
   );
 }
 
-/** 순번대로 놓은 인원: 위·아래·빼기. extra: 사람마다 덧붙일 칸(교대 시작 칸) */
-export function MemberList({ ids, describe, onChange, extra }: {
+/** 순번대로 놓은 인원: 위·아래·빼기. extra: 사람마다 덧붙일 칸(교대 시작 칸). marked: 그 사람이 AI 업무지원이 넣은 그대로인가("AI가 채움") */
+export function MemberList({ ids, describe, onChange, extra, marked }: {
   ids: number[];
   describe: (id: number) => { label: string; active: boolean; transferred: boolean };
   onChange: (ids: number[]) => void;
   extra?: (id: number, index: number) => ReactNode;
+  marked?: (id: number) => boolean;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "members" });
   const move = (from: number, to: number) => {
@@ -91,6 +97,7 @@ export function MemberList({ ids, describe, onChange, extra }: {
             {/* 이름 칸은 10rem 아래로 줄지 않고 덧붙인 칸·단추를 다음 줄로 보낸다 (좁은 화면에서 겹치지 않게) */}
             <span className="min-w-0 flex-[1_1_10rem] break-keep wrap-break-word text-gray-800 dark:text-white/90">
               {p.label} <PersonFlags active={p.active} transferred={p.transferred} />
+              {marked?.(id) && <AiFilledMark />}
             </span>
             {extra?.(id, i)}
             <span className="flex items-center gap-1">

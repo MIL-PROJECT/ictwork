@@ -1,4 +1,5 @@
 import { formImageUrl } from "@/api/work";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import type { AttachmentItem } from "@/components/file/attachments";
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +28,7 @@ export default function FormFill({
   upload,
   showRequired = false,
   guided = false,
+  marked,
 }: {
   definition: FormDefinition;
   value: FillValue;
@@ -35,6 +37,7 @@ export default function FormFill({
   upload?: (file: File) => Promise<{ id: number }>;
   showRequired?: boolean;
   guided?: boolean; // Opt-in presentation; form rules and answer shape stay shared.
+  marked?: (key: string) => boolean; // AI 업무지원 "AI가 채움": 질문(key)마다 (REQ-C03 ④)
 }) {
   const { t } = useTranslation("workform");
   const answers = mergedAnswers(definition, value);
@@ -76,6 +79,7 @@ export default function FormFill({
               *
             </span>
           )}
+          {marked?.(item.key) && <AiFilledMark />}
         </p>
         {item.description && (
           <p className="text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400">

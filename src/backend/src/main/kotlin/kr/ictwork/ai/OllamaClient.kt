@@ -16,9 +16,13 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /** 실행기에 닿지 않거나 실행기가 오류를 돌려줌 (화면: "AI 서버에 연결할 수 없습니다", REQ-B09) */
-class AiUnavailableException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+open class AiUnavailableException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+
+/** 실행기에는 닿았는데 그 요청을 오류로 돌려줌(오류 응답·결과 수가 다름). 색인은 그 대상만 건너뛰고 다음 대상을 한다 (REQ-B03) */
+class AiRejectedException(message: String) : AiUnavailableException(message)
 
 /** 멈춤·시간 넘김으로 끊은 답 */
 class AiCancelledException : RuntimeException("cancelled")
@@ -119,9 +123,9 @@ class OllamaClient(private val settings: AiSettings) {
             throw AiUnavailableException("embed failed", (e as? ExecutionException)?.cause ?: e)
         }
         if (call?.cancelled == true) throw AiCancelledException()
-        if (response.statusCode() != 200) throw AiUnavailableException("embed status ${response.statusCode()}")
+        if (response.statusCode() != 200) throw AiRejectedException("embed status ${response.statusCode()}")
         val vectors = mapper.readTree(response.body()).path("embeddings")
-        if (!vectors.isArray || vectors.size() != texts.size) throw AiUnavailableException("embed result size")
+        if (!vectors.isArray || vectors.size() != texts.size) throw AiRejectedException("embed result size")
         return vectors.map { v -> FloatArray(v.size()) { i -> v[i].floatValue() } }
     }
 
@@ -162,6 +166,54 @@ class OllamaClient(private val settings: AiSettings) {
             }
         }
         if (call.cancelled) throw AiCancelledException()
+    }
+
+    /**
+     * 구조화 출력 (POST /api/chat, stream:false, format = JSON 스키마, slices/21 7장·13.2). 답 글(JSON)을 읽어 돌려주고, JSON이 아니면 빈 묶음.
+     * 기다리는 동안 1초마다 tick을 부른다(연결 유지 progress, 12.4). call.cancel()이면 AiCancelledException
+     */
+    fun structured(body: ObjectNode, schema: JsonNode, call: AiCall, tick: (() -> Unit)? = null): ObjectNode {
+        if (call.cancelled) throw AiCancelledException()
+        body.put("stream", false)
+        body.set<JsonNode>("format", schema)
+        val future = http.sendAsync(post("/api/chat", body).build(), HttpResponse.BodyHandlers.ofByteArray())
+        call.attach(future)
+        val started = System.nanoTime()
+        val response = try {
+            var result: HttpResponse<ByteArray>? = null
+            while (result == null) {
+                try {
+                    result = future.get(1, TimeUnit.SECONDS)
+                } catch (e: TimeoutException) {
+                    if (call.cancelled) throw AiCancelledException()
+                    if (System.nanoTime() - started > TimeUnit.MINUTES.toNanos(10)) throw AiUnavailableException("structured timeout")
+                    tick?.invoke()
+                }
+            }
+            result
+        } catch (e: AiCancelledException) {
+            throw e
+        } catch (e: AiUnavailableException) {
+            throw e
+        } catch (e: Exception) {
+            if (call.cancelled) throw AiCancelledException()
+            if (e is InterruptedException) Thread.currentThread().interrupt()
+            throw AiUnavailableException("structured failed", (e as? ExecutionException)?.cause ?: e)
+        }
+        if (call.cancelled) throw AiCancelledException()
+        if (response.statusCode() != 200) throw AiUnavailableException("structured status ${response.statusCode()}")
+        // 답 몸이 JSON이 아니면 실행기 오류로 본다(의도 고르기는 묻고 답하기로 간다, A4)
+        val reply = try {
+            mapper.readTree(response.body())
+        } catch (e: IOException) {
+            throw AiUnavailableException("structured reply invalid", e)
+        }
+        if (reply.hasNonNull("error")) throw AiUnavailableException("structured error")
+        return try {
+            mapper.readTree(reply.path("message").path("content").asText("")) as? ObjectNode ?: newObject()
+        } catch (e: IOException) {
+            newObject()
+        }
     }
 
     private fun request(path: String): HttpRequest.Builder = HttpRequest.newBuilder(URI.create(settings.baseUrl.trimEnd('/') + path))

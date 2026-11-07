@@ -1,7 +1,10 @@
 import type { DutyManageDepartment } from "@/api/duty";
+import { ApiError } from "@/api/client";
 import ActionModal from "@/components/admin/ActionModal";
+import AssistLabel from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { clip, cn } from "@/utils";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { dangerLink, inputClass, labelClass, linkButton, primaryButton, useDutyError } from "../dutyUtil";
 
@@ -9,26 +12,43 @@ const NAME_MAX = 30;
 const length = (text: string) => Array.from(text).length;
 
 /** [근무표 추가] 창: 이름 1~30자 (방식은 고르지 않음, 규칙마다 종류를 고름 G-147) */
-function CreateDialog({ onSubmit, onClose }: { onSubmit: (name: string) => Promise<unknown>; onClose: () => void }) {
+function CreateDialog({ departmentId, onSubmit, onClose }: { departmentId: number; onSubmit: (name: string) => Promise<unknown>; onClose: () => void }) {
   const { t } = useTranslation("duty", { keyPrefix: "roster" });
   const describeError = useDutyError();
   const id = useId();
   const [name, setName] = useState("");
+  const [lastError, setLastError] = useState<{ code: string; message: string; field: string | null } | null>(null);
   const trimmed = name.trim();
+  // AI 업무지원 창 어댑터 (REQ-C07 근무자 현황, slices/21 8장 duty.roster, 대상은 부서): 이름. [추가]는 사용자가 누른다
+  const assist = useAssistAdapter("duty.roster", {
+    target: departmentId,
+    ready: true,
+    values: { name },
+    apply: (v) => {
+      if (typeof v.name === "string") setName(Array.from(v.name).slice(0, NAME_MAX).join(""));
+    },
+    labels: { name: t("name") },
+    ids: { name: `${id}-name` },
+    lastError,
+  });
   return (
     <ActionModal
       title={t("addTitle")}
       description={t("addHelp")}
       submitLabel={t("addSubmit")}
       canSubmit={length(trimmed) >= 1}
-      describeError={describeError}
+      describeError={(err) => {
+        const message = describeError(err);
+        setLastError({ code: err instanceof ApiError ? err.code : "", message, field: null });
+        return message;
+      }}
       onSubmit={() => onSubmit(trimmed)}
       onClose={onClose}
     >
       <div>
-        <label htmlFor={`${id}-name`} className={labelClass}>
+        <AssistLabel assist={assist} field="name" htmlFor={`${id}-name`} className={labelClass}>
           {t("name")}
-        </label>
+        </AssistLabel>
         <input id={`${id}-name`} value={name} onChange={(e) => setName(clip(e, NAME_MAX))} placeholder={t("namePlaceholder")} className={inputClass} />
       </div>
     </ActionModal>
@@ -65,17 +85,28 @@ function RenameDialog({ current, onSubmit, onClose }: { current: string; onSubmi
  * 근무표 목록 (REQ-404, slices/14 7.4): 고른 부서의 근무표(담당자에게는 맡은 근무표만)를 고른다.
  * 부서 관리자만 [근무표 추가]·이름 고치기·지우기(확인 창). 지우면 로테이션 규칙·배치·공휴일·공유·담당자가 모두 지워진다
  */
-export default function RosterList({ department, selectedId, onSelect, onCreate, onRename, onDelete }: {
+export default function RosterList({ department, selectedId, onSelect, onCreate, onRename, onDelete, startCreating = false, onStartedCreating }: {
   department: DutyManageDepartment;
   selectedId: number | null;
   onSelect: (id: number) => void;
   onCreate: (name: string) => Promise<unknown>;
   onRename: (name: string) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
+  /** [근무표 추가] 창을 연다 (AI 업무지원 duty.roster, 부서 관리자만, slices/21 12.5·12.8). 연 뒤 onStartedCreating */
+  startCreating?: boolean;
+  onStartedCreating?: () => void;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "roster" });
   const describeError = useDutyError();
-  const [dialog, setDialog] = useState<"create" | "rename" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"create" | "rename" | "delete" | null>(() => (startCreating && department.canManage ? "create" : null));
+  const [prevStart, setPrevStart] = useState(startCreating);
+  if (startCreating !== prevStart) {
+    setPrevStart(startCreating);
+    if (startCreating && department.canManage) setDialog("create");
+  }
+  useEffect(() => {
+    if (startCreating) onStartedCreating?.();
+  }, [startCreating, onStartedCreating]);
   const selected = department.rosters.find((r) => r.id === selectedId) ?? null;
 
   return (
@@ -123,7 +154,7 @@ export default function RosterList({ department, selectedId, onSelect, onCreate,
         </div>
       )}
 
-      {dialog === "create" && <CreateDialog onSubmit={onCreate} onClose={() => setDialog(null)} />}
+      {dialog === "create" && <CreateDialog departmentId={department.departmentId} onSubmit={onCreate} onClose={() => setDialog(null)} />}
       {dialog === "rename" && selected && <RenameDialog current={selected.name} onSubmit={onRename} onClose={() => setDialog(null)} />}
       {dialog === "delete" && selected && (
         <ActionModal

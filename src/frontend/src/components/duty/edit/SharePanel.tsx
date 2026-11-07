@@ -1,5 +1,6 @@
 import { type DutyRosterDetail, saveShares } from "@/api/duty";
 import type { Department } from "@/api/org";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import OrgPicker from "@/components/work/OrgPicker";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +16,9 @@ export default function SharePanel({ detail, departments, write }: { detail: Dut
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const shares = detail.shares;
+  // AI 업무지원 (REQ-C07 근무자 현황, slices/21 8장·12.6 duty.share): [더하기]·[빼기]는 누르면 바로 저장되므로 칸을 넣지 않는다.
+  // 탭이 열린 것만 알려, 패널이 단추 위치를 안내한다
+  useAssistAdapter("duty.share", { target: detail.id, ready: true, values: {}, apply: () => undefined });
 
   const save = async (next: { departmentId: number; includeSub: boolean }[]) => {
     if (busy) return;

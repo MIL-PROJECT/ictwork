@@ -2,6 +2,8 @@ import { type DirectiveItem, type DirectiveNameOption, directiveImageUrl } from 
 import { ApiError } from "@/api/client";
 import { deleteTempFile, MAX_FILE_SIZE, uploadFile } from "@/api/files";
 import ActionModal from "@/components/admin/ActionModal";
+import AssistLabel from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { formatSize } from "@/components/file/attachments";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,6 +67,8 @@ export default function DirectiveDialog({ options, editing, onSubmit, onClose }:
       : [],
   );
   const input = useRef<HTMLInputElement>(null);
+  // 마지막 저장 오류 (AI 업무지원이 다음 질문에서 풀어 설명, REQ-C06)
+  const [lastError, setLastError] = useState<{ code: string; message: string; field: string | null } | null>(null);
   // 저장했는가(닫을 때 임시 그림을 지우지 않음), 창이 닫혔는가(닫힌 뒤 끝난 올리기는 바로 지움), 만든 미리 보기 주소
   const saved = useRef(false);
   const closed = useRef(false);
@@ -83,6 +87,31 @@ export default function DirectiveDialog({ options, editing, onSubmit, onClose }:
   const uploading = rows.some((r) => r.state === "uploading");
   const imagesChanged = editing !== null && ids.join(",") !== editing.images.map((i) => i.id).join(",");
   const valid = !uploading && content.length > 0 && left >= 0 && (editing ? content !== editing.content || imagesChanged : option !== null);
+
+  // AI 업무지원 창 어댑터 (REQ-C07 지시사항, slices/21 8장 directive.new·directive.edit): 올리기는 명의(둘 이상일 때 고름)·내용, 고치기는 내용만.
+  // 그림은 칸에 넣지 않는다. [올리기]·[저장]은 사용자가 누른다
+  const assist = useAssistAdapter(editing ? "directive.edit" : "directive.new", {
+    target: editing?.id ?? null,
+    ready: true,
+    values: editing ? { content: text } : { named: option ? { accountId: option.accountId, departmentId: option.departmentId } : null, content: text },
+    apply: (v) => {
+      if (typeof v.content === "string") setText(Array.from(v.content).slice(0, MAX).join(""));
+      const named = v.named as { accountId?: unknown; departmentId?: unknown } | null | undefined;
+      if (!editing && options.length > 1 && named && typeof named === "object") {
+        const found = options.find((o) => o.accountId === named.accountId && o.departmentId === named.departmentId);
+        if (found) setPicked(optionKey(found));
+      }
+    },
+    labels: { named: t("dialog.named"), content: t("dialog.content") },
+    format: (field, value) => {
+      if (field !== "named" || !value || typeof value !== "object") return null;
+      const v = value as { accountId?: unknown; departmentId?: unknown };
+      const found = options.find((o) => o.accountId === v.accountId && o.departmentId === v.departmentId);
+      return found ? label(found) : null;
+    },
+    ids: { named: `${id}-named`, content: `${id}-content` },
+    lastError,
+  });
 
   const patch = (key: string, change: Partial<ImageRow>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...change } : r)));
 
@@ -138,13 +167,16 @@ export default function DirectiveDialog({ options, editing, onSubmit, onClose }:
       title={editing ? t("dialog.editTitle") : t("dialog.createTitle")}
       submitLabel={editing ? t("dialog.submitEdit") : t("dialog.submitCreate")}
       canSubmit={valid}
-      describeError={(err) =>
-        err instanceof ApiError && err.code === "FILE_NOT_TEMP"
-          ? t("images.notTemp")
-          : err instanceof ApiError && err.status === 400
-            ? err.message
-            : t("errors.default")
-      }
+      describeError={(err) => {
+        const message =
+          err instanceof ApiError && err.code === "FILE_NOT_TEMP"
+            ? t("images.notTemp")
+            : err instanceof ApiError && err.status === 400
+              ? err.message
+              : t("errors.default");
+        setLastError({ code: err instanceof ApiError ? err.code : "", message, field: null });
+        return message;
+      }}
       onSubmit={async () => {
         saved.current = await onSubmit({ option, content, imageIds: ids });
       }}
@@ -154,13 +186,16 @@ export default function DirectiveDialog({ options, editing, onSubmit, onClose }:
         <div>
           {options.length === 1 ? (
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              <span className="font-medium">{t("dialog.named")}</span> {label(options[0])}
+              <AssistLabel assist={assist} field="named" as="span" className="font-medium">
+                {t("dialog.named")}
+              </AssistLabel>{" "}
+              {label(options[0])}
             </p>
           ) : (
             <>
-              <label htmlFor={`${id}-named`} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+              <AssistLabel assist={assist} field="named" htmlFor={`${id}-named`} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 {t("dialog.named")}
-              </label>
+              </AssistLabel>
               <select
                 id={`${id}-named`}
                 value={picked}
@@ -178,9 +213,9 @@ export default function DirectiveDialog({ options, editing, onSubmit, onClose }:
         </div>
       )}
       <div>
-        <label htmlFor={`${id}-content`} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+        <AssistLabel assist={assist} field="content" htmlFor={`${id}-content`} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
           {t("dialog.content")}
-        </label>
+        </AssistLabel>
         <textarea
           id={`${id}-content`}
           rows={8}

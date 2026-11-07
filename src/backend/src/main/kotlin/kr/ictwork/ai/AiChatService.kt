@@ -1,5 +1,6 @@
 package kr.ictwork.ai
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -9,11 +10,21 @@ import kr.ictwork.ictstatus.IctBoxAccess
 import kr.ictwork.ictstatus.IctBoxRepository
 import kr.ictwork.admin.badRequest
 import kr.ictwork.admin.notFound
+import kr.ictwork.ai.assist.AskModes
+import kr.ictwork.ai.assist.AskTriggers
+import kr.ictwork.ai.assist.AssistError
+import kr.ictwork.ai.assist.AssistField
+import kr.ictwork.ai.assist.AssistHistory
+import kr.ictwork.ai.assist.AssistInput
+import kr.ictwork.ai.assist.AssistScreens
+import kr.ictwork.ai.assist.AssistService
+import kr.ictwork.ai.assist.AssistViewContext
+import kr.ictwork.ai.assist.FillOutcome
+import kr.ictwork.ai.assist.IntentOutcome
 import kr.ictwork.common.error.ApiException
 import kr.ictwork.form.FormRules
 import kr.ictwork.org.PersonnelRepository
 import org.slf4j.LoggerFactory
-import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -42,12 +53,40 @@ data class MessageView(
     val links: List<AiLink>,
     val pending: Int,
     val createdAt: LocalDateTime,
+    /** 업무지원 답의 화면 정보(제안 단추·채우기 요약, slices/21 13.6). 없으면 null */
+    val assist: JsonNode? = null,
 )
 
 /** busy: 이 대화에서 기다리거나 답을 받는 질문이 있음 */
 data class ConversationDetail(val id: Long, val title: String?, val createdAt: LocalDateTime, val lastAskedAt: LocalDateTime?, val busy: Boolean, val messages: List<MessageView>)
 
-data class AskInput(val question: String? = null)
+/** 업무지원 화면 (slices/21 13.1): 화면 id와 고칠 대상 id(숫자 또는 숫자 글) */
+data class AskScreen(val id: String? = null, val target: Any? = null)
+
+/** 지금 보는 화면 (사용자 결정, 질의응답 맥락): 지원 화면 id와 대상 id(숫자 또는 숫자 글). 저장하지 않는다 */
+data class AskView(val screen: String? = null, val target: Any? = null)
+
+/**
+ * 묻기 몸 (REQ-B01, slices/21 13.1). mode=chat(처음 값)은 질문 1~1,000자. mode=fill은 업무지원 칸 채우기 차례:
+ * trigger(start·turn), screen, context(동적 칸의 대상), fields(칸 스냅숏), userEdited(사용자 칸·입력 중인 칸), answers(칸별 답, null은 비워 두기),
+ * declined(비워 두기로 한 칸), lastError(마지막 저장 오류). trigger=start이거나 answers가 있으면 question이 비어도 된다
+ */
+data class AskInput(
+    val question: String? = null,
+    val mode: String? = null,
+    val trigger: String? = null,
+    val screen: AskScreen? = null,
+    val context: Map<String, Any?>? = null,
+    val fields: Map<String, Any?>? = null,
+    val userEdited: List<String>? = null,
+    val answers: Map<String, String?>? = null,
+    val declined: List<String>? = null,
+    val lastError: AssistError? = null,
+    /** trigger=start: [작성 시작]을 누른 제안 답의 메시지 id (C5) */
+    val startedAt: Long? = null,
+    /** 지금 보는 화면 (선택, 묻고 답하기로 갈 때 맥락으로만 쓰고 저장·로그에 남기지 않음) */
+    val view: AskView? = null,
+)
 
 /** 답 흐름 이벤트를 보낸다. 거짓이면 연결이 끊긴 것(멈춤·창 닫기) */
 fun interface AiEvents {
@@ -66,6 +105,14 @@ class AiAskJob(
     val questionId: Long,
     val titleBefore: String?,
     val askedBefore: LocalDateTime?,
+    /** 업무지원 칸 채우기 차례(mode=fill)면 화면이 보낸 것 (slices/21 13.1) */
+    val assist: AssistInput? = null,
+    /** 사용자가 직접 적은 글(질문·칸별 답). 근거 검사·글 찾기에 쓴다 (13.3) */
+    val typed: List<String> = listOf(question),
+    /** 질문 글이 있음(칸별 답만이면 모델을 부르지 않음, 13.4) */
+    val freeText: Boolean = true,
+    /** 지금 보는 화면 (묻고 답하기 맥락) */
+    val view: AskView? = null,
 ) {
     val call = AiCall()
 
@@ -98,6 +145,7 @@ class AiChatService(
     private val ictBoxRepository: IctBoxRepository,
     private val ictBoxAccess: IctBoxAccess,
     private val ollama: OllamaClient,
+    private val assist: AssistService,
     private val objectMapper: ObjectMapper,
     private val clock: Clock,
     transactionManager: PlatformTransactionManager,
@@ -164,11 +212,35 @@ class AiChatService(
      * 질문 받기 (요청 스레드): 길이·대화 주인·실행기 연결·차례(한 계정 하나)를 보고 질문을 저장한다.
      * 실행기에 닿지 않으면 503 AI_UNAVAILABLE
      */
-    fun accept(loginId: String, conversationId: Long, question: String?): AiAskJob {
+    fun accept(loginId: String, conversationId: Long, question: String?): AiAskJob = accept(loginId, conversationId, AskInput(question))
+
+    /**
+     * 업무지원 차례도 받는다 (slices/21 13.1·13.4): mode=fill이면 저장할 사용자 메시지 글을 서버가 만든다 —
+     * [작성 시작]은 "[작성 시작] 작업 이름", 칸별 답은 "장소: 통신창고 / 내선 번호: 비워 둠", 그 뒤에 사용자가 적은 질문. 만든 글도 1~1,000자
+     */
+    fun accept(loginId: String, conversationId: Long, input: AskInput): AiAskJob {
         settings.requireActive()
-        val text = question?.trim().orEmpty()
+        val question = input.question?.trim().orEmpty()
+        val mode = input.mode ?: AskModes.CHAT
+        if (mode != AskModes.CHAT && mode != AskModes.FILL) throw badRequest("AI_MODE_INVALID", "알 수 없는 묻기 방식입니다.")
+        val fill = if (mode == AskModes.FILL) fillInput(input) else null
+        val screen = fill?.let { AssistScreens.find(it.screen) }
+        // 칸별 답 줄은 칸 이름으로 (동적 칸은 정의 제목, C5). 칸 이름은 권한·대상을 확인한 뒤에만 붙이고, 확인에 실패하면 칸 이름 없이 답만 둔다
+        val labels = fill?.takeIf { it.answers.isNotEmpty() }?.let { assist.fieldLabels(loginId, it) }
+        val answerLine = fill?.answers?.entries?.joinToString(" / ") { (id, v) ->
+            val value = if (v == null || v.isBlank()) "비워 둠" else v.trim()
+            if (labels == null) value else "${labels[id] ?: screen?.fields?.firstOrNull { it.id == id }?.label ?: id}: $value"
+        }?.takeIf { it.isNotEmpty() }
+        val startLine = if (fill?.trigger == AskTriggers.START) "[작성 시작] ${screen?.taskOf(fill.target)}" else null
+        val text = listOfNotNull(startLine, answerLine, question.takeIf { it.isNotEmpty() }).joinToString("\n")
         if (FormRules.length(text) !in 1..MAX_QUESTION) throw badRequest("AI_QUESTION_LENGTH", "질문은 1~1,000자로 적어 주세요.")
-        val accountId = checkNotNull(readTx.execute { checkNotNull(own(loginId, conversationId).accountId) })
+        val typed = listOfNotNull(question.takeIf { it.isNotEmpty() }) + fill?.answers?.values?.filterNotNull()?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        val accountId = checkNotNull(readTx.execute {
+            val c = own(loginId, conversationId)
+            // [작성 시작]을 누른 제안 답은 이 대화의 그 화면 제안이어야 한다 (C5)
+            if (fill?.proposalId != null && assist.proposal(conversationId, fill.proposalId, fill.screen.orEmpty()) == null) throw notFound()
+            checkNotNull(c.accountId)
+        })
         if (!ollama.reachable()) throw unavailable()
         val ticket = queue.enter(accountId, conversationId)
         try {
@@ -179,13 +251,39 @@ class AiChatService(
                 val askedBefore = c.lastAskedAt
                 if (c.title == null) c.title = takeCodePoints(text, TITLE_LENGTH)
                 c.lastAskedAt = now
-                val saved = messageRepository.save(AiMessage(conversationId, AiRoles.USER, text, AiMessageStatuses.DONE, now))
-                AiAskJob(loginId, conversationId, text, ticket, checkNotNull(saved.id), titleBefore, askedBefore)
+                val message = AiMessage(conversationId, AiRoles.USER, text, AiMessageStatuses.DONE, now)
+                if (fill != null) message.assist = assist.inputJson(typed)
+                val saved = messageRepository.save(message)
+                AiAskJob(loginId, conversationId, text, ticket, checkNotNull(saved.id), titleBefore, askedBefore, fill, if (fill == null) listOf(text) else typed, question.isNotEmpty(), input.view)
             })
         } catch (e: Exception) {
             queue.leave(ticket)
             throw e
         }
+    }
+
+    /**
+     * 업무지원 차례 몸 정리 (13.1·5.2): 화면 id는 지원 화면만, 칸 값 글은 칸 정의의 max(없으면 2,000자)로 자르고 칸 수는 정해 둔 수까지만 받는다
+     */
+    private fun fillInput(input: AskInput): AssistInput {
+        val screen = AssistScreens.find(input.screen?.id) ?: throw badRequest("ASSIST_SCREEN_INVALID", "업무지원을 할 수 없는 화면입니다.")
+        val trigger = input.trigger ?: AskTriggers.TURN
+        if (trigger != AskTriggers.START && trigger != AskTriggers.TURN) throw badRequest("ASSIST_TRIGGER_INVALID", "알 수 없는 차례입니다.")
+        val max = screen.fields.associate { it.id to it.max }
+        fun cut(v: Any?, limit: Int): Any? = when (v) {
+            is String -> FormRules.clip(v, limit)
+            is List<*> -> v.take(MAX_FIELDS).map { cut(it, limit) }
+            is Map<*, *> -> v.entries.take(MAX_FIELDS).associate { (k, x) -> k.toString() to cut(x, limit) }
+            else -> v
+        }
+        fun sized(map: Map<String, Any?>?) = map.orEmpty().entries.take(MAX_FIELDS).associate { (k, v) -> k to cut(v, max[k] ?: AssistField.DEFAULT_MAX) }
+        return AssistInput(
+            AskModes.FILL, trigger, screen.id, AssistService.targetId(input.screen?.target), sized(input.context), sized(input.fields),
+            input.userEdited.orEmpty().take(MAX_FIELDS).toSet(),
+            input.answers.orEmpty().entries.take(MAX_FIELDS).associate { (k, v) -> k to v?.let { FormRules.clip(it, max[k] ?: AssistField.DEFAULT_MAX) } },
+            input.declined.orEmpty().take(MAX_FIELDS).toSet(), input.lastError,
+            input.startedAt.takeIf { trigger == AskTriggers.START },
+        )
     }
 
     /** 받은 질문을 AI 전용 실행기에서 처리한다. 끝나면 finished(흐름 닫기)를 부른다 */
@@ -202,25 +300,33 @@ class AiChatService(
     /**
      * 처리 본체: 차례 기다림 → 답 → 저장 → meta·done. 시험은 이 메서드를 바로 부른다.
      * 차례는 답을 저장한 뒤에 내놓는다: 바로 다음 질문(같은 계정)의 이어 묻기 기록에 이 답이 들게 (slices/12 12.5).
-     * 처리를 시작하기 전(차례를 기다리다) 취소되면 빈 답을 저장하지 않고 질문도 지운다: 화면도 보낸 질문을 거둔다 (12.6)
+     * 화면에 보낸 글 없이 멈추면(차례를 기다리다 취소, 첫 글 전에 멈춤) 빈 답을 저장하지 않고 질문도 지운다: 화면도 보낸 질문을 거둔다 (12.6)
      */
     fun run(job: AiAskJob, events: AiEvents) {
         val progress = Progress()
         var status = AiMessageStatuses.DONE
-        var started = false
         val messageId: Long?
         try {
             try {
                 waitTurn(job, events)
                 if (!events.send("start", emptyMap<String, Any>())) throw AiCancelledException()
-                started = true
                 // 2분은 차례를 받아 처리를 시작한 순간부터 (11.5)
                 val deadline = watchdog.schedule({
                     job.timedOut = true
                     job.cancel()
                 }, settings.answerTimeoutSeconds, TimeUnit.SECONDS)
                 try {
-                    answer(job, events, progress)
+                    respond(job, events, progress)
+                    // fill을 보낸 뒤 저장 전에 멈춤·대화 바꾸기(연결 끊김)가 오면 화면은 그 차례 결과를 버린다: 채운 결과가 아니라 멈춘 차례로 저장한다 (기존 멈춤 처리와 같게)
+                    if (progress.filled && job.call.cancelled) {
+                        progress.text.setLength(0)
+                        progress.found.clear()
+                        progress.results.clear()
+                        progress.shownSources = emptyList()
+                        progress.extraUsed = emptyList()
+                        progress.assist = null
+                        throw AiCancelledException()
+                    }
                 } finally {
                     deadline.cancel(false)
                 }
@@ -236,7 +342,13 @@ class AiChatService(
             if (status == AiMessageStatuses.FAILED && progress.failure == null) progress.failure = "AI_UNAVAILABLE" to "AI 서버에 연결할 수 없습니다."
             if (status == AiMessageStatuses.TIMEOUT) progress.failure = "AI_TIMEOUT" to "답이 2분 안에 끝나지 않아 멈췄습니다. 다시 물어 주세요."
             settle(job.question, progress)
-            messageId = if (started || status != AiMessageStatuses.STOPPED) save(job, progress, status) else drop(job)
+            // 업무지원 채우기 차례는 멈춰도 질문을 남기고 "멈췄습니다"(2분이면 그 안내)를 저장한다: 무엇을 부탁했는지 대화에 남긴다 (slices/21 13.6)
+            if (job.assist != null && (status == AiMessageStatuses.STOPPED || status == AiMessageStatuses.TIMEOUT) && progress.text.isEmpty()) {
+                progress.text.append(if (status == AiMessageStatuses.TIMEOUT) checkNotNull(progress.failure).second else AssistService.STOPPED)
+                progress.assist = mapOf("kind" to "fill", "stopped" to true)
+            }
+            // 화면에 보낸 글 없이 멈췄으면(차례를 기다리다, 또는 첫 글 전에) 빈 답을 저장하지 않고 질문을 지운다: 화면도 보낸 질문을 거둔다 (12.6)
+            messageId = if (status == AiMessageStatuses.STOPPED && progress.text.isEmpty()) drop(job) else save(job, progress, status)
         } finally {
             queue.leave(job.ticket)
         }
@@ -270,15 +382,83 @@ class AiChatService(
         var failure: Pair<String, String>? = null
         var shownSources: List<AiSourceRef> = emptyList()
         var usedSources: List<AiSourceRef> = emptyList()
+        /** 이어 묻기로 모델에 넘긴 앞 답들이 근거로 쓴 출처: 이 답도 그 내용을 쓸 수 있으므로 이 답의 근거에 넣는다 (REQ-B07) */
+        var historySources: List<AiSourceRef> = emptyList()
         var done = false
         /** 찾은 글 중 정보통신 현황 기록 파일 (파일 id → 기준 시각·박스, slices/15 14.2) */
         var recordNotes: Map<Long, RecordNote> = emptyMap()
+        /** 업무지원 답의 화면 정보 (V42 assist, slices/21 13.6) */
+        var assist: Map<String, Any?>? = null
+        /** 업무지원이 정한 답: 출처는 체계가 정했고, 고친 대상·이어 묻기 출처를 근거에 더한다 (12.7) */
+        var assisted = false
+        /** fill 이벤트를 보냈다 */
+        var filled = false
+        var extraUsed: List<AiSourceRef> = emptyList()
     }
 
     /** 기록 파일 근거: 파일 시각, 박스(지운 박스면 제목 없음), 지금 그 박스를 볼 수 있는지 */
     private data class RecordNote(val updatedAt: LocalDateTime, val boxId: Long, val boxTitle: String?, val viewable: Boolean)
 
     private class Prepared(val system: String, val history: List<Pair<String, String>>)
+
+    /** 이어 묻기 기록: 넘길 질문·답과 그 답들이 근거로 쓴 출처 */
+    private class History(val pairs: List<Pair<String, String>>, val sources: List<AiSourceRef>)
+
+    /**
+     * 차례 하나 (slices/21 13.2): mode=chat은 의도 고르기 → qa면 F11 그대로, 아니면 제안 글과 proposal 이벤트.
+     * mode=fill은 칸 채우기 → kind=question이면 F11, 아니면 fill 이벤트(보내는 데 성공해야 답을 저장, 12.4). 구조화 호출 동안 1초마다 progress
+     */
+    private fun respond(job: AiAskJob, events: AiEvents, progress: Progress) {
+        val tick = {
+            if (!events.send("progress", emptyMap<String, Any>())) job.cancel()
+        }
+        if (job.assist == null) {
+            when (val intent = assist.intent(job, { judge -> history(job, judge).let { AssistHistory(it.pairs, it.sources) } }, tick)) {
+                is IntentOutcome.Qa -> answer(job, events, progress)
+                is IntentOutcome.Text -> {
+                    if (job.call.cancelled) throw AiCancelledException()
+                    progress.assisted = true
+                    emit(job, events, progress, intent.text)
+                    if (intent.options.isNotEmpty()) {
+                        if (!events.send("proposal", mapOf("options" to intent.options))) {
+                            job.cancel()
+                            throw AiCancelledException()
+                        }
+                        progress.assist = mapOf("kind" to "proposal", "options" to intent.options, "startedAt" to job.questionId)
+                    }
+                    progress.done = true
+                }
+            }
+            return
+        }
+        val history: (AiSourceAccess.Judge) -> AssistHistory = { judge -> history(job, judge).let { AssistHistory(it.pairs, it.sources) } }
+        when (val outcome = assist.fill(job, history, tick)) {
+            is FillOutcome.Question -> answer(job, events, progress)
+            is FillOutcome.Text -> {
+                if (job.call.cancelled) throw AiCancelledException()
+                progress.assisted = true
+                emit(job, events, progress, outcome.text)
+                progress.done = true
+            }
+            is FillOutcome.Filled -> {
+                if (job.call.cancelled) throw AiCancelledException()
+                // 한 차례 결과는 다 받은 뒤 한 번에 보낸다. 보내지 못했으면(끊김) 멈춘 것으로 본다 (REQ-C03 ⑧, 12.4)
+                if (!events.send("fill", outcome.event)) {
+                    job.cancel()
+                    throw AiCancelledException()
+                }
+                progress.assisted = true
+                progress.filled = true
+                progress.text.append(outcome.summary)
+                progress.found += outcome.found
+                progress.results += outcome.results
+                progress.shownSources = outcome.shown
+                progress.extraUsed = outcome.extraUsed
+                progress.assist = outcome.assist
+                progress.done = true
+            }
+        }
+    }
 
     private fun answer(job: AiAskJob, events: AiEvents, progress: Progress) {
         // 질문 벡터도 이 질문의 손잡이에 묶어 멈춤·2분 넘김이 바로 끊는다 (12.5)
@@ -287,10 +467,16 @@ class AiChatService(
         val prepared = checkNotNull(readTx.execute {
             val actor = accessPolicy.actor(job.loginId)
             val judge = access.judge(actor)
-            progress.found += retriever.find(judge, job.question, vector)
+            // 지금 보는 화면 (사용자 결정): 그 대상을 지금 볼 수 있을 때만 한 줄과 그 자료(근거 후보 먼저). 로그에는 화면 id와 쓴 여부만
+            val viewed = job.view?.let { assist.viewContext(actor, judge, it.screen, it.target) }
+            job.view?.screen?.let { log.info("AI 질의응답 화면 맥락: 화면 {} 씀 {}", AssistScreens.find(it)?.id ?: "모름", viewed != null) }
+            progress.found += (viewed?.found.orEmpty() + retriever.find(judge, job.question, vector)).distinctBy { listOf(it.ref.type, it.ref.id, it.ref.variant, it.ref.locator, it.text) }
+            progress.results += viewed?.results.orEmpty()
             progress.pending = pendingCount(judge)
             progress.recordNotes = recordNotes(actor, progress.found)
-            Prepared(systemPrompt(actor) + "\n\n" + material(progress.found, progress.recordNotes), history(job, judge))
+            val history = history(job, judge)
+            progress.historySources = history.sources
+            Prepared(systemPrompt(actor) + viewText(viewed) + "\n\n" + material(progress.found, progress.recordNotes), history.pairs)
         })
         val messages = objectMapper.createArrayNode()
         messages.addObject().put("role", "system").put("content", prepared.system)
@@ -404,8 +590,15 @@ class AiChatService(
             toolCalls.forEach { call ->
                 val function = call.path("function")
                 val name = function.path("name").asText()
-                val args = function.path("arguments").let { if (it.isTextual) objectMapper.readTree(it.asText()) else it }
-                val result = checkNotNull(readTx.execute { tools.run(name, args, accessPolicy.actor(job.loginId), job.loginId, job.question, prepared.history.map { it.first }) })
+                // 글로 온 조건이 JSON이 아니면 답을 실패로 끝내지 않고 다시 묻게 한다
+                val args = function.path("arguments").let {
+                    if (!it.isTextual) it else try { objectMapper.readTree(it.asText()) } catch (e: JsonProcessingException) { null }
+                }
+                val result = if (args == null || !args.isObject) {
+                    AiToolResult(mapOf("오류" to "도구 조건을 알아듣지 못했습니다. 짐작하지 말고 질문자에게 다시 물을 것"))
+                } else {
+                    checkNotNull(readTx.execute { tools.run(name, args, accessPolicy.actor(job.loginId), job.loginId, job.question, prepared.history.map { it.first }) })
+                }
                 progress.results += result
                 messages.addObject().put("role", "tool").put("tool_name", name).put("content", objectMapper.writeValueAsString(result.forModel))
             }
@@ -425,7 +618,7 @@ class AiChatService(
         progress.conditions = used.flatMap { it.conditions }.distinct()
         progress.links = used.flatMap { it.links }.distinct()
         progress.toolSources = used.flatMap { it.sources }.distinct()
-        if (progress.done) progress.shownSources = shownSources(question, progress)
+        if (progress.done && !progress.assisted) progress.shownSources = shownSources(question, progress)
         // 보인 출처에 기록 파일이 있으면 그 기준을 밝히고 셈은 박스의 [기록]으로 안내한다(모델이 빠뜨려도 보이게, REQ-B02 ⑧, slices/15 14.2)
         val notes = progress.shownSources.filter { it.type == AiSourceTypes.FILE }.mapNotNull { progress.recordNotes[it.id] }.distinct()
         if (notes.isNotEmpty()) {
@@ -434,9 +627,11 @@ class AiChatService(
                 if (n.viewable) AiLink("${n.boxTitle} [기록]", "/ict-status?box=${n.boxId}&tab=record") else AiLink("${n.boxTitle ?: "정보통신 현황 박스"} [기록]", null)
             }).distinct()
         }
-        // 근거로 쓴 모든 출처: 모델에 넘긴 모든 글과 모든 도구 결과(쓰지 않았거나 화면에 보이지 않는 것 포함). 이어 묻기 때 다시 판정한다 (H-19, 12.5)
-        progress.usedSources = (progress.found.map { it.ref } + progress.results.flatMap { it.sources + it.checks })
-            .map { AiSourceRef(it.type, it.id, it.variant, it.label, shareKey = it.shareKey) }.distinct()
+        // 근거로 쓴 모든 출처: 모델에 넘긴 모든 글과 모든 도구 결과(쓰지 않았거나 화면에 보이지 않는 것 포함)와 이어 묻기로 넘긴 앞 답들의 출처.
+        // 이어 묻기 때 다시 판정한다: 앞 답 내용을 옮겨 쓴 답도 그 출처를 볼 수 없게 되면 넘기지 않는다 (H-19, 12.5, REQ-B07)
+        // 판정에는 종류·id·variant·shareKey만 쓰므로 이름은 남기지 않는다(대화가 길어져 이어 받은 출처가 쌓여도 칸이 덜 차게)
+        progress.usedSources = (progress.found.map { it.ref } + progress.results.flatMap { it.sources + it.checks } + progress.historySources + progress.extraUsed)
+            .map { AiSourceRef(it.type, it.id, it.variant, "", shareKey = it.shareKey) }.distinct()
     }
 
     /**
@@ -450,17 +645,19 @@ class AiChatService(
             progress.notFoundEcho = false
             if (!out.startsWith(NOT_FOUND)) out = "$NOT_FOUND.\n$out"
         }
-        progress.text.append(out)
+        // 화면에 보낸 글만 답에 남긴다: 멈춘 뒤 저장된 답이 화면에서 본 답과 같게
         if (!events.send("delta", mapOf("text" to out))) {
             job.cancel()
             throw AiCancelledException()
         }
+        progress.text.append(out)
     }
 
     private fun reset(events: AiEvents, progress: Progress) {
+        // 보낸 뒤에 비운다: 끊겨 보내지 못했으면 화면에는 앞 글이 남아 있으므로 답에도 남긴다(받은 글 없는 멈춤으로 질문을 지우지 않게)
+        if (!events.send("reset", emptyMap<String, Any>())) throw AiCancelledException()
         progress.text.setLength(0)
         progress.notFoundEcho = false
-        if (!events.send("reset", emptyMap<String, Any>())) throw AiCancelledException()
     }
 
     /**
@@ -496,10 +693,12 @@ class AiChatService(
             val c = conversationRepository.findByIdOrNull(job.conversationId) ?: return@execute null // 그사이 지움
             val message = AiMessage(checkNotNull(c.id), AiRoles.ASSISTANT, progress.text.toString(), status, now())
             message.sources = objectMapper.writeValueAsString(progress.shownSources)
-            message.usedSources = objectMapper.writeValueAsString(progress.usedSources)
+            // 근거 출처가 칸(TEXT)을 넘으면 답은 저장하되 이어 묻기에 넘기지 않는 표시를 남긴다(출처를 덜어 내면 볼 수 없게 된 근거가 넘어갈 수 있다)
+            message.usedSources = objectMapper.writeValueAsString(progress.usedSources).takeIf { it.toByteArray().size <= USED_SOURCES_BYTES } ?: TOO_MANY_SOURCES
             message.conditions = objectMapper.writeValueAsString(progress.conditions)
             message.links = objectMapper.writeValueAsString(progress.links)
             message.pendingCount = progress.pending
+            message.assist = progress.assist?.let(objectMapper::writeValueAsString)
             messageRepository.save(message).id
         }
     } catch (e: Exception) {
@@ -527,15 +726,17 @@ class AiChatService(
      * 이어 묻기 기록 (REQ-B07, H-19, 11.4·12.5): 같은 대화의 최근 10번, 다 받은 답만. 앞 답이 근거로 쓴 모든 출처(used_sources, 없던 예전 답은
      * 보인 출처)를 지금 권한으로 다시 판정해 볼 수 없는 것이 든 답은 그 질문·답 둘 다 뺀다. 글자 6,000자 예산으로 최근 것부터
      */
-    private fun history(job: AiAskJob, judge: AiSourceAccess.Judge): List<Pair<String, String>> {
+    private fun history(job: AiAskJob, judge: AiSourceAccess.Judge): History {
         val messages = messageRepository.findByConversationIdOrderByIdAsc(job.conversationId)
         val pairs = messages.zipWithNext().filter { (q, a) ->
             q.role == AiRoles.USER && a.role == AiRoles.ASSISTANT && a.status == AiMessageStatuses.DONE
         }.takeLast(HISTORY_TURNS)
         val out = ArrayDeque<Pair<String, String>>()
+        val sources = mutableListOf<AiSourceRef>()
         var budget = HISTORY_CHARS
         for ((q, a) in pairs.reversed()) {
-            if (!refs(a.usedSources ?: a.sources).all(judge::canUse)) continue
+            val used = refs(a.usedSources ?: a.sources)
+            if (!used.all(judge::canUse)) continue
             // 앞 답의 출처 이름(장비명·인원 이름·파일 이름)도 넘긴다: "그 장비들 어디 있어?"가 앞 답의 장비를 알게 (REQ-B07)
             val labels = refs(a.sources).map { it.label }.distinct()
             val answer = if (labels.isEmpty()) a.content else a.content + "\n(출처: " + labels.joinToString(", ") + ")"
@@ -543,16 +744,17 @@ class AiChatService(
             if (size > budget) break
             budget -= size
             out.addFirst(q.content to answer)
+            sources += used
         }
-        return out.toList()
+        return History(out.toList(), sources.distinct())
     }
 
     /**
      * "아직 읽는 중인 자료 N건" (REQ-B03, 11.5·12.5): 볼 수 있는 대기(PENDING) 대상. 맞추기가 지금 자료의 대상마다 ai_source를 만들어 두므로
-     * 질문마다 대상 목록을 다시 만들지 않는다(마지막 맞추기 뒤 새로 생긴 자료는 다음 맞추기부터 센다). 권한 검사는 앞 200건까지
+     * 질문마다 대상 목록을 다시 만들지 않는다(마지막 맞추기 뒤 새로 생긴 자료는 다음 맞추기부터 센다). 대기 대상 모두의 권한을 본다
      */
     private fun pendingCount(judge: AiSourceAccess.Judge): Int =
-        sourceRepository.findByStatusOrderByIdAsc(AiIndexStatuses.PENDING, PageRequest.of(0, PENDING_CHECKS)).count { judge.canUse(it.key) }
+        sourceRepository.findByStatusOrderByIdAsc(AiIndexStatuses.PENDING).count { judge.canUse(it.key) }
 
     private fun systemPrompt(actor: Actor): String {
         val personnel = personnelRepository.findByIdOrNull(actor.account.personnelId)
@@ -561,6 +763,13 @@ class AiChatService(
         val user = listOfNotNull(personnel?.rankCode?.let(AiLabels.RANKS::get), personnel?.name ?: actor.account.displayName).joinToString(" ")
         val today = LocalDate.now(clock)
         return SYSTEM.replace("{today}", "$today (${DAYS[today.dayOfWeek]})").replace("{user}", user).replace("{dept}", dept).replace("{battalion}", battalion)
+    }
+
+    /** 화면 맥락 글: 보는 화면 한 줄과, 장비·인원이면 그 조회 결과 */
+    private fun viewText(viewed: AssistViewContext?): String {
+        viewed ?: return ""
+        val results = viewed.results.joinToString("") { "\n[지금 보는 대상의 조회 결과]\n" + objectMapper.writeValueAsString(it.forModel) }
+        return "\n" + viewed.line + results
     }
 
     /** 찾은 글 중 정보통신 현황 기록 파일 (slices/15 14.2) */
@@ -602,7 +811,7 @@ class AiChatService(
         checkNotNull(m.id), m.role, m.content, m.status, refs(m.sources),
         m.conditions?.let { objectMapper.readValue<List<String>>(it) }.orEmpty(),
         m.links?.let { objectMapper.readValue<List<AiLink>>(it) }.orEmpty(),
-        m.pendingCount, m.createdAt,
+        m.pendingCount, m.createdAt, assist.viewJson(m.assist),
     )
 
     private fun refs(json: String?): List<AiSourceRef> = json?.let { objectMapper.readValue<List<AiSourceRef>>(it) }.orEmpty()
@@ -614,12 +823,20 @@ class AiChatService(
 
     companion object {
         const val MAX_QUESTION = 1000
+
+        /** 업무지원 몸의 칸 수 상한 (slices/21 5.2) */
+        const val MAX_FIELDS = 300
         const val TITLE_LENGTH = 30
         const val MAX_MODEL_CALLS = 3
         const val HISTORY_TURNS = 10
         const val HISTORY_CHARS = 6000
-        const val PENDING_CHECKS = 200
         const val NUM_CTX = 16384
+
+        /** used_sources 칸(TEXT, 65,535바이트)에 넣을 수 있는 크기 */
+        const val USED_SOURCES_BYTES = 65_000
+
+        /** 근거 출처가 너무 많은 답: 판정할 수 없는 종류라 이어 묻기에 넘기지 않는다 (REQ-B07) */
+        val TOO_MANY_SOURCES = """[{"type":"TOO_MANY","id":0,"variant":"NONE","label":""}]"""
         const val NOT_FOUND = AiAnswerRules.NOT_FOUND
         const val GENERAL = AiAnswerRules.GENERAL
 

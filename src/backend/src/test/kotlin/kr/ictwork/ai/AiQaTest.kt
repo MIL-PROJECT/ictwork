@@ -50,6 +50,9 @@ import kr.ictwork.status.WorkStatusService
 import kr.ictwork.work.FixedClockConfig
 import kr.ictwork.work.MutableClock
 import kr.ictwork.work.RequestPhases
+import kr.ictwork.work.RequestTargetType
+import kr.ictwork.work.RequestTargetTypeRepository
+import kr.ictwork.work.ViewerEntry
 import kr.ictwork.work.WorkItem
 import kr.ictwork.work.WorkItemNote
 import kr.ictwork.work.WorkItemNoteRepository
@@ -57,6 +60,8 @@ import kr.ictwork.work.WorkItemRepository
 import kr.ictwork.work.WorkRequest
 import kr.ictwork.work.WorkRequestRepository
 import kr.ictwork.work.WorkStatuses
+import kr.ictwork.worktype.WorkType
+import kr.ictwork.worktype.WorkTypeRepository
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.assertj.core.api.Assertions.assertThat
@@ -149,6 +154,8 @@ class AiQaTest(
     @Autowired private val directiveService: DirectiveService,
     @Autowired private val recordService: kr.ictwork.ictstatus.IctRecordService,
     @Autowired private val slotRepository: PlanSlotRepository,
+    @Autowired private val targetTypeRepository: RequestTargetTypeRepository,
+    @Autowired private val workTypeRepository: WorkTypeRepository,
 ) {
     companion object {
         @JvmStatic
@@ -285,7 +292,9 @@ class AiQaTest(
                 "DELETE FROM request_viewer WHERE request_id IN ($requests)",
                 "DELETE FROM request_origin WHERE request_id IN ($requests)",
                 "DELETE FROM request_assignee WHERE request_id IN ($requests)",
+                "DELETE FROM request_target_type WHERE request_id IN ($requests)",
                 "DELETE FROM work_request WHERE requester_account_id IN ($accounts)",
+                "DELETE FROM work_type WHERE department_id IN ($departments)",
                 "DELETE FROM diagram_version_scene WHERE version_id IN (SELECT id FROM diagram_version WHERE diagram_id IN ($diagrams))",
                 "DELETE FROM diagram_version WHERE diagram_id IN ($diagrams)",
                 "DELETE FROM diagram_grant WHERE diagram_id IN ($diagrams)",
@@ -515,17 +524,54 @@ class AiQaTest(
         val job = chatService.accept("ai-s1a", id, "멈출 질문")
         val sent = mutableListOf<String>()
         var first = ""
-        // 첫 글자를 받은 뒤 화면이 멈춤을 누름(연결 끊김 = 보내기 실패)
+        var deltas = 0
+        // 첫 조각을 받은 뒤 화면이 멈춤을 누름(연결 끊김 = 다음 조각 보내기 실패)
         chatService.run(job) { name, data ->
             sent += name
-            if (name == "delta") first = objectMapper.valueToTree<JsonNode>(data).path("text").asText()
-            name != "delta"
+            if (name == "delta" && ++deltas == 1) {
+                first = objectMapper.valueToTree<JsonNode>(data).path("text").asText()
+                gate.countDown()
+            }
+            name != "delta" || deltas == 1
         }
         gate.countDown()
         val saved = messageRepository.findByConversationIdOrderByIdAsc(id).last()
         assertThat(saved.status).isEqualTo(AiMessageStatuses.STOPPED)
+        // 저장된 답은 화면이 받은 데까지다(보내지 못한 조각은 남기지 않는다)
         assertThat(saved.content).isEqualTo(first).isNotEmpty()
         assertThat(sent).contains("start", "delta", "done")
+        assertThat(queue.processing).isFalse()
+    }
+
+    @Test
+    fun `B01 도구를 부르기 전 글을 받은 뒤 끊기면 그 글을 STOPPED로 남기고 질문을 지우지 않는다`() {
+        val id = newConversation("ai-s1a")
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "status" to "고장"), before = "확인해 보겠습니다.")
+        FakeOllama.reply("고장 장비는 1대입니다.")
+        val job = chatService.accept("ai-s1a", id, "고장 장비 몇 대야?")
+        // 화면은 도구 전 글을 받았고, 그 글을 지우는 reset을 보내다 끊김
+        chatService.run(job) { name, _ -> name != "reset" }
+        val messages = messageRepository.findByConversationIdOrderByIdAsc(id)
+        assertThat(messages).hasSize(2)
+        assertThat(messages.last().status).isEqualTo(AiMessageStatuses.STOPPED)
+        assertThat(messages.last().content).isEqualTo("확인해 보겠습니다.")
+    }
+
+    @Test
+    fun `B01 받은 글 없이 멈추면 빈 답을 저장하지 않고 질문도 지운다`() {
+        val id = newConversation("ai-s1a")
+        val gate = CountDownLatch(1)
+        FakeOllama.reply("첫 조각입니다 그 뒤 조각 마지막 조각", gate)
+        val job = chatService.accept("ai-s1a", id, "바로 멈출 질문")
+        val done = AtomicReference<JsonNode>()
+        // 첫 조각부터 보내기 실패: 화면은 글을 받지 못하고 보낸 질문을 거둔다
+        chatService.run(job) { name, data ->
+            if (name == "done") done.set(objectMapper.valueToTree(data))
+            name != "delta"
+        }
+        gate.countDown()
+        assertThat(messageRepository.findByConversationIdOrderByIdAsc(id)).isEmpty()
+        assertThat(done.get().path("messageId").isNull).isTrue()
         assertThat(queue.processing).isFalse()
     }
 
@@ -579,7 +625,7 @@ class AiQaTest(
         FakeOllama.tool("query_people", mapOf("mode" to "list", "name" to "퇴직가상"))
         FakeOllama.reply("찾는 사람이 없습니다.")
         ask("ai-s1a", "퇴직가상 연락처 알려줘")
-        assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isZero()
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("체계 자료에서 찾지 못했습니다")
 
         FakeOllama.tool("query_people", mapOf("mode" to "list", "name" to "김가상"))
         FakeOllama.reply("김가상 반장 연락처는 010-0000-0001입니다.")
@@ -764,7 +810,149 @@ class AiQaTest(
         val result = FakeOllama.lastToolResults().single()
         assertThat(result.path("개수").asInt()).isEqualTo(1)
         assertThat(result.path("목록")[0].path("업무 제목").asText()).isEqualTo("행정반 전화 회선 이동")
-        assertThat(events.meta().path("links")[0].path("href").asText()).isEqualTo("/tasks?tab=department&fs=PLANNED")
+        // "계획"은 상태 단추 묶음(접수·계획·접수 뒤 결재 중)으로 센다 (REQ-117 G-115)
+        assertThat(events.meta().texts("conditions")).contains("상태: 계획(접수·접수 뒤 결재 중 포함)")
+        assertThat(events.meta().path("links")[0].path("href").asText()).isEqualTo("/tasks?tab=department&fb=ONGOING")
+    }
+
+    @Test
+    fun `B04 그 밖 조건이 붙은 실적은 등록된 업무로 업무 현황과 같은 기준으로 세고 셀 수 없는 실적은 다시 묻는다`() {
+        // 우선순위 조건이 붙은 이번 달 완료: 신청일자가 아니라 걸러 보기의 완료한 날로 센다(완료 2건은 10-10에 끝났고 신청일자가 없다)
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "metric" to "completed", "priority" to "일반", "period" to "THIS_MONTH"))
+        FakeOllama.reply("2건입니다.")
+        val events = ask("ai-s1a", "이번 달 일반 업무 완료 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isEqualTo(2)
+        assertThat(events.meta().texts("conditions")).contains("기준: 등록된 업무 ▸ 우리 부서 업무", "상태: 완료", "완료한 날: 2026-10-01 ~ 2026-10-31", "우선순위: 일반")
+        assertThat(events.meta().path("links")[0].path("href").asText())
+            .isEqualTo("/tasks?tab=department&fs=DONE&fpr=NORMAL&fpb=COMPLETED&ffrom=2026-10-01&fto=2026-10-31")
+        // 반려·이송을 기간으로 물으면 걸러 보기에 끝난 날 기준이 없어 업무 현황 카드와 같은 끝난 시각으로 센다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "state" to "반려", "period" to "THIS_MONTH"))
+        FakeOllama.reply("0건입니다.")
+        val rejected = ask("ai-s1a", "이번 달 반려 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isZero()
+        assertThat(rejected.meta().texts("conditions")).contains("부서: 1대대 1중대 1반", "상태: 반려", "끝난 날: 2026-10-01 ~ 2026-10-31")
+        assertThat(rejected.meta().path("links")[0].path("href").asText())
+            .isEqualTo("/tasks?tab=department&d=${s1.id}&closedFrom=2026-10-01&closedTo=2026-10-31&fs=REJECTED")
+        // 상태 칸에 완료와 기간만 넣어도 업무 현황의 완료 실적이다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "state" to "완료", "period" to "THIS_MONTH"))
+        FakeOllama.reply("2건입니다.")
+        val dashboard = ask("ai-s1a", "이번 달 우리 부서 완료 업무 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("값").path("완료 건수").asInt()).isEqualTo(2)
+        assertThat(dashboard.meta().texts("conditions")).contains("기준: 업무 현황")
+        // 완료율은 걸러 보기로 셀 수 없어 업무 현황 기준으로 다시 묻게 한다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "metric" to "completion_rate", "priority" to "긴급"))
+        FakeOllama.reply("다시 물어 주세요.")
+        ask("ai-s1a", "긴급 업무 완료율 몇 %야?")
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("업무 현황 기준(부서·기간)으로만")
+        // 미완료 + 글자 조건은 미완료 상태(접수 대기·결재중·접수·계획)로 센다: "점검" 업무 2건은 완료라 빠진다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "metric" to "pending", "keyword" to "점검"))
+        FakeOllama.reply("0건입니다.")
+        ask("ai-s1a", "점검 들어간 미완료 업무 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isZero()
+        assertThat(FakeOllama.lastToolResults().single().path("조건").map { it.asText() }).contains("상태: 접수 대기·결재중·접수·계획")
+        // 1년이 넘는 기간은 등록된 업무 걸러 보기처럼 받지 않는다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "state" to "반려", "date_from" to "2024-01-01", "date_to" to "2026-10-31"))
+        FakeOllama.reply("기간을 다시 알려 주세요.")
+        ask("ai-s1a", "2024년부터 반려 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("기간(2000~2099년 안에서 1년 이하)")
+    }
+
+    @Test
+    fun `B04 나는 질문한 사람이고 이름으로 찾았는데 없으면 찾지 못했다고 하며 여러 값·깨진 조건은 다시 묻는다`() {
+        FakeOllama.tool("query_people", mapOf("mode" to "list", "name" to "나"))
+        FakeOllama.reply("사람-ai-s1a입니다.")
+        val events = ask("ai-s1a", "내 연락처 알려줘")
+        val people = FakeOllama.lastToolResults().single()
+        assertThat(people.path("개수").asInt()).isEqualTo(1)
+        assertThat(people.path("목록")[0].path("성명").asText()).isEqualTo("사람-ai-s1a")
+        assertThat(events.meta().texts("conditions")).contains("이름: 나")
+        // 요청자 "나"는 질문자 성명으로 거른다
+        FakeOllama.tool("query_work", mapOf("mode" to "count", "basis" to "work_list", "requester" to "나"))
+        FakeOllama.reply("0건입니다.")
+        ask("ai-s1a", "내가 요청한 업무 몇 건이야?")
+        assertThat(FakeOllama.lastToolResults().single().path("조건").map { it.asText() }).contains("요청자: '사람-ai-s1a'")
+        // 이름으로 찾았는데 없음(사용 중지된 인원)
+        FakeOllama.tool("query_people", mapOf("mode" to "list", "name" to "퇴직가상"))
+        FakeOllama.reply("그런 사람은 없습니다.")
+        assertThat(ask("ai-s1a", "퇴직가상 연락처 알려줘").text()).isEqualTo("체계 자료에서 찾지 못했습니다.")
+        // 볼 수 없는 장비(2반 무전기B)를 이름으로 찾음
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "keyword" to "무전기B"))
+        FakeOllama.reply("무전기B는 0대입니다.")
+        assertThat(ask("ai-s1a", "무전기B 어디 있어?").text()).isEqualTo("체계 자료에서 찾지 못했습니다.")
+        // 칸에 여러 값(배열)을 넣으면 조건을 버리지 않고 다시 묻는다
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to listOf("1대대 1중대 1반", "1대대 1중대 2반")))
+        FakeOllama.reply("다시 알려 주세요.")
+        ask("ai-s1a", "1반과 2반 장비 몇 대야?")
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("'department'에 넣은 여러 값")
+        // 조건이 JSON이 아닌 글이면 답을 실패로 끝내지 않고 다시 묻게 한다
+        FakeOllama.toolRaw("query_equipment", "{mode: count, status: 고장")
+        FakeOllama.reply("조건을 다시 알려 주세요.")
+        val broken = ask("ai-s1a", "고장 장비 몇 대야?")
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("도구 조건을 알아듣지 못했습니다")
+        assertThat(broken.done().path("status").asText()).isEqualTo("DONE")
+    }
+
+    @Test
+    fun `B02 받는 부서원은 열람 범위로 볼 수 있어도 다른 받는 부서 몫의 양식 답을 근거로 쓰지 않는다 (G-85)`() {
+        val (requestId, rows) = checkNotNull(tx.execute {
+            val type = workTypeRepository.save(WorkType(c1.id!!, "AI시험유형", false, 1))
+            // 1중대장이 1반·2반에 보냄. 1반은 열람 범위이기도 하다
+            val request = requestRepository.save(WorkRequest("두 반 양식 요청", "두 반에 보냄", accountId("ai-c1cmdr"), c1.id, RequestPhases.SENT).also {
+                it.targetDepartmentIds = mutableSetOf(s1.id!!, s2.id!!)
+                it.viewers = mutableSetOf(ViewerEntry(departmentId = s1.id))
+                it.sentAt = clock.now
+            })
+            listOf(s1, s2).forEach { itemRepository.save(WorkItem(request.id!!, it.id!!, WorkStatuses.RECEIVED)) }
+            val rows = listOf(s1, s2).map { d -> targetTypeRepository.save(RequestTargetType(request.id!!, d.id!!, type.id!!, 0, "AI시험유형", "1대대 1중대")).id!! }
+            request.id!! to rows
+        })
+        try {
+            // 1반 반원: 받는 부서이므로 열람 범위여도 1반 몫만
+            assertThat(canUse("ai-s1b", AiSourceKey(AiSourceTypes.WORK_FORM, rows[0]))).isTrue()
+            assertThat(canUse("ai-s1b", AiSourceKey(AiSourceTypes.WORK_FORM, rows[1]))).isFalse()
+            // 요청자(받는 부서 아님)는 모든 받는 부서의 답
+            assertThat(canUse("ai-c1cmdr", AiSourceKey(AiSourceTypes.WORK_FORM, rows[1]))).isTrue()
+            // 보내기 전 요청(처리 건 없음)은 받는 부서로 보지 않는다: 우리 부서에 등록하는 사람은 자기 양식 답을 근거로 쓴다
+            tx.executeWithoutResult {
+                requestRepository.findById(requestId).get().also { it.phase = RequestPhases.SEND_APPROVAL; it.requesterAccountId = accountId("ai-s1b") }
+                itemRepository.deleteAll(itemRepository.findByRequestIdOrderByIdAsc(requestId))
+            }
+            assertThat(canUse("ai-s1b", AiSourceKey(AiSourceTypes.WORK_FORM, rows[1]))).isTrue()
+        } finally {
+            execute(
+                listOf(
+                    "DELETE FROM request_target_type WHERE request_id = $requestId",
+                    "DELETE FROM work_item WHERE request_id = $requestId",
+                    "DELETE FROM request_target WHERE request_id = $requestId",
+                    "DELETE FROM request_viewer WHERE request_id = $requestId",
+                    "DELETE FROM work_request WHERE id = $requestId",
+                    "DELETE FROM work_type WHERE name = 'AI시험유형'",
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `B03 실행기가 한 자료의 글만 오류로 돌려주면 그 자료는 대기로 두고 뒤의 자료를 색인한다`() {
+        val owner = accountId("ai-s1a")
+        FakeOllama.rejectEmbed = "임베딩거부표시"
+        val bad = file(owner, "거부될 메모.txt", "임베딩거부표시 이 글은 실행기가 처리하지 못한다.".toByteArray())
+        val good = file(owner, "정상 메모.txt", "정상으로 색인되는 점검 메모 글이다.".toByteArray())
+        try {
+            indexer.runOnce()
+            assertThat(source(AiSourceTypes.FILE, bad)!!.status).isEqualTo(AiIndexStatuses.PENDING)
+            assertThat(source(AiSourceTypes.FILE, good)!!.status).isEqualTo(AiIndexStatuses.DONE)
+            // 실행기가 다시 처리하면 다음 회차에 색인한다
+            FakeOllama.rejectEmbed = null
+            indexer.runOnce()
+            assertThat(source(AiSourceTypes.FILE, bad)!!.status).isEqualTo(AiIndexStatuses.DONE)
+        } finally {
+            FakeOllama.rejectEmbed = null
+            execute(listOf(bad, good).flatMap { id ->
+                listOf("DELETE FROM equipment_file WHERE file_id = $id","DELETE FROM stored_file_body WHERE file_id = $id", "DELETE FROM stored_file WHERE id = $id")
+            })
+            indexer.runOnce()
+        }
     }
 
     @Test
@@ -953,6 +1141,27 @@ class AiQaTest(
             assertThat(messages.toString()).doesNotContain("250시간")
         } finally {
             tx.executeWithoutResult { personnelRepository.findById(personnel).get().departmentId = s1.id!! }
+        }
+    }
+
+    @Test
+    fun `B07 앞 답을 옮겨 쓴 답도 그 출처를 이어 받아 볼 수 없게 되면 이어 묻기에 넘기지 않는다`() {
+        val id = newConversation("ai-s1c")
+        FakeOllama.reply("250시간마다 교환합니다. (출처: ZQX 정비 메모.txt)")
+        ask("ai-s1c", "발전기 엔진 오일 교환 주기는?", id)
+        // 중간 질문: 글 찾기로는 그 파일이 나오지 않고 모델이 앞 답을 옮겨 쓴다
+        FakeOllama.reply("요약하면 250시간마다 교환입니다.")
+        ask("ai-s1c", "방금 말한 거 짧게", id)
+        assertThat(FakeOllama.lastSystem()).doesNotContain("ZQX-7")
+        val middle = messageRepository.findByConversationIdOrderByIdAsc(id).last()
+        assertThat(objectMapper.readTree(middle.usedSources).map { it.path("id").asLong() }).contains(memoFile)
+        // 2반으로 전출: 첫 답과 그 내용을 옮긴 중간 답 모두 넘기지 않는다
+        transferred("ai-s1c", s2, s1) {
+            FakeOllama.reply("체계 자료에서 찾지 못했습니다.")
+            ask("ai-s1c", "그 내용 다시 알려줘", id)
+            val messages = FakeOllama.chatRequests.last().path("messages")
+            assertThat(messages.map { it.path("role").asText() }).containsExactly("system", "user")
+            assertThat(messages.toString()).doesNotContain("250시간")
         }
     }
 
@@ -1619,7 +1828,8 @@ class AiQaTest(
             job.cancel()
             worker.join(3_000)
             assertThat(worker.isAlive).isFalse()
-            assertThat(messageRepository.findByConversationIdOrderByIdAsc(id).last().status).isEqualTo(AiMessageStatuses.STOPPED)
+            // 받은 글 없이 멈췄으므로 빈 답을 저장하지 않고 질문도 지운다
+            assertThat(messageRepository.findByConversationIdOrderByIdAsc(id)).isEmpty()
             assertThat(FakeOllama.chatRequests).isEmpty()
         } finally {
             gate.countDown()

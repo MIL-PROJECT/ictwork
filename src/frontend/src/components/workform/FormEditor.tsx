@@ -1,6 +1,8 @@
 import { ApiError } from "@/api/client";
 import { formImageUrl, saveWorkTypeForm, uploadFormImage, type WorkTypeAdminRow } from "@/api/work";
 import { RowButton } from "@/components/admin/DataTable";
+import { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import Button from "@/components/ui/button/Button";
 import { Section } from "@/components/work/common";
 import { INPUT_CLASS, LABEL_CLASS, TEXTAREA_CLASS, useWorkError } from "@/components/work/format";
@@ -11,6 +13,7 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useTranslation } from "react-i18next";
 import { emptyFill, fillProblem, type FillValue } from "./fill";
+import { definitionOf, questionOf, questionsOf } from "./formAssist";
 import FormFill from "./FormFill";
 import {
   BRANCHING,
@@ -60,11 +63,33 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
   const previewProblem = previewSent ? fillProblem(def, fill) : null;
   const [problem, setProblem] = useState<Problem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   // 마지막으로 저장한(처음은 불러온) 양식: 닫을 때 저장하지 않은 변경이 있으면 묻는다
   const [savedDef, setSavedDef] = useState(def);
   const count = questionCount(def);
+
+  // AI 업무지원 창 어댑터 (REQ-C07 양식, slices/21 8장 worktype.form): 칸 questions(질문 목록, 구역은 제목으로·구역 이동은 구역 제목이나 END).
+  // 받은 질문 목록으로 양식을 새로 짠다(같은 구역 제목·같은 종류와 제목의 질문은 고정 표시를 그대로). [양식 저장]은 사용자가 누른다
+  const titleOf = new Map(def.sections.map((x) => [x.key, x.title]));
+  const assist = useAssistAdapter("worktype.form", {
+    target: type.id,
+    ready: true,
+    values: { questions: questionsOf(def) },
+    apply: (v) => {
+      if (!Array.isArray(v.questions)) return;
+      const questions = v.questions;
+      setDef((current) => definitionOf(questions, current));
+      setSaved(false);
+    },
+    labels: { questions: t("editor.title", { name: type.name }) },
+    lastError: error
+      ? { code: errorCode ?? "", message: error, field: "questions" }
+      : problem?.message
+        ? { code: "FORM_INVALID", message: t(problem.message, problem.values), field: "questions" }
+        : null,
+  });
 
   const change = (next: FormDefinition) => {
     setDef(next);
@@ -106,7 +131,10 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
     change({ sections });
   };
   const removeSection = (s: number) => {
-    if (def.sections[s].items.length > 0 && !window.confirm(t("editor.removeSectionConfirm"))) return;
+    if (def.sections[s].items.length > 0) {
+      assist.pause();
+      if (!window.confirm(t("editor.removeSectionConfirm"))) return;
+    }
     change({ sections: def.sections.filter((_, i) => i !== s) });
   };
 
@@ -114,6 +142,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
     const found = definitionProblem(def);
     setProblem(found);
     setError(null);
+    setErrorCode(null);
     if (found) return;
     setSaving(true);
     try {
@@ -124,6 +153,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
       onSaved(row);
     } catch (err) {
       setError(err instanceof ApiError && (err.code === "FORM_INVALID" || err.code === "ANSWER_INVALID") ? err.message : describeError(err));
+      setErrorCode(err instanceof ApiError ? err.code : "UNKNOWN");
       if (err instanceof ApiError && err.field) setProblem({ field: err.field, message: "" });
     } finally {
       setSaving(false);
@@ -131,7 +161,10 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
   };
 
   const close = () => {
-    if (JSON.stringify(def) !== JSON.stringify(savedDef) && !window.confirm(t("editor.closeConfirm"))) return;
+    if (JSON.stringify(def) !== JSON.stringify(savedDef)) {
+      assist.pause();
+      if (!window.confirm(t("editor.closeConfirm"))) return;
+    }
     onClose();
   };
 
@@ -165,6 +198,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
         }
       >
         <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("editor.help", { count, max: LIMITS.questions })}</p>
+        <AssistSources sources={assist.sources("questions")} className="mb-3" />
         {(error || (problem && problem.message)) && (
           <p role="alert" className="mb-3 text-sm text-error-600 dark:text-error-400">
             {error ?? (problem ? t(problem.message, problem.values) : "")}
@@ -226,6 +260,8 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
                 <div className="mt-4 space-y-3">
                   {section.items.map((item, i) => (
                     <DraggableItem key={item.key} place={{ s, i }} onDrop={(from) => moveItem(from, { s, i })}>
+                      {/* 질문마다 "AI가 채움": AI가 넣은 질문 그대로일 때 */}
+                      {assist.marked("questions", questionOf(section, item, titleOf)) && <AiFilledMark />}
                       <ItemEditor
                         typeId={type.id}
                         item={item}

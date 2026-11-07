@@ -41,7 +41,8 @@ class AiOffInterceptor(private val settings: AiSettings, private val objectMappe
 
 /**
  * AI 질의응답 API (REQ-B01·B06~B09, slices/12 5.7·11.4). 늘 등록하고, AI가 꺼져 있으면 모든 주소가 404 (서비스가 판정)
- * 답은 text/event-stream: queue {position}, start, delta {text}, reset, meta {sources, conditions, links, pending}, done {messageId, status}, error {code, message}
+ * 답은 text/event-stream: queue {position}, start, delta {text}, reset, meta {sources, conditions, links, pending}, done {messageId, status}, error {code, message}.
+ * AI 업무지원(slices/21 13.1): proposal {options}, progress {}(구조화 호출 중 1초마다), fill {values, proposedChanges, asks, sources, next, summary, message}
  */
 @RestController
 @RequestMapping("/api/ai")
@@ -69,7 +70,7 @@ class AiController(private val service: AiChatService, private val objectMapper:
      */
     @PostMapping("/conversations/{id}/ask")
     fun ask(principal: Principal, @PathVariable id: Long, @RequestBody input: AskInput): SseEmitter {
-        val job = service.accept(principal.name, id, input.question)
+        val job = service.accept(principal.name, id, input)
         val emitter = SseEmitter(0L)
         emitter.onTimeout(job::cancel)
         emitter.onError { job.cancel() }

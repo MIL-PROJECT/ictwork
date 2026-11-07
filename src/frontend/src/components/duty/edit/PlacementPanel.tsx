@@ -95,11 +95,14 @@ function PersonPickDialog({ detail, ruleId, departments, personnel, onPick, onCl
  * 칸을 눌러 고르고(모든 폭에서 두 칸까지) 아래 [맞바꾸기](같은 규칙 안 자리 또는 요일 규칙끼리)·[사람 바꾸기/넣기]·[비우기].
  * 자리 단추는 하나만 Tab에 들고 화살표로 옮긴다. 넓은 화면은 표, 좁은 화면은 날짜별 목록. [월별 채우기] 창
  */
-export default function PlacementPanel({ detail, departments, personnel, write }: {
+export default function PlacementPanel({ detail, departments, personnel, write, startFilling = false, onStartedFilling }: {
   detail: DutyRosterDetail;
   departments: Department[];
   personnel: PersonnelItem[];
   write: DutyWrite;
+  /** [월별 채우기] 창을 연다 (AI 업무지원 duty.fill, slices/21 12.5). 연 뒤 onStartedFilling */
+  startFilling?: boolean;
+  onStartedFilling?: () => void;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "placement" });
   const { language } = useLanguage();
@@ -114,8 +117,20 @@ export default function PlacementPanel({ detail, departments, personnel, write }
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [filling, setFilling] = useState(false);
+  const [filling, setFilling] = useState(() => startFilling && detail.rules.length > 0);
   const [filled, setFilled] = useState<string | null>(null);
+  // 이미 그려진 탭에 여는 요청이 오면 그때 연다 (규칙이 없으면 [월별 채우기]처럼 열지 않음)
+  const [prevStart, setPrevStart] = useState(startFilling);
+  if (startFilling !== prevStart) {
+    setPrevStart(startFilling);
+    if (startFilling && detail.rules.length > 0) {
+      setFilled(null);
+      setFilling(true);
+    }
+  }
+  useEffect(() => {
+    if (startFilling) onStartedFilling?.();
+  }, [startFilling, onStartedFilling]);
   const [saved, setSaved] = useState<string | null>(null);
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [focusKey, setFocusKey] = useState<string | null>(null);

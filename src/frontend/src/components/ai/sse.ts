@@ -40,9 +40,12 @@ export function createSseParser(onEvent: (e: SseEvent) => void) {
       }
     },
     end() {
-      if (buffer) line(buffer);
+      // 끝의 \r은 다음 \n을 기다리던 줄바꿈이다
+      if (buffer.endsWith("\r")) line(buffer.slice(0, -1));
+      // 빈 줄로 끝나지 않은 마지막 이벤트는 버린다(SSE 규격): 흐름이 끊겨 반만 온 이벤트를 답에 붙이지 않는다
       buffer = "";
-      dispatch();
+      name = "";
+      data = [];
     },
   };
 }

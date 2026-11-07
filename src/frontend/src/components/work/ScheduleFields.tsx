@@ -1,3 +1,4 @@
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import { CalenderIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
 import { INPUT_CLASS, LABEL_CLASS } from "./format";
@@ -25,12 +26,14 @@ export default function ScheduleFields({
   onChange,
   invalid = false,
   requireTimes = false,
+  marked,
 }: {
   idPrefix: string;
   value: ScheduleValue;
   onChange: (patch: Partial<ScheduleValue>) => void;
   invalid?: boolean; // 틀린 계획 칸: 시작일 칸에 aria-invalid (오류 칸으로 초점을 옮길 때 찾음)
   requireTimes?: boolean;
+  marked?: (key: keyof ScheduleValue) => boolean; // AI 업무지원 "AI가 채움" (REQ-C03 ④)
 }) {
   const { t } = useTranslation("work");
   const field = (key: keyof ScheduleValue, type: "date" | "time", label: string, extra: { min?: string } = {}) => {
@@ -41,6 +44,7 @@ export default function ScheduleFields({
         <label htmlFor={id} className={LABEL_CLASS}>
           {label}
           {requireTimes && key !== "endDate" && <span className="text-error-500"> *</span>}
+          {marked?.(key) && <AiFilledMark />}
         </label>
         <div className="relative">
           <input

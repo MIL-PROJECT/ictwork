@@ -172,11 +172,18 @@ class AiSourceAccess(
             return if (receiver(request)) workAccess.canViewItemDirectly(actor, item) else workAccess.canViewItem(actor, item, request)
         }
 
-        /** 양식 답: 양식 파일 답(FORM_ANSWER)과 같은 판정. 받는 부서원은 자기 부서 몫만 (WorkFileAccess) */
+        /**
+         * 양식 답: 양식 파일 답(FORM_ANSWER)과 같은 판정. 받는 부서 소속(이송받은 부서 포함)이면 처리 건(itemOk)처럼 자기 처리 건 몫만 쓴다:
+         * 그 요청의 열람 범위·결재 문서로 다른 받는 부서의 답을 볼 수 있어도 근거로 쓰지 않는다 (REQ-B02 ③, G-85).
+         * 보내기 전 요청(처리 건이 아직 없음, 예: 등록 결재 중인 업무 등록)은 받는 부서로 보지 않는다
+         */
         private fun formOk(rowId: Long): Boolean {
             val row = targetTypeRepository.findByIdOrNull(rowId) ?: return false
             val request = requestRepository.findByIdOrNull(row.requestId) ?: return false
-            if (workAccess.isRequesterSide(actor, request) || approvalService.docsOfRequest(row.requestId).any { approvalService.canView(actor, it) }) return true
+            val receiving = request.phase == RequestPhases.SENT && receiver(request)
+            if (!receiving && (workAccess.isRequesterSide(actor, request) || approvalService.docsOfRequest(row.requestId).any { approvalService.canView(actor, it) })) {
+                return true
+            }
             // 그 요청의 처리 건 중 내가 계획 칸에 든 것을 한 번에 읽는다 (건마다 질의가 늘지 않게)
             val list = items(row.requestId)
             val assigned = workAccess.assignedAmong(actor, list)

@@ -1,0 +1,75 @@
+{
+  "button": "AI Assist",
+  "filled": "Filled by AI",
+  "source": "Source:",
+  "off": "This feature is not supported on this server.",
+  "unreachable": "Cannot connect to the AI server.",
+  "session": "{task}: filling in fields. Press save or send on the screen yourself.",
+  "startMessage": "[Start] {task}",
+  "answerLine": "{field}: {value}",
+  "declinedValue": "left blank",
+  "stepCheck": "Please check the '{field}' field.",
+  "confirmLeave": "Unsaved changes will be lost. Continue?",
+  "emptyValue": "(empty)",
+  "yes": "Yes",
+  "no": "No",
+  "panel": {
+    "title": "AI Assist",
+    "openList": "Past conversations",
+    "closeList": "Hide",
+    "conversations": "Continue a past conversation",
+    "close": "Close the assist panel"
+  },
+  "proposal": {
+    "group": "Assist suggestions",
+    "start": "Start {task}",
+    "navigate": "Go to that screen"
+  },
+  "summary": {
+    "filled": "Filled fields",
+    "empty": "Required fields still empty",
+    "audience": "Who can see or approve",
+    "sources": "Sources by field",
+    "none": "None",
+    "final": "Now press {button} on the screen yourself."
+  },
+  "change": {
+    "title": "Change these?",
+    "question": "Change '{field}' to '{value}'?",
+    "editedDuringTurn": "Not filled because you edited or were typing in this field while the answer was coming.",
+    "apply": "Change",
+    "applied": "Changed.",
+    "stale": "The field changed in the meantime. Not filled."
+  },
+  "ask": {
+    "title": "Questions",
+    "decline": "Leave blank",
+    "declined": "Left blank (press again to undo)",
+    "send": "Send answers"
+  },
+  "ops": {
+    "title": "Diagram preview",
+    "place": "Place equipment: {name}",
+    "connect": "Connect: {from} – {to}",
+    "text": "Text box: {text}",
+    "zone": "Zone: {name}",
+    "zoneMembers": "Zone: {name} ({members})",
+    "other": "Other action",
+    "failed": "Could not add to the canvas. Please press it again.",
+    "apply": "Add to canvas",
+    "applied": "Added to the canvas. Save it on the screen yourself."
+  },
+  "stopped": {
+    "button": "Stopped.",
+    "route": "Stopped filling because you moved to another screen. Press [Start] again to retry.",
+    "closed": "Stopped filling because the window was closed. Press [Start] again to retry.",
+    "pause": "Stopped filling because a confirmation opened on the screen. Press [Start] again to retry."
+  },
+  "errors": {
+    "busy": "An answer is in progress. Press again after it finishes.",
+    "noScreen": "Could not open that screen. Open it from the menu.",
+    "targetMissing": "Could not find the item to edit on the screen. It may have been deleted.",
+    "ASSIST_FORBIDDEN": "You do not have permission to open that screen.",
+    "NOT_FOUND": "The conversation or item was not found. It was deleted or AI is turned off."
+  }
+}

@@ -1,3 +1,5 @@
+import AssistPanel from "@/components/assist/AssistPanel";
+import { AssistProvider, useAssistOpen } from "@/context/AssistContext";
 import { useAuth } from "@/context/AuthContext";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { cn } from "@/utils";
@@ -31,6 +33,8 @@ const QaBanner: React.FC = () => {
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  // AI 업무지원 패널 (REQ-C01, slices/21 6.1): 1024px 이상은 본문 오른쪽 400px(본문이 그만큼 좁아짐), 그 아래는 본문 위를 덮는 서랍
+  const assistOpen = useAssistOpen();
 
   return (
     <div className="min-h-[calc(100vh/var(--app-zoom))] xl:flex">
@@ -44,6 +48,8 @@ const LayoutContent: React.FC = () => {
           // 떠 있는 사이드바(왼쪽 14px + 카드 248px. 본문 안쪽 여백 30px) 옆에 본문을 둔다
           isExpanded || isHovered ? "xl:ms-[262px]" : "xl:ms-[94px]",
           isMobileOpen ? "ms-0" : "",
+          // 패널이 열리면 본문과 본문 안의 창(모달, 화면 전체를 덮는 .modal)도 패널 왼쪽에 둔다
+          assistOpen && "lg:me-[400px] lg:[&_.modal]:pe-[400px] print:me-0!",
         )}
       >
         <QaBanner />
@@ -53,6 +59,7 @@ const LayoutContent: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      {assistOpen && <AssistPanel />}
     </div>
   );
 };
@@ -60,7 +67,9 @@ const LayoutContent: React.FC = () => {
 const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
-      <LayoutContent />
+      <AssistProvider>
+        <LayoutContent />
+      </AssistProvider>
     </SidebarProvider>
   );
 };

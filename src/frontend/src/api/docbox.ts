@@ -103,6 +103,15 @@ const folderQuery = (folderId: number | null) => (folderId === null ? "" : `?${n
 export const fetchDocBoxes = () => apiFetch<DocBoxSummary[]>("/api/doc-boxes");
 export const fetchDocFolder = (departmentId: number, folderId: number | null) =>
   apiFetch<DocFolderView>(`/api/doc-boxes/${departmentId}${folderQuery(folderId)}`);
+// 폴더 트리 한 줄 (AI 업무지원 옮길 곳 펼치기, slices/21 13.8): 경로는 "위 / 아래", system은 체계 관리 폴더(와 그 안)
+export interface DocFolderNode {
+  id: number;
+  name: string;
+  parentId: number | null;
+  path: string;
+  system: boolean;
+}
+export const fetchFolderTree = (departmentId: number) => apiFetch<DocFolderNode[]>(`/api/doc-boxes/${departmentId}/folder-tree`);
 export const createDocFolder = (departmentId: number, parentId: number | null, name: string) =>
   apiFetch<DocNodeView>(`/api/doc-boxes/${departmentId}/folders`, json("POST", { parentId, name }));
 

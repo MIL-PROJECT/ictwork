@@ -1,7 +1,10 @@
 import { createLocation, deactivateLocation, fetchLocations, type LocationItem, renameLocation } from "@/api/admin";
 import ActionModal from "@/components/admin/ActionModal";
+import { AssistSelectField, AssistTextField } from "@/components/admin/AssistFields";
+import { assistErrorOf } from "@/components/admin/assistError";
+import type { AssistError } from "@/api/assist";
 import DataTable, { RowButton } from "@/components/admin/DataTable";
-import { SelectField, TextField } from "@/components/admin/FormFields";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Panel } from "@/components/common/Panel";
 import PageMeta from "@/components/common/PageMeta";
@@ -57,11 +60,47 @@ export default function EquipmentManage() {
     return load();
   };
 
+  // AI 업무지원 lastError: 설치장소 창의 마지막 저장 오류
+  const [saveError, setSaveError] = useState<AssistError | null>(null);
   const open = (next: Dialog) => {
     setName(next.kind === "locationRename" ? next.location.name : "");
     setDepartmentId("");
+    setSaveError(null);
     setDialog(next);
   };
+
+  // AI 업무지원 (REQ-C07 장비관리, slices/21 8장 equipmentAdmin.location): 설치장소 등록 창(대상 없음)·이름 바꾸기 창(대상 설치장소, 관리하는 사용 중 설치장소만).
+  // [저장]은 사용자가 누른다
+  useAssistPage(["equipmentAdmin.location"], {
+    ready: locations !== null || failed,
+    open: (_screen, target) => {
+      if (target === null) {
+        if (departmentOptions.length === 0) return false;
+        open({ kind: "locationCreate" });
+        return true;
+      }
+      const location = managedLocations.find((l) => String(l.id) === String(target));
+      if (!location?.active) return false;
+      open({ kind: "locationRename", location });
+      return true;
+    },
+  });
+  const locationDialog = dialog?.kind === "locationCreate" || dialog?.kind === "locationRename" ? dialog : null;
+  const assist = useAssistAdapter("equipmentAdmin.location", {
+    enabled: locationDialog !== null,
+    target: locationDialog?.kind === "locationRename" ? locationDialog.location.id : null,
+    ready: true,
+    // 이름 바꾸기 창은 부서를 고르지 않는다: 칸은 이름만(서버도 대상이 있으면 dept를 내지 않음)
+    values: locationDialog?.kind === "locationRename" ? { name } : { dept: departmentId === "" ? null : Number(departmentId), name },
+    apply: (v) => {
+      if (locationDialog?.kind === "locationCreate" && typeof v.dept === "number" && departmentOptions.some((o) => o.value === String(v.dept))) setDepartmentId(String(v.dept));
+      if (typeof v.name === "string") setName([...v.name].slice(0, 50).join(""));
+    },
+    labels: { dept: ta("columns.department"), name: ta("columns.locationName") },
+    format: (field, value) => (field === "dept" && typeof value === "number" ? (paths.get(value) ?? null) : null),
+    ids: { dept: "location-department", name: "location-name" },
+    lastError: saveError,
+  });
 
   return (
     <div>
@@ -137,9 +176,12 @@ export default function EquipmentManage() {
           onClose={() => setDialog(null)}
           onSubmit={() => (dialog.kind === "locationCreate" ? createLocation(name, Number(departmentId)) : renameLocation(dialog.location.id, name))}
           onDone={afterLocationChange}
+          onError={(err, message) => setSaveError(assistErrorOf(err, message, { name: "name", departmentId: "dept" }))}
         >
           {dialog.kind === "locationCreate" && (
-            <SelectField
+            <AssistSelectField
+              assist={assist}
+              field="dept"
               id="location-department" required
               label={ta("columns.department")}
               value={departmentId}
@@ -148,7 +190,7 @@ export default function EquipmentManage() {
               onChange={setDepartmentId}
             />
           )}
-          <TextField id="location-name" required label={ta("columns.locationName")} value={name} onChange={setName} />
+          <AssistTextField id="location-name" required label={ta("columns.locationName")} value={name} onChange={setName} assist={assist} field="name" />
         </ActionModal>
       )}
 

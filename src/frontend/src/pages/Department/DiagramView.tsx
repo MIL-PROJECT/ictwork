@@ -19,11 +19,13 @@ import {
   uploadDiagramFile,
   writeLockToken,
 } from "@/api/diagram";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import { Panel } from "@/components/common/Panel";
 import type { DiagramCanvasHandle } from "@/components/diagram/DiagramCanvas";
 import { ConfirmDialog, EquipmentPicker, EquipmentSettingsDialog, GrantDialog, VersionDialog } from "@/components/diagram/DiagramDialogs";
+import { parseOps } from "@/components/diagram/diagramAssist";
 import { useDiagramError } from "@/components/diagram/errors";
 import {
   attrInfos,
@@ -82,6 +84,8 @@ function DiagramScreen({ id }: { id: number }) {
   const [remaining, setRemaining] = useState(0);
   const [candidates, setCandidates] = useState<CandidateItem[]>([]);
   const [placed, setPlaced] = useState<Set<number>>(new Set());
+  // 놓인 도형(장비 상자가 아닌 도형·글상자): AI 업무지원이 선의 끝·구역 묶음 후보로 보낸다
+  const [placedShapes, setPlacedShapes] = useState<{ id: string; label: string }[]>([]);
   const [dialog, setDialog] = useState<"grants" | "versions" | "settings" | null>(null);
   const [confirm, setConfirm] = useState<{ message: string; run: () => void } | null>(null);
   const [infoFields, setInfoFields] = useState<Set<InfoField>>(() => readInfoFields(user?.loginId ?? ""));
@@ -91,6 +95,10 @@ function DiagramScreen({ id }: { id: number }) {
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const handle = useRef<DiagramCanvasHandle | null>(null);
+  // 캔버스가 준비됨(handle을 받음): AI 업무지원 어댑터의 준비 표시 (장면을 새로 만들면 다시 거짓)
+  const [canvasReady, setCanvasReady] = useState(false);
+  // 캔버스가 처음 장면의 놓인 장비·도형을 알림: 그 전에 준비되면 처음 값이 빈 목록으로 찍혀 바꾼 것 없이 dirty가 된다
+  const [sceneReported, setSceneReported] = useState(false);
   const shownVersion = useRef(-1);
   const serverName = useRef("");
   const started = useRef(false);
@@ -105,11 +113,14 @@ function DiagramScreen({ id }: { id: number }) {
 
   const showScene = useCallback((data: SceneData, equipment: EquipmentInfo[]) => {
     handle.current = null;
+    setCanvasReady(false);
+    setSceneReported(false);
     setScene((current) => ({ data, equipment, key: (current?.key ?? 0) + 1 }));
   }, []);
 
   const onCanvasReady = useCallback((h: DiagramCanvasHandle) => {
     handle.current = h;
+    setCanvasReady(true);
   }, []);
 
   const errorText = useDiagramError();
@@ -125,6 +136,29 @@ function DiagramScreen({ id }: { id: number }) {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  // AI 업무지원 (REQ-C07 구성도, slices/21 6.3·8장 diagram): 편집 중에만 채운다(편집 전이면 서버가 [편집]을 누르라고 안내만, context.editing).
+  // 동작(ops)은 캔버스에 바로 넣지 않고 패널 미리보기의 [캔버스에 넣기]를 누를 때 applyOps로 넣는다. 저장은 사용자가 누른다
+  useAssistPage(["diagram"], {
+    ready: detail !== null || missing || invalidId,
+    open: (_screen, target) => String(target) === String(id) && detail?.permission === "EDIT",
+  });
+  const assist = useAssistAdapter("diagram", {
+    enabled: detail?.permission === "EDIT",
+    target: id,
+    // 보기·편집 모두 캔버스가 놓인 장비·도형을 알린 뒤 (편집을 시작하면 장면을 새로 만들어 다시 준비된다)
+    ready: canvasReady && sceneReported,
+    values: { placed: [...placed].sort((a, b) => a - b), placedShapes },
+    apply: () => undefined,
+    labels: { ops: td("picker.title") },
+    context: { editing: mode === "edit" },
+    // 넣은 것이 없으면(편집 중 아님, 캔버스 준비 전, 놓을 장비가 후보에 없음 등) false: 패널이 넣지 못했다고 알린다
+    applyOps: (ops) => {
+      const canvas = handle.current;
+      if (modeRef.current !== "edit" || !canvas) return false;
+      return canvas.applyOps(parseOps(ops), (equipmentId) => candidates.find((c) => c.id === equipmentId));
+    },
+  });
 
   // 정보 표시 메뉴에 보일 항목: 공유 권한자는 이 구성도의 공유 항목만 (REQ-505)
   const canEditDetail = detail?.permission === "EDIT";
@@ -345,8 +379,14 @@ function DiagramScreen({ id }: { id: number }) {
       }
     });
 
+  // 확인 창을 열면 채우기를 멈춘다 (REQ-C09)
+  const ask = (next: { message: string; run: () => void }) => {
+    assist.pause();
+    setConfirm(next);
+  };
+
   const discard = () =>
-    setConfirm({
+    ask({
       message: td("edit.discardConfirm"),
       run: () =>
         run(async (current) => {
@@ -357,7 +397,7 @@ function DiagramScreen({ id }: { id: number }) {
     });
 
   const revert = (no: number) =>
-    setConfirm({
+    ask({
       message: td("edit.revertConfirm"),
       run: () =>
         run(async (current) => {
@@ -519,7 +559,7 @@ function DiagramScreen({ id }: { id: number }) {
               size="sm"
               variant="outline"
               onClick={() =>
-                setConfirm({ message: td("view.deleteConfirm"), run: () => deactivateDiagram(id).then(() => navigate("/department/diagrams")).catch(fail) })
+                ask({ message: td("view.deleteConfirm"), run: () => deactivateDiagram(id).then(() => navigate("/department/diagrams")).catch(fail) })
               }
             >
               {td("view.delete")}
@@ -571,6 +611,10 @@ function DiagramScreen({ id }: { id: number }) {
                 attrs={attrs}
                 onReady={onCanvasReady}
                 onPlacedChange={setPlaced}
+                onShapesChange={(shapes) => {
+                  setPlacedShapes(shapes);
+                  setSceneReported(true);
+                }}
                 onError={setError}
               />
             </Suspense>

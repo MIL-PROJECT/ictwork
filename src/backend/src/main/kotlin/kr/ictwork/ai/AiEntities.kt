@@ -144,7 +144,7 @@ class AiConversation(
     var lastAskedAt: LocalDateTime? = null
 }
 
-/** 메시지 (V25 ai_message, V26 used_sources). 출처·조건·확인할 곳은 JSON 글 */
+/** 메시지 (V25 ai_message, V26 used_sources, V42 assist). 출처·조건·확인할 곳은 JSON 글 */
 @Entity
 @Table(name = "ai_message")
 class AiMessage(
@@ -173,6 +173,10 @@ class AiMessage(
     /** 근거로 쓴 모든 출처(모델에 넘긴 글·도구가 찾은 것). 이어 묻기 때 다시 판정한다 (V26, slices/12 12.5) */
     @Column(name = "used_sources", columnDefinition = "TEXT")
     var usedSources: String? = null
+
+    /** 업무지원 답의 화면 정보 JSON (V42 MEDIUMTEXT, slices/21 13.6). 사용자 메시지는 직접 적은 글(typed)만 */
+    @Column(columnDefinition = "MEDIUMTEXT")
+    var assist: String? = null
 
     @Column(columnDefinition = "TEXT")
     var conditions: String? = null

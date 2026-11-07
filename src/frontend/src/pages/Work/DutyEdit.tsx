@@ -2,6 +2,7 @@ import { ApiError } from "@/api/client";
 import { createRoster, deleteRoster, type DutyManageDepartment, type DutyRosterDetail, fetchDutyManage, fetchRoster, renameRoster } from "@/api/duty";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import { EmptyState } from "@/components/common/Panel";
 import { type DutyWrite, iconTile, inputClass, isConflict, labelClass, outlineButton, panelClass, panelHead, panelSubtitle, panelTitle } from "@/components/duty/dutyUtil";
 import AssigneePanel from "@/components/duty/edit/AssigneePanel";
@@ -134,6 +135,33 @@ export default function DutyEdit() {
       { replace: true },
     );
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 근무자 현황, slices/21 12.5·12.8): 대상 근무표(근무표 추가는 부서)를 고르고 그 탭·창을 연다.
+  // 고칠 수 있는 근무표는 이 화면 목록(GET /api/duty/manage)에 든 것뿐이고, 근무표 추가는 부서 관리자만
+  useAssistPage(["duty.rule", "duty.fill", "duty.holiday", "duty.share", "duty.roster"], {
+    ready: manage !== null,
+    open: (screen, target) => {
+      const id = Number(target);
+      if (!manage || !Number.isInteger(id)) return false;
+      setStatus("");
+      setNotice(null);
+      if (screen === "duty.roster") {
+        const d = manage.find((x) => x.departmentId === id);
+        if (!d || !d.canManage) return false;
+        update({ dept: String(id), roster: null, tab: null });
+        setAssistOpen({ screen, target: id });
+        return true;
+      }
+      const d = manage.find((x) => x.rosters.some((r) => r.id === id));
+      if (!d) return false;
+      const tab: Tab = screen === "duty.rule" ? "rules" : screen === "duty.fill" ? "placement" : screen === "duty.holiday" ? "holidays" : "shares";
+      update({ dept: String(d.departmentId), roster: String(id), tab });
+      if (screen === "duty.rule") setAddRuleFor(id);
+      else if (screen === "duty.fill" || screen === "duty.holiday") setAssistOpen({ screen, target: id });
+      return true;
+    },
+  });
+  const assistFor = (screen: "duty.fill" | "duty.holiday" | "duty.roster", target: number | undefined) => assistOpen?.screen === screen && assistOpen.target === target;
+
   // 쓰기 하나 (DutyWrite): 응답이 상세면 바꾸고, 배치 화면이면 version만 바꾼다
   const write = useCallback(
     async <T extends { version: number }>(work: (version: number) => Promise<T>): Promise<T | null> => {
@@ -162,6 +190,10 @@ export default function DutyEdit() {
 
   // 근무표를 추가하면 그 근무표의 [로테이션 규칙] 탭에서 규칙 편집 창을 바로 연다 (slices/19 13.1)
   const [addRuleFor, setAddRuleFor] = useState<number | null>(null);
+  // AI 업무지원이 연 창: 월별 채우기·공휴일 추가는 근무표 id, 근무표 추가는 부서 id (공유 부서는 탭만 연다)
+  const [assistOpen, setAssistOpen] = useState<{ screen: "duty.fill" | "duty.holiday" | "duty.roster"; target: number } | null>(null);
+  const clearAssistOpen = useCallback(() => setAssistOpen(null), []);
+  const clearAddRule = useCallback(() => setAddRuleFor(null), []);
   const create = async (name: string) => {
     if (!dept) return;
     const d = await createRoster({ departmentId: dept.departmentId, name });
@@ -305,6 +337,8 @@ export default function DutyEdit() {
             onCreate={create}
             onRename={rename}
             onDelete={remove}
+            startCreating={assistFor("duty.roster", dept.departmentId)}
+            onStartedCreating={clearAssistOpen}
           />
         </section>
       )}
@@ -354,9 +388,9 @@ export default function DutyEdit() {
             </div>
           </div>
           <div id="duty-tab-panel" role="tabpanel" aria-labelledby={`duty-tab-${tab}`} key={`${tab}-${panelKey}`} className="px-[22px] pt-4 pb-5">
-            {tab === "rules" && <RulesPanel key={current.id} {...panelProps} startAdding={addRuleFor === current.id} onStartedAdding={() => setAddRuleFor(null)} />}
-            {tab === "placement" && <PlacementPanel {...panelProps} />}
-            {tab === "holidays" && <HolidayPanel detail={current} write={write} />}
+            {tab === "rules" && <RulesPanel key={current.id} {...panelProps} startAdding={addRuleFor === current.id} onStartedAdding={clearAddRule} />}
+            {tab === "placement" && <PlacementPanel {...panelProps} startFilling={assistFor("duty.fill", current.id)} onStartedFilling={clearAssistOpen} />}
+            {tab === "holidays" && <HolidayPanel detail={current} write={write} startAdding={assistFor("duty.holiday", current.id)} onStartedAdding={clearAssistOpen} />}
             {tab === "shares" && <SharePanel detail={current} departments={departments} write={write} />}
             {tab === "assignees" && <AssigneePanel {...panelProps} />}
           </div>

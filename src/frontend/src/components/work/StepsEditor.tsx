@@ -1,3 +1,4 @@
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import { type AccountOption, type DocType, fetchApprovalAccounts, fetchRouteSuggestion, type StepKind } from "@/api/work";
 import { useAuth } from "@/context/AuthContext";
 import { useOrgData } from "@/hooks/useOrgData";
@@ -21,12 +22,14 @@ export default function StepsEditor({
   rows,
   onChange,
   showTitle = true,
+  marked,
 }: {
   docType: DocType;
   workItemId?: number;
   rows: StepRow[];
   onChange: (rows: StepRow[]) => void;
   showTitle?: boolean; // 감싼 구역에 같은 제목이 있으면 화면에서는 숨긴다(화면낭독기는 읽음)
+  marked?: (row: StepRow) => boolean; // AI 업무지원 "AI가 채움": 단계 줄마다 (REQ-C03 ④)
 }) {
   const { t } = useTranslation("work");
   const { user } = useAuth();
@@ -117,6 +120,7 @@ export default function StepsEditor({
                   {row.name}
                   {row.accountId === user?.accountId && <span className="ms-1 text-theme-xs text-gray-500 dark:text-gray-400">({t("steps.me")})</span>}
                   {inactive(row) && <span className="ms-1 text-theme-xs text-error-600 dark:text-error-400">({t("steps.inactiveMark")})</span>}
+                  {marked?.(row) && <AiFilledMark />}
                 </span>
                 {drafter && !last ? (
                   <span className="text-sm text-gray-600 dark:text-gray-400">{t("steps.drafter")}</span>

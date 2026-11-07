@@ -1,5 +1,10 @@
+import type { AssistTarget } from "@/api/assist";
 import ActionModal from "@/components/admin/ActionModal";
+import { assistErrorOf } from "@/components/admin/assistError";
+import AssistLabel from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { clip } from "@/utils";
+import type { AssistError } from "@/api/assist";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { codePoints, splitName, useDocError } from "./docUtil";
@@ -12,11 +17,13 @@ const FORBIDDEN = /[\\/:*?"<>|\p{Cc}\p{Cf}]/u;
  * 이름 창 (REQ-A02): 새 폴더 이름, 또는 이름 바꾸기. 파일은 확장자를 고정해 보이고 앞 이름만 고친다.
  * 이름 규칙(1~100자, \ / : * ? " < > |·제어·서식 문자 불가, 앞뒤 빈칸 지움, NFC)을 서버와 같게 먼저 보고, 겹침 등은 서버 오류로 보인다
  */
-export default function NameDialog({ title, submitLabel, initialName = "", isFile = false, onSubmit, onDone, onClose }: {
+export default function NameDialog({ title, submitLabel, initialName = "", isFile = false, assist: assistScreen, onSubmit, onDone, onClose }: {
   title: string;
   submitLabel: string;
   initialName?: string;
   isFile?: boolean;
+  /** AI 업무지원 화면 (REQ-C07 문서함, slices/21 8장): 새 폴더 docbox.folder(대상 문서함 부서), 이름 바꾸기 docbox.rename(대상 노드) */
+  assist?: { screen: "docbox.folder" | "docbox.rename"; target: AssistTarget };
   onSubmit: (name: string) => Promise<unknown>;
   onDone: () => Promise<void>;
   onClose: () => void;
@@ -40,6 +47,25 @@ export default function NameDialog({ title, submitLabel, initialName = "", isFil
           : null;
   const unchanged = initialName !== "" && name === initialName;
 
+  // 창 어댑터: 칸 name. 파일은 확장자를 뺀 앞 이름이고(서버도 앞 이름만 냄), 저장할 때 원래 확장자를 붙인다.
+  // 받은 이름이 같은 확장자로 끝나면 그 확장자는 뗀다. [만들기]·[바꾸기]는 사용자가 누른다
+  const [saveError, setSaveError] = useState<AssistError | null>(null);
+  const assist = useAssistAdapter(assistScreen?.screen ?? "docbox.folder", {
+    enabled: assistScreen !== undefined,
+    target: assistScreen?.target ?? null,
+    ready: true,
+    values: { name: value.trim() },
+    apply: (v) => {
+      if (typeof v.name !== "string") return;
+      const given = v.name.trim();
+      const front = extension && given.toLowerCase().endsWith(extension.toLowerCase()) ? given.slice(0, given.length - extension.length) : given;
+      setValue([...front].slice(0, MAX_NAME - codePoints(extension)).join(""));
+    },
+    labels: { name: t("label") },
+    ids: { name: id },
+    lastError: saveError,
+  });
+
   return (
     <ActionModal
       title={title}
@@ -49,11 +75,12 @@ export default function NameDialog({ title, submitLabel, initialName = "", isFil
       onSubmit={() => onSubmit(name)}
       onDone={onDone}
       onClose={onClose}
+      onError={(err, message) => setSaveError(assistErrorOf(err, message, { name: "name" }))}
     >
       <div>
-        <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+        <AssistLabel assist={assist} field="name" htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
           {t("label")}
-        </label>
+        </AssistLabel>
         <div className="flex items-center gap-2">
           <input
             id={id}

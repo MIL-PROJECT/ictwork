@@ -1,3 +1,4 @@
+import { type AskExtra, type AssistInfo, type ChatExtra, parseAssist } from "./assist";
 import { ApiError, apiFetch, notifyAuthStatus } from "./client";
 
 // AI 질의응답 서버 호출 (REQ-B01·B05~B09, slices/12 5.7·11.5)
@@ -42,6 +43,7 @@ export interface AiMessage {
   conditions: string[];
   links: AiLink[];
   pending?: number; // 아직 읽는 중인 자료 수(이어 받는 답의 meta)
+  assist?: AssistInfo | null; // AI 업무지원 제안 단추·채우기 답 (slices/21 13.6)
 }
 
 // 서버 ConversationDetail. busy: 이 대화에서 기다리거나 답을 받는 질문이 있음
@@ -55,7 +57,7 @@ export interface AiConversation {
 }
 
 // 서버가 빈 배열을 빼고 보내도 화면이 깨지지 않게 채운다
-export function normalizeMessage(m: Partial<AiMessage> & { id: number }): AiMessage {
+export function normalizeMessage(m: Partial<Omit<AiMessage, "assist">> & { id: number; assist?: unknown }): AiMessage {
   return {
     id: m.id,
     role: m.role === "USER" ? "USER" : "ASSISTANT",
@@ -66,6 +68,7 @@ export function normalizeMessage(m: Partial<AiMessage> & { id: number }): AiMess
     conditions: Array.isArray(m.conditions) ? m.conditions : [],
     links: Array.isArray(m.links) ? m.links : [],
     pending: typeof m.pending === "number" ? m.pending : undefined,
+    assist: parseAssist(m.assist),
   };
 }
 
@@ -100,9 +103,10 @@ function csrfHeaders(): Headers {
 
 /**
  * 질문 보내기: 답은 text/event-stream이라 apiFetch 대신 직접 받는다(같은 쿠키·CSRF 규칙).
- * 흐름이 열리기 전의 거절(409 AI_BUSY, 400 AI_QUESTION_LENGTH, 503 AI_UNAVAILABLE 등)은 ApiError로 던진다
+ * 흐름이 열리기 전의 거절(409 AI_BUSY, 400 AI_QUESTION_LENGTH, 503 AI_UNAVAILABLE 등)은 ApiError로 던진다.
+ * AI 업무지원 채우기 차례는 몸에 extra(mode=fill …)를, 패널의 일반 질문은 지금 보는 화면(view)을 더한다 (slices/21 13.1)
  */
-export async function postQuestion(id: number, question: string, signal: AbortSignal): Promise<Response> {
+export async function postQuestion(id: number, question: string, signal: AbortSignal, extra?: AskExtra | ChatExtra): Promise<Response> {
   const headers = csrfHeaders();
   headers.set("Content-Type", "application/json");
   // 거절 응답은 JSON이라 함께 받는다(text/event-stream만 받으면 서버가 406에 빈 본문으로 답함)
@@ -110,7 +114,7 @@ export async function postQuestion(id: number, question: string, signal: AbortSi
   const response = await fetch(`/api/ai/conversations/${id}/ask`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, ...extra }),
     credentials: "same-origin",
     signal,
   });

@@ -32,6 +32,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { allowedData, canAttach, cleanAttachments, dataOf, descendantsOf, findHost, hostOf, isAttachable, shapeInfoKind, withoutKeys } from "./attach";
+import { type DiagramOp, edgePoint, type OpEnd, placeInGrid, type Rect, shapeCandidates, zoneRect } from "./diagramAssist";
 import { ShapeInfoDialog } from "./DiagramDialogs";
 import { type AttrInfo, attrText, type InfoField, LINE_INFO_FIELDS, SHAPE_INFO_FIELDS, type ShapeInfo, type ShapeInfoKind } from "./infoFields";
 
@@ -86,11 +87,21 @@ const INFO_TEXT = { info: true };
 const tokenColor = (token: string) => getComputedStyle(document.documentElement).getPropertyValue(token).trim() || "#98a2b3";
 
 /** 화면 바깥에서 캔버스를 다루는 손잡이 */
+/** 놓을 장비: 장비 고르기 후보 그대로 */
+export type EquipmentPick = Pick<CandidateItem, "id" | "boxText" | "status"> & { fields?: CandidateItem["fields"]; photo?: number | null };
+
 export interface DiagramCanvasHandle {
   getScene: () => SceneData;
   pendingFiles: () => { id: string; blob: Blob }[];
   markUploaded: (id: string) => void;
-  addEquipment: (equipment: Pick<CandidateItem, "id" | "boxText" | "status"> & { fields?: CandidateItem["fields"]; photo?: number | null }) => void;
+  /** 장비 상자를 놓는다. 만든 요소 id(상자·상자 글)를 돌려준다 */
+  addEquipment: (equipment: EquipmentPick) => string[];
+  /**
+   * AI 업무지원 [캔버스에 넣기] (REQ-C07, slices/21 6.3·12.9): 새 상자는 빈 격자 칸에, 선은 두 상자에 붙은 화살표(이미 놓인 상자에도),
+   * 글상자는 빈 칸에, 구역은 묶을 요소 둘레(여백 40px) 사각형과 이름 글. 한 번에 넣어 실행 취소 한 번으로 되돌린다. find: 장비 id → 놓을 장비(후보).
+   * 넣은 요소가 없으면(캔버스 준비 전, 놓을 장비가 후보에 없거나 이미 놓임, 선의 끝을 못 찾음 등) false
+   */
+  applyOps: (ops: readonly DiagramOp[], find: (equipmentId: number) => EquipmentPick | undefined) => boolean;
   placedEquipmentIds: () => number[];
   exportPng: () => Promise<Blob>;
 }
@@ -337,6 +348,34 @@ function boxWidth(name: string) {
   return Math.max(160, Math.ceil(context.measureText(name).width) + 40);
 }
 
+/** 장비 상자 뼈대: 상자 글은 장비명 (REQ-505, E-47). 장비 사진이 있으면 사진 넣음 표시를 켜고 장비명을 아래로, 사진 칸이 보이게 상자를 높인다 (G-132) */
+const boxHeight = (e: EquipmentPick) => (e.photo ? 120 : 60);
+function equipmentSkeleton(e: EquipmentPick, x: number, y: number, id?: string): ExcalidrawElementSkeleton {
+  const width = boxWidth(e.boxText);
+  return e.photo
+    ? { type: "rectangle", id, x, y, width, height: boxHeight(e), customData: { equipmentId: e.id, photo: true }, label: { text: e.boxText, fontSize: 16, verticalAlign: "bottom" } }
+    : { type: "rectangle", id, x, y, width, height: boxHeight(e), customData: { equipmentId: e.id }, label: { text: e.boxText, fontSize: 16 } };
+}
+
+/** 글상자 자리를 잡을 때의 크기 (16px 글, 줄마다 25px) */
+function textSize(text: string) {
+  const context = document.createElement("canvas").getContext("2d");
+  const lines = text.split("\n");
+  if (context) context.font = "16px Excalifont, Xiaolai, sans-serif";
+  const width = Math.max(...lines.map((line) => (context ? Math.ceil(context.measureText(line).width) : [...line].length * 16)));
+  return { width: Math.max(40, width), height: lines.length * 25 };
+}
+
+/** 선의 끝·구역 묶음이 될 수 있는 놓인 도형: 장비 상자가 아닌 사각형·타원·마름모, 도형 안에 들지 않은 글상자 (AI 업무지원 placedShapes) */
+function isShapeEnd(el: ExcalidrawElement) {
+  if (el.isDeleted) return false;
+  if (el.type === "text") return el.containerId === null && el.customData?.info !== true;
+  return (el.type === "ellipse" || el.type === "diamond" || el.type === "rectangle") && !equipmentIdOf(el);
+}
+
+/** 새 요소 id (보안 문맥이 아니어도 쓸 수 있게 무작위 값으로) */
+const newElementId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, "0")).join("");
+
 type Geometry = Pick<ExcalidrawElement, "x" | "y" | "width" | "height" | "angle"> & { points?: ExcalidrawArrowElement["points"] };
 const geometryOf = (el: ExcalidrawElement): Geometry => ({
   x: el.x,
@@ -578,6 +617,7 @@ export default function DiagramCanvas({
   attrs,
   onReady,
   onPlacedChange,
+  onShapesChange,
   onError,
 }: {
   diagramId: number;
@@ -596,6 +636,7 @@ export default function DiagramCanvas({
   attrs: AttrInfo[]; // 정보 표시에 넣는 추가 특성 (REQ-505·519)
   onReady: (handle: DiagramCanvasHandle) => void;
   onPlacedChange: (ids: Set<number>) => void; // 놓은 장비가 바뀔 때(지우기·되살리기 포함)
+  onShapesChange?: (shapes: { id: string; label: string }[]) => void; // 놓인 도형(선의 끝·구역 묶음 후보)이 바뀔 때 (AI 업무지원)
   onError: (message: string) => void;
 }) {
   const { t, i18n } = useTranslation("diagram");
@@ -640,15 +681,19 @@ export default function DiagramCanvas({
   // 부모가 렌더할 때마다 새 함수를 넘겨도 다시 알리지 않게 ref로 둔다(무한 갱신 방지)
   const onReadyRef = useRef(onReady);
   const onPlacedRef = useRef(onPlacedChange);
+  const onShapesRef = useRef(onShapesChange);
+  // 처음 알림은 빈 장면이어도 보낸다(null): 화면이 처음 장면을 받은 뒤에 AI 업무지원 준비가 된다
+  const shapesKey = useRef<string | null>(null);
   const onErrorRef = useRef(onError);
-  const placedKey = useRef("");
+  const placedKey = useRef<string | null>(null);
   // 끌기 중 붙은 도형을 함께 끌려고 넓히기 전의 선택 (17장). null이면 끄는 중이 아님
   const dragFrom = useRef<Record<string, true> | null>(null);
   useEffect(() => {
     onReadyRef.current = onReady;
     onPlacedRef.current = onPlacedChange;
+    onShapesRef.current = onShapesChange;
     onErrorRef.current = onError;
-  }, [onReady, onPlacedChange, onError]);
+  }, [onReady, onPlacedChange, onShapesChange, onError]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // 사진이 보이고 안 보이는 것이 바뀌면(사진 번호·공유) 장비명 글 자리를 맞춘다. 실행 취소 기록에는 넣지 않는다
   useEffect(() => {
@@ -695,6 +740,13 @@ export default function DiagramCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 새로 놓은 상자도 후보의 장비 항목 값·사진으로 바로 정보 표시·작은 창·사진을 보인다. 이미 받은 정보는 그대로 둔다
+  const rememberEquipment = useCallback(({ id, status, fields, photo }: EquipmentPick) => {
+    setKnown((current) =>
+      current.get(id)?.state === "OK" ? current : new Map(current).set(id, { id, state: "OK", fields: fields ?? { STATUS: status }, photo: photo ?? null }),
+    );
+  }, []);
+
   const handle = useMemo<DiagramCanvasHandle>(
     () => ({
       getScene: () => {
@@ -710,28 +762,134 @@ export default function DiagramCanvas({
         return [...used].filter((id) => !uploaded.current.has(id) && files[id]).map((id) => ({ id, blob: dataUrlToBlob(files[id].dataURL) }));
       },
       markUploaded: (id) => uploaded.current.add(id),
-      addEquipment: ({ id, boxText, status, fields, photo }) => {
+      addEquipment: (equipment) => {
         const api = apiRef.current;
-        if (!api) return;
+        if (!api) return [];
         const state = api.getAppState();
         // 화면 가운데에 놓되, 이미 놓은 상자 수만큼 비켜 놓아 겹치지 않게
         const shift = (api.getSceneElements().filter((el) => equipmentIdOf(el)).length % 8) * 24;
-        const width = boxWidth(boxText);
+        const width = boxWidth(equipment.boxText);
         const x = -state.scrollX + state.width / 2 / state.zoom.value - width / 2 + shift;
         const y = -state.scrollY + state.height / 2 / state.zoom.value - 30 + shift;
-        // 장비 사진이 있으면 사진 넣음 표시를 켜고 장비명을 아래로, 사진 칸이 보이게 상자를 높여 놓는다 (G-132, 설계 판단: 새 상자라 지킬 크기가 없음)
-        const created = convertToExcalidrawElements([
-          // 상자 글은 장비명 (REQ-505, E-47)
-          photo
-            ? { type: "rectangle", x, y, width, height: 120, customData: { equipmentId: id, photo: true }, label: { text: boxText, fontSize: 16, verticalAlign: "bottom" } }
-            : { type: "rectangle", x, y, width, height: 60, customData: { equipmentId: id }, label: { text: boxText, fontSize: 16 } },
-        ]);
-        // 새로 놓은 상자도 후보의 장비 항목 값·사진으로 바로 정보 표시·작은 창·사진을 보인다. 이미 받은 정보는 그대로 둔다
-        setKnown((current) =>
-          current.get(id)?.state === "OK" ? current : new Map(current).set(id, { id, state: "OK", fields: fields ?? { STATUS: status }, photo: photo ?? null }),
-        );
+        // 장비 사진이 있으면 사진 칸이 보이게 높여 놓는다 (G-132, 설계 판단: 새 상자라 지킬 크기가 없음)
+        const created = convertToExcalidrawElements([equipmentSkeleton(equipment, x, y)]);
+        rememberEquipment(equipment);
         // 놓기를 바로 실행 취소 기록에 남긴다(안 남기면 Ctrl+Z가 그 전 작업을 되돌려 같은 장비가 둘이 될 수 있음, 17.4)
         api.updateScene({ elements: [...api.getSceneElementsIncludingDeleted(), ...created], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+        return created.map((el) => el.id);
+      },
+      applyOps: (ops, find) => {
+        const api = apiRef.current;
+        if (!api) return false;
+        const all = api.getSceneElementsIncludingDeleted();
+        const live = all.filter((el) => !el.isDeleted);
+        const boxOf = new Map<number, ExcalidrawElement>();
+        for (const el of live) {
+          const id = equipmentIdOf(el);
+          if (id && !boxOf.has(id)) boxOf.set(id, el);
+        }
+        // 놓을 장비(이미 놓인 장비·후보에 없는 장비는 빼고)와 글상자에 빈 격자 칸을 차례로 준다. 격자는 지금 그림의 왼쪽 위(빈 그림이면 화면 왼쪽 위 4분의 1 자리)부터
+        const picks: EquipmentPick[] = [];
+        for (const op of ops) {
+          if (op.op !== "place" || boxOf.has(op.equipment) || picks.some((p) => p.id === op.equipment)) continue;
+          const pick = find(op.equipment);
+          if (pick) picks.push(pick);
+        }
+        const texts = ops.flatMap((op) => (op.op === "text" ? [op.text] : []));
+        const occupied: Rect[] = live.map((el) => {
+          const [x1, y1, x2, y2] = getCommonBounds([el]);
+          return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+        });
+        const state = api.getAppState();
+        const origin = occupied.length
+          ? { x: Math.min(...occupied.map((r) => r.x)), y: Math.min(...occupied.map((r) => r.y)) }
+          : { x: -state.scrollX + state.width / 4 / state.zoom.value, y: -state.scrollY + state.height / 4 / state.zoom.value };
+        const spots = placeInGrid(occupied, [...picks.map((e) => ({ width: boxWidth(e.boxText), height: boxHeight(e) })), ...texts.map(textSize)], origin);
+        const skeletons: ExcalidrawElementSkeleton[] = [];
+        const newIds = new Map<number, string>();
+        const rects = new Map<number, Rect>([...boxOf].map(([id, el]) => [id, { x: el.x, y: el.y, width: el.width, height: el.height }]));
+        picks.forEach((e, i) => {
+          const id = newElementId();
+          newIds.set(e.id, id);
+          rects.set(e.id, spots[i]);
+          skeletons.push(equipmentSkeleton(e, spots[i].x, spots[i].y, id));
+        });
+        texts.forEach((text, i) => skeletons.push({ type: "text", x: spots[picks.length + i].x, y: spots[picks.length + i].y, text, fontSize: 16 }));
+        // 선의 끝·구역 묶음: 장비(이번에 놓는 상자 또는 놓인 상자)나 놓인 도형(장비 상자가 아닌 사각형·타원·마름모, 상자 밖 글상자)
+        const byId = new Map(live.map((el) => [el.id, el]));
+        const resolve = (e: OpEnd): { element: string; rect: Rect; existing: ExcalidrawElement | null } | null => {
+          if (e.kind === "equipment") {
+            const placedNow = newIds.get(e.id);
+            const rect = rects.get(e.id);
+            const existing = boxOf.get(e.id) ?? null;
+            if (!rect) return null;
+            if (placedNow) return { element: placedNow, rect, existing: null };
+            return existing ? { element: existing.id, rect, existing } : null;
+          }
+          const el = byId.get(e.id);
+          if (!el || !isShapeEnd(el)) return null;
+          return { element: el.id, rect: { x: el.x, y: el.y, width: el.width, height: el.height }, existing: el };
+        };
+        // 선: 두 끝에 붙은 화살촉 없는 화살표(선 도구와 같음, S-47). 이미 놓인 상자·도형은 같은 id·자리의 대리 요소를 함께 넣어 붙이고,
+        // 대리 요소가 받은 붙음(boundElements)만 실제 요소에 옮긴다. 그 뒤 상자를 옮길 때는 기존 보정(followOneEnd·followStuckEnds)이 맞춘다
+        const proxied = new Set<string>();
+        const center = (r: Rect) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+        const proxyOf = (el: ExcalidrawElement): ExcalidrawElementSkeleton | null => {
+          if (el.type === "text") return { type: "text", id: el.id, x: el.x, y: el.y, text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily };
+          if (el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") return { type: el.type, id: el.id, x: el.x, y: el.y, width: el.width, height: el.height, angle: el.angle };
+          return null;
+        };
+        for (const op of ops) {
+          if (op.op !== "connect") continue;
+          const a = resolve(op.from);
+          const b = resolve(op.to);
+          if (!a || !b || a.element === b.element) continue;
+          for (const existing of [a.existing, b.existing]) {
+            if (!existing || proxied.has(existing.id)) continue;
+            const proxy = proxyOf(existing);
+            if (!proxy) continue;
+            proxied.add(existing.id);
+            skeletons.push(proxy);
+          }
+          const start = edgePoint(a.rect, center(b.rect));
+          const end = edgePoint(b.rect, center(a.rect));
+          skeletons.push({
+            type: "arrow",
+            id: newElementId(),
+            x: start.x,
+            y: start.y,
+            points: [[0, 0] as LocalPoint, [end.x - start.x, end.y - start.y] as LocalPoint],
+            startArrowhead: null,
+            endArrowhead: null,
+            start: { id: a.element },
+            end: { id: b.element },
+          });
+        }
+        // 구역: 묶을 상자·도형 둘레(여백 40px)의 점선 사각형과 왼쪽 위 이름 글. 묶을 것이 없으면 빈 칸에 둔다
+        for (const op of ops) {
+          if (op.op !== "zone") continue;
+          const members = op.members.flatMap((m) => resolve(m)?.rect ?? []);
+          const rect = zoneRect(members) ?? placeInGrid([...occupied, ...spots], [{ width: 320, height: 200 }], origin)[0];
+          skeletons.push({ type: "rectangle", x: rect.x, y: rect.y, width: rect.width, height: rect.height, strokeStyle: "dashed", backgroundColor: "transparent" });
+          skeletons.push({ type: "text", x: rect.x + 8, y: rect.y + 6, text: op.name, fontSize: 16 });
+        }
+        if (!skeletons.length) return false;
+        const converted = convertToExcalidrawElements(skeletons, { regenerateIds: false });
+        const proxies = new Map(converted.filter((el) => proxied.has(el.id)).map((el) => [el.id, el]));
+        picks.forEach(rememberEquipment);
+        api.updateScene({
+          elements: [
+            ...all.map((el) => {
+              const proxy = proxies.get(el.id);
+              if (!proxy) return el;
+              const bound = el.boundElements ?? [];
+              return newElementWith(el, { boundElements: [...bound, ...(proxy.boundElements ?? []).filter((b) => !bound.some((x) => x.id === b.id))] });
+            }),
+            ...converted.filter((el) => !proxied.has(el.id)),
+          ],
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+        return true;
       },
       placedEquipmentIds: () =>
         (apiRef.current?.getSceneElements() ?? []).flatMap((el) => {
@@ -861,7 +1019,7 @@ export default function DiagramCanvas({
         });
       },
     }),
-    [equipmentFields, shapeFields, known, statusShown, t, te, attrs, photoOf, diagramId],
+    [equipmentFields, shapeFields, known, statusShown, t, te, attrs, photoOf, diagramId, rememberEquipment],
   );
 
   useEffect(() => {
@@ -1013,6 +1171,26 @@ export default function DiagramCanvas({
       if (key !== placedKey.current) {
         placedKey.current = key;
         onPlacedRef.current(new Set(ids));
+      }
+      // 놓인 도형: 이름은 도형 안 글 → 도형 정보 이름 → 종류 (diagramAssist.shapeCandidates)
+      if (onShapesRef.current) {
+        const byId = new Map(live.map((el) => [el.id, el]));
+        const shapes = shapeCandidates(
+          live.filter(isShapeEnd).map((el) => {
+            const info = dataOf(el).shapeInfo;
+            return {
+              id: el.id,
+              type: el.type,
+              text: el.type === "text" ? el.text : (boundTextOf(el, byId)?.text ?? null),
+              name: info?.NAME ?? info?.COMMON_NAME ?? null,
+            };
+          }),
+        );
+        const shapeKey = JSON.stringify(shapes);
+        if (shapeKey !== shapesKey.current) {
+          shapesKey.current = shapeKey;
+          onShapesRef.current(shapes);
+        }
       }
     });
   }, [endLineMode, t]);

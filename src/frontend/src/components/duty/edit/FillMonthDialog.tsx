@@ -1,11 +1,15 @@
 import { type DutyFillBody, type DutyFillDefaults, type DutyFillPreview, type DutyFillResult, type DutyRosterDetail, fetchFillDefaults, previewFill, runFill } from "@/api/duty";
+import { ApiError } from "@/api/client";
+import AssistLabel, { AiFilledMark } from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { Modal } from "@/components/ui/modal";
 import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/utils";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Checkbox from "@/components/form/input/Checkbox";
-import { addMonths, type DutyWrite, inputClass, labelClass, monthRange, outlineButton, personOf, primaryButton, useDayLabel, useDutyError, usePersonName } from "../dutyUtil";
+import { addMonths, type DutyWrite, inDateRange, inputClass, labelClass, monthRange, outlineButton, personOf, primaryButton, useDayLabel, useDutyError, usePersonName } from "../dutyUtil";
+import { cellsFromValue, cellsValue, firstFromValue, firstValue } from "./dutyAssist";
 
 /** 위험 단추 ([채우기]: 배치를 지우고 다시 채움, slices/19 C1) */
 const dangerButton =
@@ -33,6 +37,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   onClose: () => void;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "fill" });
+  const { t: td } = useTranslation("duty");
   const { language } = useLanguage();
   const describeError = useDutyError();
   const dayLabel = useDayLabel();
@@ -49,7 +54,10 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   const [cells, setCells] = useState<Record<number, Record<number, { cell: number; source: CellSource }>>>({});
   const [preview, setPreview] = useState<DutyFillPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState("");
   const [busy, setBusy] = useState(false);
+  // AI 업무지원이 달·첫날과 함께 준 첫 사람·시작 칸: 그 달의 처음 값을 받은 뒤에 넣는다(달·첫날을 바꾸면 처음 값으로 돌아가므로, 서버 dependsOn)
+  const [pendingRows, setPendingRows] = useState<{ month: string; from: string; first: unknown; cells: unknown } | null>(null);
   // 입력이 바뀔 때마다 오른다. 미리 보기 응답이 그사이 바뀐 입력의 것이면 버린다
   const inputRev = useRef(0);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -76,7 +84,10 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
       (err) => {
         if (cancelled) return;
         setDefaults(null);
+        // 처음 값을 받지 못하면 AI가 기다리던 첫 사람·시작 칸은 넣지 않는다(준비를 영원히 막지 않음)
+        setPendingRows(null);
         setError(describeError(err));
+        setErrorCode(err instanceof ApiError ? err.code : "");
       },
     );
     return () => {
@@ -117,6 +128,79 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   });
   const ready = loaded && filling.length > 0 && filling.every((r) => r.kind === "SHIFT" || first[r.ruleId] != null);
 
+  const fail = (err: unknown) => {
+    setError(describeError(err));
+    setErrorCode(err instanceof ApiError ? err.code : "");
+  };
+
+  // ───── AI 업무지원 창 어댑터 (REQ-C07 근무자 현황, slices/21 8장 duty.fill·12.9): 달·채울 첫날·요일 규칙마다 첫 사람·교대 규칙마다 시작 칸. [채우기]는 사용자가 누른다 ─────
+  const weekdayRules = (d: DutyFillDefaults) => d.rules.filter((r) => r.kind === "WEEKDAY" && !r.skip);
+  const shiftRules = (d: DutyFillDefaults) => d.rules.filter((r) => r.kind === "SHIFT" && !r.skip);
+  // 받은 첫 사람·시작 칸을 그 처음 값의 규칙·인원 안에서만 넣는다(첫 사람은 고르기 목록처럼 사용 중인 사람만)
+  const assistRows = (d: DutyFillDefaults, rawFirst: unknown, rawCells: unknown) => {
+    const firstPicked = firstFromValue(
+      rawFirst,
+      new Map(weekdayRules(d).map((r) => [r.ruleId, new Set((ruleOf(r.ruleId)?.members ?? []).filter((m) => personOf(detail.people, m)?.active))])),
+    );
+    const cellPicked = cellsFromValue(
+      rawCells,
+      new Map(shiftRules(d).map((r) => {
+        const shift = ruleOf(r.ruleId)?.shift;
+        return [r.ruleId, { members: new Set((shift?.members ?? []).map((m) => m.personnelId)), cells: shift?.pattern.length ?? 0 }];
+      })),
+    );
+    if (Object.keys(firstPicked).length > 0) setFirst((f) => ({ ...f, ...firstPicked }));
+    if (Object.keys(cellPicked).length > 0) {
+      setCells((c) => {
+        const out = { ...c };
+        for (const [rule, people] of Object.entries(cellPicked)) {
+          const id = Number(rule);
+          out[id] = { ...out[id], ...Object.fromEntries(Object.entries(people).map(([pid, cell]) => [pid, { cell, source: "EDITED" as const }])) };
+        }
+        return out;
+      });
+    }
+  };
+  // 달·첫날이 그사이 또 바뀌면(사용자가 고름) 기다리던 첫 사람·시작 칸은 버린다
+  if (pendingRows && (month !== pendingRows.month || (fromDate ?? earliest) !== pendingRows.from)) setPendingRows(null);
+  else if (pendingRows && loaded && defaults.month === pendingRows.month && defaults.from === pendingRows.from) {
+    setPendingRows(null);
+    assistRows(defaults, pendingRows.first, pendingRows.cells);
+  }
+  const assist = useAssistAdapter("duty.fill", {
+    target: detail.id,
+    ready: loaded && pendingRows === null,
+    values: {
+      month,
+      fromDate: fromDate ?? earliest,
+      first: defaults ? firstValue(first, weekdayRules(defaults).map((r) => r.ruleId)) : [],
+      cells: defaults
+        ? cellsValue(cells, shiftRules(defaults).map((r) => ({ rule: r.ruleId, members: (ruleOf(r.ruleId)?.shift?.members ?? []).map((m) => m.personnelId) })))
+        : [],
+    },
+    apply: (v) => {
+      const nextMonth = typeof v.month === "string" && months.includes(v.month) ? v.month : month;
+      const nextEarliest = `${nextMonth}-01` > today ? `${nextMonth}-01` : today;
+      const nextEnd = monthRange(nextMonth).to;
+      let nextFrom = nextMonth === month ? (fromDate ?? earliest) : nextEarliest;
+      if (typeof v.fromDate === "string" && inDateRange(v.fromDate) && v.fromDate >= nextEarliest && v.fromDate <= nextEnd) nextFrom = v.fromDate;
+      const rows = "first" in v || "cells" in v;
+      if (nextMonth !== month || nextFrom !== (fromDate ?? earliest)) {
+        change(() => {
+          setMonth(nextMonth);
+          setFromDate(nextFrom === nextEarliest ? null : nextFrom);
+        });
+        if (rows) setPendingRows({ month: nextMonth, from: nextFrom, first: v.first, cells: v.cells });
+      } else if (rows && loaded) {
+        change(() => assistRows(defaults, v.first, v.cells));
+      }
+    },
+    labels: { month: t("month"), fromDate: t("from"), first: t("first"), cells: td("shift.startCell") },
+    format: (field, value) => (field === "month" && typeof value === "string" && /^\d{4}-\d{2}$/.test(value) ? monthLabel(value) : null),
+    ids: { month: `${id}-month`, fromDate: `${id}-from`, first: weekdayRules(defaults ?? { month, from: "", to: "", rules: [] }).map((r) => `${id}-first-${r.ruleId}`) },
+    lastError: error ? { code: errorCode, message: error, field: null } : null,
+  });
+
   // 입력을 바꾸면 미리 보기를 거둔다
   const change = (apply: () => void) => {
     apply();
@@ -138,7 +222,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
         setConfirmed(false);
       }
     } catch (err) {
-      if (rev === inputRev.current) setError(describeError(err));
+      if (rev === inputRev.current) fail(err);
     } finally {
       setBusy(false);
     }
@@ -158,7 +242,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
       if (saved && box.result) onDone(box.result, month);
       onClose();
     } catch (err) {
-      setError(describeError(err));
+      fail(err);
       setBusy(false);
     }
   };
@@ -186,9 +270,9 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
 
         <div className="grid max-w-lg gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor={`${id}-month`} className={labelClass}>
+            <AssistLabel assist={assist} field="month" htmlFor={`${id}-month`} className={labelClass}>
               {t("month")}
-            </label>
+            </AssistLabel>
             <select
               id={`${id}-month`}
               value={month}
@@ -208,9 +292,9 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
             </select>
           </div>
           <div>
-            <label htmlFor={`${id}-from`} className={labelClass}>
+            <AssistLabel assist={assist} field="fromDate" htmlFor={`${id}-from`} className={labelClass}>
               {t("from")}
-            </label>
+            </AssistLabel>
             <input
               id={`${id}-from`}
               type="date"
@@ -248,6 +332,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
                     <div className="mt-2">
                       <label htmlFor={`${id}-first-${r.ruleId}`} className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
                         {t("first")}
+                        {first[r.ruleId] != null && assist.marked("first", { rule: r.ruleId, person: first[r.ruleId] }) && <AiFilledMark />}
                       </label>
                       <select
                         id={`${id}-first-${r.ruleId}`}
@@ -279,6 +364,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
                             <span className="text-gray-800 dark:text-white/90">
                               {personLabel(m.personnelId)}
                               {inactive && <span className="ms-1 text-xs text-gray-500 dark:text-gray-400">({t("inactive")})</span>}
+                              {assist.marked("cells", { rule: r.ruleId, person: m.personnelId, cell: String(value.cell) }) && <AiFilledMark />}
                             </span>
                             <span className="flex items-center gap-2">
                               <select

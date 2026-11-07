@@ -1,6 +1,7 @@
 import { type BoxCard, fetchIctTab, type IctTab, saveLayout, saveLayoutOrder } from "@/api/ictStatus";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import { EmptyState, Panel } from "@/components/common/Panel";
 import AddBoxDialog from "@/components/ictstatus/AddBoxDialog";
 import BoxDetailDialog from "@/components/ictstatus/BoxDetailDialog";
@@ -28,6 +29,9 @@ export default function IctStatus() {
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  // AI 업무지원이 고치기로 열 박스 id (상세 창이 읽은 뒤 고치기 모드로)
+  const [editRequest, setEditRequest] = useState<number | null>(null);
+  const clearEditRequest = useCallback(() => setEditRequest(null), []);
 
   const boxParam = Number(params.get("box"));
   const openBox = Number.isInteger(boxParam) && boxParam > 0 ? boxParam : null;
@@ -66,6 +70,25 @@ export default function IctStatus() {
       load();
     });
   };
+  // AI 업무지원 페이지 어댑터 (REQ-C07 정보통신 현황, slices/21 12.5): 박스 추가 창(관리하는 부서가 있을 때), 고칠 박스의 상세를 열어 고치기 모드로(고칠 수 있을 때).
+  // 배치 끌기·담당자·지우기·파일 칸은 사용자만 한다
+  useAssistPage(["ict.new", "ict.edit"], {
+    ready: tab !== null,
+    open: (screen, target) => {
+      if (!tab) return false;
+      if (screen === "ict.new") {
+        if (tab.addDepartments.length === 0) return false;
+        setAdding(true);
+        return true;
+      }
+      const box = tab.boxes.find((b) => String(b.id) === String(target));
+      if (!box || !box.canEdit) return false;
+      setEditRequest(box.id);
+      open(box.id);
+      return true;
+    },
+  });
+
   const visible = tab?.boxes.filter((b) => !b.hidden) ?? [];
   const hidden = tab?.boxes.filter((b) => b.hidden) ?? [];
 
@@ -139,7 +162,17 @@ export default function IctStatus() {
         />
       )}
       {openBox !== null && (
-        <BoxDetailDialog key={openBox} boxId={openBox} tab={detailTab} onTab={(x) => open(openBox, x)} tick={tick} onClose={() => open(null)} onChanged={load} />
+        <BoxDetailDialog
+          key={openBox}
+          boxId={openBox}
+          tab={detailTab}
+          onTab={(x) => open(openBox, x)}
+          tick={tick}
+          onClose={() => open(null)}
+          onChanged={load}
+          startEditing={editRequest === openBox}
+          onStartedEditing={clearEditRequest}
+        />
       )}
     </>
   );

@@ -214,6 +214,18 @@ object AiAnswerRules {
     /** 답이 이 문장을 담았나(띄어쓰기·문장 부호 무시) */
     fun contains(answer: String, sentence: String): Boolean = squash(answer).contains(squash(sentence))
 
+    /**
+     * 형식 정보 근거를 내비치는 말 (AI 업무지원, REQ-C05 ③, slices/21 5.8·12.11): 모델 글에 이 말이 든 문장은 체계가 지운다.
+     * 형식 정보는 볼 수 없는 자료로 만들므로 "다른 부서는 보통 …" 같은 문장이 그 자료가 있음을 드러낸다
+     */
+    private val FORM_HINT = Regex("다른\\s*부서|타\\s*부서|다른\\s*부대|다른\\s*(중대|대대|반)(에서|은|는|들)|다른\\s*사람들|다른\\s*요청(들)?에서|대부분의\\s*(부서|요청)|보통\\s*(다른|많은)|형식\\s*정보")
+
+    /** 형식 정보 근거 문장을 지운다 (REQ-C05 ③) */
+    fun stripFormHints(text: String): String {
+        if (!FORM_HINT.containsMatchIn(text)) return text
+        return SENTENCE.findAll(text).map { it.value }.filterNot { FORM_HINT.containsMatchIn(it) }.joinToString("").replace(Regex("\\s{2,}"), " ").trim()
+    }
+
     /** 자료 글 속 지시 문장을 가린다 (문서 속 프롬프트 주입 막기, 재검토 H1) */
     fun redactInstructions(text: String): String {
         if (!INJECTION.containsMatchIn(text)) return text

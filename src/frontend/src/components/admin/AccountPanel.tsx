@@ -8,8 +8,9 @@ import {
 } from "@/api/admin";
 import { ApiError } from "@/api/client";
 import { type Department, type PersonnelItem, ROLE_TARGET } from "@/api/org";
+import { AssistSelectField } from "@/components/admin/AssistFields";
 import { RowButton } from "@/components/admin/DataTable";
-import { SelectField } from "@/components/admin/FormFields";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { type FormEvent, useState } from "react";
@@ -41,7 +42,7 @@ export default function AccountPanel({
   const { t } = useTranslation("admin");
   const [roleCode, setRoleCode] = useState("");
   const [roleDepartment, setRoleDepartment] = useState("");
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string; code?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>(null);
 
@@ -54,7 +55,7 @@ export default function AccountPanel({
       await action();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : "";
-      setMessage({ ok: false, text: t(`errors.${code}`, { defaultValue: t("errors.default") }) });
+      setMessage({ ok: false, text: t(`errors.${code}`, { defaultValue: t("errors.default") }), code });
       setBusy(false);
       return;
     }
@@ -80,6 +81,32 @@ export default function AccountPanel({
   const departmentOptions = needsDepartment
     ? targetsFor(roleCode).map((d) => ({ value: String(d.id), label: paths.get(d.id) ?? d.name }))
     : [];
+
+  // AI 업무지원 창 어댑터 (REQ-C07 인원관리 역할 주기, slices/21 8장 personnel.role·12.9): 역할 줄의 역할·대상 부서만 넣는다.
+  // [주기]는 바로 저장되는 최종 단추라 사용자가 누른다. 고를 수 있는 역할·부서(화면 후보)만 넣고, 시스템 관리자 역할은 서버가 내지 않는다
+  const assist = useAssistAdapter("personnel.role", {
+    enabled: !!account && canManageRoles && roleOptions.length > 0,
+    target: person.id,
+    ready: true,
+    values: { role: roleCode === "" ? null : roleCode, roleDept: roleDepartment === "" ? null : Number(roleDepartment) },
+    apply: (v) => {
+      let code = roleCode;
+      const role = v.role;
+      if (typeof role === "string" && roleOptions.some((o) => o.value === role) && role !== roleCode) {
+        code = role;
+        setRoleCode(role);
+        setRoleDepartment("");
+      }
+      const dept = v.roleDept;
+      if (typeof dept === "number" && code !== "" && ROLE_TARGET[code] !== null && targetsFor(code).some((d) => d.id === dept)) setRoleDepartment(String(dept));
+      document.getElementById("grant-role")?.scrollIntoView({ block: "nearest" });
+    },
+    labels: { role: t("account.grantRole"), roleDept: t("account.roleDepartment") },
+    format: (field, value) =>
+      field === "role" && typeof value === "string" ? t(`roles.${value}`) : field === "roleDept" && typeof value === "number" ? (paths.get(value) ?? null) : null,
+    ids: { role: "grant-role", roleDept: "grant-department" },
+    lastError: message && !message.ok ? { code: message.code ?? "", message: message.text, field: null } : null,
+  });
 
   const submitRole = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -176,7 +203,9 @@ export default function AccountPanel({
 
             {canManageRoles && roleOptions.length > 0 && (
               <form onSubmit={submitRole} className="grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800">
-                <SelectField
+                <AssistSelectField
+                  assist={assist}
+                  field="role"
                   id="grant-role" required
                   label={t("account.grantRole")}
                   value={roleCode}
@@ -188,7 +217,9 @@ export default function AccountPanel({
                   }}
                 />
                 {needsDepartment && (
-                  <SelectField
+                  <AssistSelectField
+                    assist={assist}
+                    field="roleDept"
                     id="grant-department" required
                     label={t("account.roleDepartment")}
                     value={roleDepartment}

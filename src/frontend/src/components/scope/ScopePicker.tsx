@@ -1,6 +1,7 @@
 import type { ScopeView } from "@/api/ictStatus";
 import type { Department, PersonnelItem } from "@/api/org";
 import { RowButton } from "@/components/admin/DataTable";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import OrgPicker from "@/components/work/OrgPicker";
 import { useTranslation } from "react-i18next";
 import { mergeScope } from "./scope";
@@ -16,12 +17,15 @@ export default function ScopePicker({
   departments,
   personnel,
   paths,
+  marked,
 }: {
   value: ScopeView;
   onChange: (value: ScopeView) => void;
   departments: Department[];
   personnel: PersonnelItem[];
   paths: Map<number, string>;
+  /** 그 부서가 AI 업무지원이 넣은 그대로인가 ("AI가 채움", slices/21 12.5). 없으면 표시하지 않는다 */
+  marked?: (departmentId: number) => boolean;
 }) {
   const { t } = useTranslation("scope");
   const { t: ta } = useTranslation("admin");
@@ -47,7 +51,10 @@ export default function ScopePicker({
             <ul className="space-y-1.5">
               {value.departments.map((d) => (
                 <li key={d.id} className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-white/90">
-                  <span className="break-keep">{d.label}</span>
+                  <span className="break-keep">
+                    {d.label}
+                    {marked?.(d.id) && <AiFilledMark />}
+                  </span>
                   {/* 하위 포함: 키보드로도 켜고 끄며, 화면 읽기 이름에 부서를 넣어 줄마다 구별한다 */}
                   <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 select-none dark:text-gray-400">
                     <input

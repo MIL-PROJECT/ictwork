@@ -18,13 +18,16 @@ import { BoxFieldsView } from "./TableView";
  * 박스 상세 창 (REQ-503, slices/15 13.4): 내용(부서·제목·대표 내용·색·마지막 고친 사람·시각, 칸 값, 고치는 사람에게 [고치기], 관리자에게 [담당자]·[박스 지우기]),
  * 지난 판, 기록. 좁은 화면은 전체 화면. tick이 바뀌면(1분마다) 읽기 상태일 때만 다시 부르고, 고치는 중이면 그대로 둔다(저장 때 409로 나중 저장을 막음)
  */
-export default function BoxDetailDialog({ boxId, tab, onTab, tick, onClose, onChanged }: {
+export default function BoxDetailDialog({ boxId, tab, onTab, tick, onClose, onChanged, startEditing = false, onStartedEditing }: {
   boxId: number;
   tab: DetailTab;
   onTab: (tab: DetailTab) => void;
   tick: number;
   onClose: () => void;
   onChanged: () => void;
+  /** 읽은 뒤 고치기 모드로 연다 (AI 업무지원 ict.edit, slices/21 12.5). 고칠 수 없는 박스는 읽기로 둔다. 요청을 받은 뒤 onStartedEditing */
+  startEditing?: boolean;
+  onStartedEditing?: () => void;
 }) {
   const { t } = useTranslation("ictStatus");
   const describe = useIctError();
@@ -35,6 +38,20 @@ export default function BoxDetailDialog({ boxId, tab, onTab, tick, onClose, onCh
   const [assigning, setAssigning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reload, setReload] = useState(0);
+  // 고치기 모드로 열 요청: 상세를 읽은 뒤(고칠 수 있으면) 고치기로 바꾼다
+  const [editPending, setEditPending] = useState(startEditing);
+  const [prevStart, setPrevStart] = useState(startEditing);
+  if (startEditing !== prevStart) {
+    setPrevStart(startEditing);
+    if (startEditing) setEditPending(true);
+  }
+  if (editPending && detail && detail.id === boxId) {
+    setEditPending(false);
+    if (detail.canEdit) setEditing(true);
+  }
+  useEffect(() => {
+    if (startEditing) onStartedEditing?.();
+  }, [startEditing, onStartedEditing]);
 
   useEffect(() => {
     if (editing) return;

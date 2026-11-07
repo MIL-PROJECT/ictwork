@@ -11,6 +11,7 @@ import { cn } from "@/utils";
 // wide: 결재 경로·계획처럼 칸이 많은 창
 // danger: 삭제·사용 중지처럼 되돌리기 어려운 작업. 확인 단추를 붉게 (OMNIS 위험 단추)
 // describedBy: 첫 입력 칸으로 초점이 가기 전에 창 설명으로 읽힐 요소 id (결재 다시 올리기 창의 반려 사유)
+// onError: 저장이 실패했을 때 오류와 창에 보인 문구를 알린다(AI 업무지원 어댑터의 lastError, slices/21 12.6)
 export default function ActionModal({
   title,
   description,
@@ -23,6 +24,7 @@ export default function ActionModal({
   onSubmit,
   onDone,
   onClose,
+  onError,
   children,
 }: {
   title: string;
@@ -36,6 +38,7 @@ export default function ActionModal({
   onSubmit: () => Promise<unknown>;
   onDone?: () => Promise<void>;
   onClose: () => void;
+  onError?: (err: unknown, message: string) => void;
   children?: ReactNode;
 }) {
   const { t } = useTranslation("admin");
@@ -51,7 +54,9 @@ export default function ActionModal({
       await onSubmit();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : "";
-      setError(describeError ? describeError(err) : t(`errors.${code}`, { defaultValue: t("errors.default") }));
+      const message = describeError ? describeError(err) : t(`errors.${code}`, { defaultValue: t("errors.default") });
+      setError(message);
+      onError?.(err, message);
       setSubmitting(false);
       return;
     }

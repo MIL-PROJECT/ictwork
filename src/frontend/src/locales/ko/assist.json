@@ -1,0 +1,75 @@
+{
+  "button": "AI 업무지원",
+  "filled": "AI가 채움",
+  "source": "출처:",
+  "off": "현재 이 서버에서는 지원하지 않는 기능입니다.",
+  "unreachable": "AI 서버에 연결할 수 없습니다.",
+  "session": "{task}: 칸을 채우는 중입니다. 저장·보내기는 화면에서 직접 눌러 주세요.",
+  "startMessage": "[작성 시작] {task}",
+  "answerLine": "{field}: {value}",
+  "declinedValue": "비워 둠",
+  "stepCheck": "‘{field}’ 칸을 확인해 주세요.",
+  "confirmLeave": "저장하지 않은 내용이 사라집니다. 계속할까요?",
+  "emptyValue": "(빈 값)",
+  "yes": "예",
+  "no": "아니요",
+  "panel": {
+    "title": "AI 업무지원",
+    "openList": "지난 대화",
+    "closeList": "접기",
+    "conversations": "지난 대화 이어 열기",
+    "close": "업무지원 패널 닫기"
+  },
+  "proposal": {
+    "group": "업무지원 제안",
+    "start": "{task} 시작",
+    "navigate": "그 화면으로 가기"
+  },
+  "summary": {
+    "filled": "채운 칸",
+    "empty": "아직 비어 있는 필수 칸",
+    "audience": "공개·결재 대상",
+    "sources": "칸마다 출처",
+    "none": "없음",
+    "final": "이제 화면에서 {button} 단추를 직접 눌러 주세요."
+  },
+  "change": {
+    "title": "바꿀까요?",
+    "question": "‘{field}’ 칸을 ‘{value}’(으)로 바꿀까요?",
+    "editedDuringTurn": "답을 받는 동안 직접 고치거나 입력하고 있던 칸이라 넣지 않았습니다.",
+    "apply": "바꾸기",
+    "applied": "바꿨습니다.",
+    "stale": "그사이 바뀌었습니다. 넣지 않았습니다."
+  },
+  "ask": {
+    "title": "되묻기",
+    "decline": "비워 두기",
+    "declined": "비워 둠 (다시 누르면 취소)",
+    "send": "답 보내기"
+  },
+  "ops": {
+    "title": "구성도 미리보기",
+    "place": "장비 놓기: {name}",
+    "connect": "선 잇기: {from} – {to}",
+    "text": "글상자: {text}",
+    "zone": "구역: {name}",
+    "zoneMembers": "구역: {name} ({members})",
+    "other": "그 밖의 동작",
+    "failed": "캔버스에 넣지 못했습니다. 다시 눌러 주세요.",
+    "apply": "캔버스에 넣기",
+    "applied": "캔버스에 넣었습니다. 저장은 화면에서 직접 해 주세요."
+  },
+  "stopped": {
+    "button": "멈췄습니다.",
+    "route": "다른 화면으로 옮겨 채우기를 멈췄습니다. 다시 하려면 [작성 시작]을 다시 눌러 주세요.",
+    "closed": "창이 닫혀 채우기를 멈췄습니다. 다시 하려면 [작성 시작]을 다시 눌러 주세요.",
+    "pause": "화면의 확인 창이 열려 채우기를 멈췄습니다. 다시 하려면 [작성 시작]을 다시 눌러 주세요."
+  },
+  "errors": {
+    "busy": "답을 받는 중입니다. 답이 끝난 뒤 다시 눌러 주세요.",
+    "noScreen": "그 화면을 열지 못했습니다. 메뉴에서 직접 열어 주세요.",
+    "targetMissing": "고칠 대상을 화면에서 찾지 못했습니다. 지워졌을 수 있습니다.",
+    "ASSIST_FORBIDDEN": "권한이 없어 그 화면을 열 수 없습니다.",
+    "NOT_FOUND": "대화나 고칠 대상을 찾을 수 없습니다. 지워졌거나 AI 기능이 꺼져 있습니다."
+  }
+}

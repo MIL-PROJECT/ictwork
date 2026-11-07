@@ -1,9 +1,12 @@
 import { type AttributeDef, type AttributeFiles, attributeText, type AttributeValues, uploadAttributeFile } from "@/api/attributes";
+import { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
+import type { AssistHandle } from "@/components/assist/useAssistAdapter";
 import AttachmentList from "@/components/file/AttachmentList";
 import type { AttachmentItem } from "@/components/file/attachments";
 import ValueInput from "@/components/workform/ValueInput";
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import { attrField } from "./attributeAssist";
 
 /**
  * 추가 특성 값 고치기 칸 (REQ-405·519): 장비 상세의 고치기·인원 표의 편집 창이 같이 쓴다.
@@ -18,6 +21,7 @@ export default function AttributeFields({
   errorField,
   errorId,
   idPrefix,
+  assist = null,
 }: {
   definitions: AttributeDef[];
   values: Record<string, unknown>;
@@ -27,9 +31,14 @@ export default function AttributeFields({
   errorField: string | null; // 서버 오류의 칸 ("a<특성 id>")
   errorId: string; // 서버 오류 문구의 id: 틀린 칸이 aria-describedby로 가리킨다 (F8-9)
   idPrefix: string;
+  assist?: AssistHandle | null; // AI 업무지원 (REQ-C03 ④⑤): 칸 attrs.{특성 id}(그리드는 행마다 .{행 id})의 "AI가 채움"·출처
 }) {
   const { t } = useTranslation("attribute");
   if (definitions.length === 0) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("noneDefined")}</p>;
+  const fieldsOf = (def: AttributeDef) => {
+    const f = attrField(def.id);
+    return def.item.kind === "MC_GRID" || def.item.kind === "CB_GRID" ? def.item.rows.map((r) => `${f}.${r.id}`) : [f];
+  };
   return (
     <div className="space-y-4">
       {definitions.map((def) => {
@@ -43,7 +52,9 @@ export default function AttributeFields({
           <div key={def.id} className="space-y-1.5">
             <p id={titleId} className="text-sm font-medium text-gray-800 dark:text-white/90">
               {def.name}
+              {assist && fieldsOf(def).some((f) => assist.marked(f)) && <AiFilledMark />}
             </p>
+            {assist && <AssistSources sources={fieldsOf(def).flatMap((f) => assist.sources(f))} />}
             {def.item.description && <p className="text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400">{def.item.description}</p>}
             <ValueInput
               item={def.item}

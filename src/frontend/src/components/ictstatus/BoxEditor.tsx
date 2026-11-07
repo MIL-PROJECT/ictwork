@@ -13,6 +13,8 @@ import {
   uploadBoxFile,
 } from "@/api/ictStatus";
 import { RowButton } from "@/components/admin/DataTable";
+import AssistLabel, { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { type AttachmentItem, attachmentIds, attachmentsBusy, fromAttachments } from "@/components/file/attachments";
 import ScopePicker from "@/components/scope/ScopePicker";
 import { toScopeInput } from "@/components/scope/scope";
@@ -26,6 +28,20 @@ import { clip } from "@/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CHOICE_KINDS, emptyField, fromItem, LIMITS, storedValue, SUMMARY_KINDS, toItem, useIctError } from "./boxFields";
+import {
+  colorFromValue,
+  fieldFromValues,
+  fieldValues,
+  isBoxColor,
+  newFieldFromValue,
+  newFieldSnapshot,
+  replaceNewFields,
+  scopeFromValue,
+  scopeValue,
+  summaryFromValue,
+  tableFromValue,
+  tableValue,
+} from "./ictAssist";
 import TableFieldEditor from "./TableFieldEditor";
 import TableValueInput from "./TableValueInput";
 
@@ -54,7 +70,12 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [addKind, setAddKind] = useState<BoxFieldKind>("DROPDOWN");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ text: string; field?: string; conflict?: boolean } | null>(null);
+  const [error, setError] = useState<{ text: string; field?: string; conflict?: boolean; code?: string } | null>(null);
+  // AI 업무지원이 이번 고치기에서 더한 상세 칸 key (서버 칸 fields는 이 칸들만)
+  const [aiFieldKeys, setAiFieldKeys] = useState<string[]>([]);
+  // 그 칸을 만든 서버 값 (칸이 그대로면 스냅숏으로 그대로 돌려줘 "AI가 채움"이 맞게)
+  const [aiFieldRaw, setAiFieldRaw] = useState<Record<string, unknown>>({});
+  const aiSnapshot = (f: BoxField) => newFieldSnapshot(f, f.kind === "TABLE" ? null : values[f.key], aiFieldRaw[f.key]);
 
   const original = new Map(detail.definition.fields.map((f) => [f.key, f]));
   const followed = summary.mode === "FIELD" ? summary.fieldKey : null;
@@ -77,6 +98,122 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
   const followable = fields.filter((f) => SUMMARY_KINDS.includes(f.kind));
   const followedField = fields.find((f) => f.key === followed);
   const canFollowColor = followedField !== undefined && CHOICE_KINDS.includes(followedField.kind);
+
+  // ───── AI 업무지원 창 어댑터 (REQ-C07 정보통신 현황, slices/21 8장 ict.edit·12.9): 제목·대표 내용 {방식, 글, 따라갈 칸}·색 {방식, 색}·새 상세 칸·
+  // 저장된 상세 칸 값 values.{key}·표 값 table.{key}·공개 범위의 부서. 사람·하위 포함·배치·담당자·지우기·파일 칸은 사용자만. [저장]은 사용자가 누른다 ─────
+  const serverField = (f: BoxField) => original.has(f.key) && !aiFieldKeys.includes(f.key) && f.kind !== "FILE";
+  const assistValues: Record<string, unknown> = {
+    title,
+    summary,
+    color,
+    fields: aiFieldKeys.flatMap((k) => {
+      const f = fields.find((x) => x.key === k);
+      return f ? [aiSnapshot(f)] : [];
+    }),
+    scope: scopeValue(scope),
+  };
+  const assistLabels: Record<string, string> = {
+    title: t("editor.boxTitle"),
+    summary: t("editor.summary"),
+    color: t("editor.color"),
+    fields: t("editor.addField"),
+    scope: t("editor.scope"),
+  };
+  for (const f of fields.filter(serverField)) {
+    if (f.kind === "TABLE") {
+      assistValues[`table.${f.key}`] = tableValue(tables[f.key]);
+      assistLabels[`table.${f.key}`] = f.title;
+    } else {
+      Object.assign(assistValues, fieldValues(f, values[f.key]));
+      assistLabels[`values.${f.key}`] = f.title;
+      for (const r of f.kind === "MC_GRID" || f.kind === "CB_GRID" ? f.rows : []) assistLabels[`values.${f.key}.${r.id}`] = `${f.title}: ${r.label}`;
+    }
+  }
+  const departmentLabel = (id: number) => org.paths.get(id) ?? org.departments.find((d) => d.id === id)?.name ?? null;
+  const assistField = (key: string) => {
+    const f = fields.find((x) => x.key === key);
+    if (!f) return key;
+    return f.kind === "TABLE" ? `table.${key}` : `values.${key}`;
+  };
+  const assist = useAssistAdapter("ict.edit", {
+    target: detail.id,
+    // 공개 범위 부서 이름을 조직 자료에서 찾으므로 조직을 읽은 뒤
+    ready: org.loaded || org.failed,
+    values: assistValues,
+    apply: (v) => {
+      let nextFields = fields;
+      let nextValues = values;
+      let nextTables = tables;
+      let keys = aiFieldKeys;
+      let raws = aiFieldRaw;
+      if (Array.isArray(v.fields)) {
+        const added = v.fields.flatMap((raw) => {
+          const built = newFieldFromValue(raw, emptyField, newKey);
+          return built ? [{ ...built, raw }] : [];
+        });
+        const replaced = replaceNewFields(nextFields, nextValues, keys, added);
+        const dropped = new Set(keys);
+        nextFields = replaced.fields;
+        nextValues = replaced.values;
+        nextTables = Object.fromEntries(Object.entries(nextTables).filter(([k]) => !dropped.has(k)));
+        keys = replaced.keys;
+        raws = Object.fromEntries(keys.map((k, i) => [k, added[i].raw]));
+      }
+      for (const f of nextFields) {
+        if (!original.has(f.key) || keys.includes(f.key) || f.kind === "FILE") continue;
+        if (f.kind === "TABLE") {
+          const rows = `table.${f.key}` in v ? tableFromValue(f, v[`table.${f.key}`]) : undefined;
+          if (rows) nextTables = { ...nextTables, [f.key]: rows };
+        } else {
+          const next = fieldFromValues(f, nextValues[f.key], v);
+          if (next !== undefined) nextValues = { ...nextValues, [f.key]: next };
+        }
+      }
+      // 대표 내용·색: 따라갈 칸은 단답·객관식·드롭다운·숫자, 선택지 색 따르기는 객관식·드롭다운을 따라갈 때만 (창의 규칙과 같음)
+      let nextSummary = summaryFromValue(v.summary, nextFields.filter((f) => SUMMARY_KINDS.includes(f.kind)).map((f) => f.key)) ?? summary;
+      if (nextSummary.mode === "FIELD" && !nextFields.some((f) => f.key === nextSummary.fieldKey)) nextSummary = { mode: "TEXT", text: detail.shownSummary, fieldKey: null };
+      const followedNext = nextSummary.mode === "FIELD" ? nextFields.find((f) => f.key === nextSummary.fieldKey) : undefined;
+      const canFollow = followedNext !== undefined && CHOICE_KINDS.includes(followedNext.kind);
+      let nextColor = colorFromValue(v.color, canFollow) ?? color;
+      if (nextColor.mode === "FIELD" && !canFollow) nextColor = { mode: "FIXED", color: "GRAY" };
+      if (typeof v.title === "string") setTitle(Array.from(v.title).slice(0, LIMITS.title).join(""));
+      const nextScope = scopeFromValue(scope, v.scope, departmentLabel);
+      if (nextScope) setScope(nextScope);
+      setFields(nextFields);
+      setValues(nextValues);
+      setTables(nextTables);
+      setAiFieldKeys(keys);
+      setAiFieldRaw(raws);
+      setSummary(nextSummary);
+      setColor(nextColor);
+    },
+    labels: assistLabels,
+    format: (field, value) => {
+      const v = value as Record<string, unknown> | null;
+      if (field === "color" && v && typeof v === "object") return v.mode === "FIELD" ? t("editor.colorField") : isBoxColor(v.color) ? t(`colors.${v.color}`) : null;
+      if (field === "summary" && v && typeof v === "object") {
+        return v.mode === "FIELD" ? (fields.find((f) => f.key === v.fieldKey)?.title ?? null) : typeof v.text === "string" ? v.text : null;
+      }
+      if (field === "scope" && Array.isArray(value)) return value.map((id) => (typeof id === "number" ? (departmentLabel(id) ?? "") : "")).join(", ");
+      if (field === "fields" && Array.isArray(value)) return value.map((f) => (f && typeof f === "object" ? String((f as { title?: unknown }).title ?? "") : "")).join(", ");
+      return null;
+    },
+    ids: {
+      title: "box-title",
+      summary: ["box-summary-text", "box-summary-field"],
+      color: "box-color",
+      ...Object.fromEntries(fields.filter(serverField).map((f) => [`values.${f.key}`, `box-${f.key}-${f.key}`])),
+    },
+    lastError: error && !error.conflict ? { code: error.code ?? "", message: error.text, field: error.field ? assistField(error.field) : null } : null,
+  });
+  /** 칸 카드의 "AI가 채움": 새로 더한 칸은 그 정의 그대로, 저장된 칸은 값 그대로 */
+  const fieldMarked = (f: BoxField) => {
+    if (aiFieldKeys.includes(f.key)) return assist.marked("fields", aiSnapshot(f));
+    if (!serverField(f)) return false;
+    if (f.kind === "TABLE") return assist.marked(`table.${f.key}`);
+    if (f.kind === "MC_GRID" || f.kind === "CB_GRID") return f.rows.some((r) => assist.marked(`values.${f.key}.${r.id}`));
+    return assist.marked(`values.${f.key}`);
+  };
 
   const save = async () => {
     if (busy || Object.values(files).some(attachmentsBusy)) return;
@@ -101,7 +238,7 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
       onSaved(saved);
     } catch (err) {
       const conflict = err instanceof ApiError && err.code === "ICT_BOX_CONFLICT";
-      setError({ text: describe(err), field: err instanceof ApiError ? err.field : undefined, conflict });
+      setError({ text: describe(err), field: err instanceof ApiError ? err.field : undefined, conflict, code: err instanceof ApiError ? err.code : "" });
     } finally {
       setBusy(false);
     }
@@ -122,13 +259,15 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
       <section className="space-y-3">
         <h4 className="text-base font-medium text-gray-800 dark:text-white/90">{t("editor.basic")}</h4>
         <div>
-          <label htmlFor="box-title" className={LABEL_CLASS}>
+          <AssistLabel assist={assist} field="title" htmlFor="box-title" className={LABEL_CLASS}>
             {t("editor.boxTitle")}
-          </label>
+          </AssistLabel>
           <input id="box-title" value={title} onChange={(e) => setTitle(clip(e, LIMITS.title))} className={INPUT_CLASS} />
         </div>
         <fieldset className="space-y-2">
-          <legend className={LABEL_CLASS}>{t("editor.summary")}</legend>
+          <AssistLabel assist={assist} field="summary" as="legend" className={LABEL_CLASS}>
+            {t("editor.summary")}
+          </AssistLabel>
           <div className="flex flex-wrap gap-4 text-sm text-gray-800 dark:text-white/90">
             <label className="flex items-center gap-2">
               <input type="radio" name="summary-mode" checked={summary.mode === "TEXT"} onChange={() => {
@@ -144,9 +283,9 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
             </label>
           </div>
           {summary.mode === "TEXT" ? (
-            <input aria-label={t("editor.summaryText")} value={summary.text ?? ""} onChange={(e) => setSummary({ ...summary, text: clip(e, LIMITS.summary) })} className={INPUT_CLASS} />
+            <input id="box-summary-text" aria-label={t("editor.summaryText")} value={summary.text ?? ""} onChange={(e) => setSummary({ ...summary, text: clip(e, LIMITS.summary) })} className={INPUT_CLASS} />
           ) : (
-            <select aria-label={t("editor.summaryFieldPick")} value={summary.fieldKey ?? ""} onChange={(e) => {
+            <select id="box-summary-field" aria-label={t("editor.summaryFieldPick")} value={summary.fieldKey ?? ""} onChange={(e) => {
               setSummary({ ...summary, fieldKey: e.target.value });
               const next = fields.find((f) => f.key === e.target.value);
               if (color.mode === "FIELD" && (!next || !CHOICE_KINDS.includes(next.kind))) setColor({ mode: "FIXED", color: "GRAY" });
@@ -161,7 +300,9 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
           {followable.length === 0 && <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.summaryFieldNone")}</p>}
         </fieldset>
         <fieldset className="space-y-2">
-          <legend className={LABEL_CLASS}>{t("editor.color")}</legend>
+          <AssistLabel assist={assist} field="color" as="legend" className={LABEL_CLASS}>
+            {t("editor.color")}
+          </AssistLabel>
           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-800 dark:text-white/90">
             <label className="flex items-center gap-2">
               <input type="radio" name="color-mode" checked={color.mode === "FIXED"} onChange={() => setColor({ mode: "FIXED", color: color.color ?? "GRAY" })} />
@@ -200,9 +341,13 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
             <div key={f.key} className={`space-y-2 rounded-lg border p-3 ${invalid ? "border-error-500" : "border-gray-200 dark:border-gray-800"}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {/* 값 입력칸의 aria-labelledby가 가리키는 이름 (ValueInput id는 `${idPrefix}-${item.key}`) */}
-                <p id={`box-${f.key}-${f.key}-title`} className="text-sm font-medium text-gray-800 dark:text-white/90">{f.title || tw(f.kind === "TABLE" ? "editor.questionTitle" : `kinds.${f.kind}`)}</p>
+                <p id={`box-${f.key}-${f.key}-title`} className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {f.title || tw(f.kind === "TABLE" ? "editor.questionTitle" : `kinds.${f.kind}`)}
+                  {fieldMarked(f) && <AiFilledMark />}
+                </p>
                 <RowButton onClick={() => setOpenKey(open ? null : f.key)}>{open ? t("editor.doneField") : t("editor.editField")}</RowButton>
               </div>
+              {serverField(f) && <AssistSources sources={assist.sources(f.kind === "TABLE" ? `table.${f.key}` : `values.${f.key}`)} />}
               {isFollowed && <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.followedLocked")}</p>}
               {!isFollowed && locked && <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.kindLocked")}</p>}
               {open &&
@@ -229,7 +374,12 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
                   />
                 ))}
               {f.kind === "TABLE" ? (
-                <TableValueInput field={f} rows={tables[f.key] ?? []} onChange={(rows) => setTables({ ...tables, [f.key]: rows })} />
+                <TableValueInput
+                  field={f}
+                  rows={tables[f.key] ?? []}
+                  onChange={(rows) => setTables({ ...tables, [f.key]: rows })}
+                  marked={serverField(f) ? (row) => assist.marked(`table.${f.key}`, row) : undefined}
+                />
               ) : (
                 <ValueInput
                   item={toItem(f)}
@@ -270,9 +420,13 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
       </section>
 
       <section className="space-y-2">
-        <h4 className="text-base font-medium text-gray-800 dark:text-white/90">{t("editor.scope")}</h4>
+        <h4 className="text-base font-medium text-gray-800 dark:text-white/90">
+          {t("editor.scope")}
+          {assist.marked("scope") && <AiFilledMark />}
+        </h4>
+        <AssistSources sources={assist.sources("scope")} />
         <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.scopeHelp")}</p>
-        <ScopePicker value={scope} onChange={setScope} departments={org.departments} personnel={org.personnel} paths={org.paths} />
+        <ScopePicker value={scope} onChange={setScope} departments={org.departments} personnel={org.personnel} paths={org.paths} marked={(id) => assist.marked("scope", id)} />
       </section>
 
       {error && (

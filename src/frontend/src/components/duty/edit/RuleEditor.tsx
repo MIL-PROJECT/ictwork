@@ -1,5 +1,8 @@
 import { addRule, type DayCode, type DutyRosterDetail, type DutyRuleKind, type DutyRuleView, updateRule } from "@/api/duty";
+import { ApiError } from "@/api/client";
 import type { Department, PersonnelItem } from "@/api/org";
+import AssistLabel, { AiFilledMark } from "@/components/assist/AssistLabel";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import { Modal } from "@/components/ui/modal";
 import OrgPicker from "@/components/work/OrgPicker";
 import { cn, clip } from "@/utils";
@@ -24,6 +27,7 @@ import {
   WEEKDAY_CODES,
   weekdayOf,
 } from "../dutyUtil";
+import { applyRuleValues, ruleValues } from "./dutyAssist";
 import { DayChecks, MemberList } from "./ruleParts";
 
 const NAME_MAX = 30;
@@ -102,6 +106,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
   const [patternError, setPatternError] = useState<string | null>(null);
   const [typeNote, setTypeNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -109,6 +114,27 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
   const shift = kind === "SHIFT";
   const dirty = JSON.stringify(state) !== JSON.stringify(initial) || patternText.trim() !== "";
   const set = (next: Partial<EditorState>) => setState((s) => ({ ...s, ...next }));
+  const typesName = tk("typesLabel").replace(/[:：]\s*$/, "");
+
+  // AI 업무지원 창 어댑터 (REQ-C07 근무자 현황, slices/21 8장 duty.rule): 새 규칙 창만(대상은 근무표). 종류·이름·적용 날·근무 종류·패턴·인원(순번)·시작 칸. [저장]은 사용자가 누른다
+  const assistValues = ruleValues(state);
+  const assist = useAssistAdapter("duty.rule", {
+    enabled: rule === null,
+    target: detail.id,
+    ready: true,
+    values: assistValues,
+    apply: (v) => setState((s) => applyRuleValues(s, v, newRow, rule !== null)),
+    labels: { name: tk("name"), kind: t("kind"), days: tk("days"), members: tk("members"), shifts: typesName, pattern: ts("pattern"), startCell: ts("startCell") },
+    format: (field, value) => {
+      if (field === "kind" && (value === "WEEKDAY" || value === "SHIFT")) return tk(`kinds.${value}`);
+      if (field === "members" && Array.isArray(value)) return value.map((pid) => (typeof pid === "number" ? describe(pid).label : "")).join(", ");
+      return null;
+    },
+    ids: { name: `${id}-name` },
+    lastError: error ? { code: errorCode, message: error, field: null } : null,
+  });
+  // 기존 규칙 고치기 창은 창 어댑터가 없다(새 규칙 창도 칸 값에 없는 패턴 입력 글이 있다): 고친 내용이 있으면 [작성 시작]이 창을 바꾸기 전에 묻게 알린다(REQ-C02 옮기기 전 확인)
+  useAssistPage([], { open: () => false, dirty });
 
   // 새 규칙에서 요일 규칙으로 돌아오면 교대 칸은 처음 값으로 (고친 것으로 보지 않게)
   const chooseKind = (k: DutyRuleKind) =>
@@ -213,14 +239,18 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
       return result;
     } catch (err) {
       setError(describeError(err));
+      setErrorCode(err instanceof ApiError ? err.code : "");
       setBusy(false);
     }
   };
 
   const requestClose = () => {
     if (busy) return;
-    if (dirty) setConfirmClose(true);
-    else onClose();
+    if (dirty) {
+      // 창 안 확인을 열면 채우는 중인 AI 작업을 멈춘다 (REQ-C09)
+      assist.pause();
+      setConfirmClose(true);
+    } else onClose();
   };
 
   const section = "space-y-3 border-t border-gray-100 px-[22px] py-5 dark:border-gray-800";
@@ -235,7 +265,9 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
 
       {/* 종류: 만들 때만 고름 */}
       <div className="px-[22px] pt-4 pb-5">
-        <p className={labelClass}>{t("kind")}</p>
+        <AssistLabel assist={assist} field="kind" as="span" className={cn(labelClass, "block")}>
+          {t("kind")}
+        </AssistLabel>
         <div role="radiogroup" aria-label={t("kind")} className="grid gap-3 sm:grid-cols-2">
           {KINDS.map((k) => {
             const on = kind === k;
@@ -272,12 +304,12 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
           {t("step1")}
         </h3>
         <div className="max-w-md">
-          <label htmlFor={`${id}-name`} className={labelClass}>
+          <AssistLabel assist={assist} field="name" htmlFor={`${id}-name`} className={labelClass}>
             {tk("name")}
-          </label>
+          </AssistLabel>
           <input id={`${id}-name`} value={name} onChange={(e) => set({ name: clip(e, NAME_MAX) })} placeholder={shift ? t("shiftNamePlaceholder") : tk("namePlaceholder")} className={inputClass} />
         </div>
-        <DayChecks legend={tk("days")} value={days} onChange={(next) => set({ days: next })} />
+        <DayChecks legend={tk("days")} marked={assist.marked("days")} value={days} onChange={(next) => set({ days: next })} />
       </section>
 
       {/* 2. 근무 방식 */}
@@ -291,6 +323,12 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
           <>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t("shiftHow")}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t("offHow")}</p>
+            {assist.marked("shifts") && (
+              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
+                {typesName}
+                <AiFilledMark />
+              </p>
+            )}
             {/* 근무 종류 표 (창 안에서 바로) */}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-start text-sm">
@@ -307,7 +345,11 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
                   {types.map((row, i) => (
                     <tr key={row.key} className="border-b border-gray-100 last:border-b-0 dark:border-gray-800">
                       <td className="px-2 py-1.5">
-                        <input aria-label={t("typeNameOf", { n: i + 1 })} value={row.name} onChange={(e) => updateRow(row.key, { name: clip(e, NAME_MAX) })} placeholder={ts("typeNamePlaceholder")} className={cn(inputClass, "h-9")} />
+                        <span className="flex items-center">
+                          <input aria-label={t("typeNameOf", { n: i + 1 })} value={row.name} onChange={(e) => updateRow(row.key, { name: clip(e, NAME_MAX) })} placeholder={ts("typeNamePlaceholder")} className={cn(inputClass, "h-9")} />
+                          {/* 줄마다 "AI가 채움": AI가 넣은 그대로인 근무 종류 줄 */}
+                          {assist.marked("shifts", (assistValues.shifts as unknown[])[i]) && <AiFilledMark className="shrink-0" />}
+                        </span>
                       </td>
                       <td className="px-2 py-1.5">
                         <input aria-label={t("typeShortOf", { n: i + 1 })} value={row.short} onChange={(e) => updateRow(row.key, { short: clip(e, SHORT_MAX) })} placeholder={ts("typeShortPlaceholder")} className={cn(inputClass, "h-9")} />
@@ -329,7 +371,11 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
                             checked={row.off}
                             disabled={row.inPlacement}
                             aria-label={t("typeOffOf", { name: typeLabel(row, i) })}
-                            onChange={(e) => updateRow(row.key, { off: e.target.checked })}
+                            // 쉬는 근무를 끄면 인원 수가 비었거나 맞지 않을 때(AI가 넣은 쉬는 근무) 1로 (G-151)
+                            onChange={(e) => {
+                              const n = Number(row.count);
+                              updateRow(row.key, e.target.checked || (Number.isInteger(n) && n >= 1 && n <= COUNT_MAX) ? { off: e.target.checked } : { off: false, count: "1" });
+                            }}
                             className="h-4 w-4 rounded border-gray-300 text-brand-500 disabled:opacity-50 dark:border-gray-700"
                           />
                           <span aria-hidden="true">{t("typeOffShort")}</span>
@@ -370,9 +416,9 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
 
             {/* 패턴 */}
             <fieldset className="space-y-2">
-              <legend className={labelClass}>
+              <AssistLabel assist={assist} field="pattern" as="legend" className={labelClass}>
                 {ts("pattern")} <span className="font-normal text-gray-500 dark:text-gray-400">({ts("patternRange", { min: PATTERN_MIN, max: PATTERN_MAX })})</span>
-              </legend>
+              </AssistLabel>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-48 flex-1">
                   <label htmlFor={`${id}-text`} className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
@@ -452,6 +498,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 id={`${id}-s3`} className={stepTitle}>
             {shift ? t("step3Shift") : t("step3Weekday")}
+            {assist.marked("members") && <AiFilledMark />}
           </h3>
           {shift && (
             <button type="button" disabled={members.length === 0 || pattern.length === 0} onClick={spread} className={linkButton}>
@@ -464,11 +511,13 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
           ids={ids}
           describe={describe}
           onChange={setIds}
+          marked={(pid) => assist.marked("members", pid)}
           extra={
             shift
               ? (pid) => (
                   <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                     {ts("startCell")}
+                    {assist.marked("startCell", { person: pid, cell: String(startOf.get(pid) ?? 1) }) && <AiFilledMark />}
                     <select
                       value={startOf.get(pid) ?? 1}
                       aria-label={ts("startCellOf", { name: describe(pid).label })}

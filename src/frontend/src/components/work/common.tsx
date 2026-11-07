@@ -1,4 +1,5 @@
 import { type DocResponse, type Priority, type RequestStatus, type TargetTypes, typeLabel, type WorkStatus } from "@/api/work";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import NoBreakDates from "@/components/common/NoBreakDates";
 import DataTable from "@/components/admin/DataTable";
 import { Panel } from "@/components/common/Panel";
@@ -309,7 +310,7 @@ export function TargetTypesList({ targets, paths }: { targets: TargetTypes[]; pa
 }
 
 /** 고른 항목 칸 (DEC-061): 조직 트리에서 고른 부서·사람이 쌓이고, 빼기로 지운다 */
-export function SelectedList({ title, items, emptyText }: { title: string; items: { key: string; label: string; onRemove: () => void }[]; emptyText: string }) {
+export function SelectedList({ title, items, emptyText }: { title: string; items: { key: string; label: string; onRemove: () => void; marked?: boolean }[]; emptyText: string }) {
   const { t } = useTranslation("work");
   return (
     <div className="mt-3 rounded-lg border border-dashed border-gray-300 p-3 dark:border-gray-700">
@@ -323,6 +324,7 @@ export function SelectedList({ title, items, emptyText }: { title: string; items
           {items.map((item) => (
             <li key={item.key} className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
               {item.label}
+              {item.marked && <AiFilledMark />}
               <button type="button" aria-label={`${t("picker.remove")} ${item.label}`} onClick={item.onRemove} className="ms-1 text-gray-600 hover:text-error-600 dark:text-gray-400 dark:hover:text-error-400">
                 ×
               </button>

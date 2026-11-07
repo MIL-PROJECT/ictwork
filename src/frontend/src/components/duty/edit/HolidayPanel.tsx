@@ -1,7 +1,10 @@
 import { addRosterHoliday, type DutyHolidayView, type DutyRosterDetail, importSystemHolidays, updateRosterHoliday, type ViewAs } from "@/api/duty";
+import { ApiError } from "@/api/client";
 import ActionModal from "@/components/admin/ActionModal";
+import AssistLabel from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { clip, cn } from "@/utils";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { type DutyWrite, inDateRange, inputClass, labelClass, linkButton, outlineButton, primaryButton, useDayLabel, useDutyError } from "../dutyUtil";
@@ -16,14 +19,32 @@ function AddDialog({ detail, write, onAdded, onClose }: { detail: DutyRosterDeta
   const id = useId();
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
+  const [lastError, setLastError] = useState<{ code: string; message: string; field: string | null } | null>(null);
   const valid = inDateRange(date) && name.trim().length > 0;
+  // AI 업무지원 창 어댑터 (REQ-C07 근무자 현황, slices/21 8장 duty.holiday): 날짜·이름. [더하기]는 사용자가 누른다
+  const assist = useAssistAdapter("duty.holiday", {
+    target: detail.id,
+    ready: true,
+    values: { date, name },
+    apply: (v) => {
+      if (typeof v.date === "string" && inDateRange(v.date)) setDate(v.date);
+      if (typeof v.name === "string") setName(Array.from(v.name).slice(0, NAME_MAX).join(""));
+    },
+    labels: { date: t("date"), name: t("name") },
+    ids: { date: `${id}-date`, name: `${id}-name` },
+    lastError,
+  });
   return (
     <ActionModal
       title={t("addTitle")}
       description={t("addHelp")}
       submitLabel={t("addSubmit")}
       canSubmit={valid}
-      describeError={describeError}
+      describeError={(err) => {
+        const message = describeError(err);
+        setLastError({ code: err instanceof ApiError ? err.code : "", message, field: null });
+        return message;
+      }}
       onSubmit={async () => {
         const result = await write((version) => addRosterHoliday(detail.id, { date, name: name.trim(), version }));
         if (result) onAdded();
@@ -32,15 +53,15 @@ function AddDialog({ detail, write, onAdded, onClose }: { detail: DutyRosterDeta
       onClose={onClose}
     >
       <div>
-        <label htmlFor={`${id}-date`} className={labelClass}>
+        <AssistLabel assist={assist} field="date" htmlFor={`${id}-date`} className={labelClass}>
           {t("date")}
-        </label>
+        </AssistLabel>
         <input id={`${id}-date`} type="date" min="2000-01-01" max="2099-12-31" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
       </div>
       <div>
-        <label htmlFor={`${id}-name`} className={labelClass}>
+        <AssistLabel assist={assist} field="name" htmlFor={`${id}-name`} className={labelClass}>
           {t("name")}
-        </label>
+        </AssistLabel>
         <input id={`${id}-name`} value={name} onChange={(e) => setName(clip(e, NAME_MAX))} placeholder={t("namePlaceholder")} className={inputClass} />
       </div>
     </ActionModal>
@@ -52,11 +73,26 @@ function AddDialog({ detail, write, onAdded, onClose }: { detail: DutyRosterDeta
  * [체계 공휴일 가져오기](더한 수 알림). 공휴일을 바꿔도 배치는 그대로라 바꾼 뒤 "그 달을 다시 채우세요" 안내와 [배치 탭으로].
  * 근무표 공휴일은 달력의 빨간 날을 바꾸지 않는다. 저장 중에는 단추를 aria-disabled로(초점 유지)
  */
-export default function HolidayPanel({ detail, write }: { detail: DutyRosterDetail; write: DutyWrite }) {
+export default function HolidayPanel({ detail, write, startAdding = false, onStartedAdding }: {
+  detail: DutyRosterDetail;
+  write: DutyWrite;
+  /** [날 더하기] 창을 연다 (AI 업무지원 duty.holiday, slices/21 12.5). 연 뒤 onStartedAdding */
+  startAdding?: boolean;
+  onStartedAdding?: () => void;
+}) {
   const { t } = useTranslation("duty", { keyPrefix: "holiday" });
   const describeError = useDutyError();
   const dayLabel = useDayLabel();
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(startAdding);
+  // 이미 그려진 탭에 여는 요청이 오면 그때 연다
+  const [prevStart, setPrevStart] = useState(startAdding);
+  if (startAdding !== prevStart) {
+    setPrevStart(startAdding);
+    if (startAdding) setAdding(true);
+  }
+  useEffect(() => {
+    if (startAdding) onStartedAdding?.();
+  }, [startAdding, onStartedAdding]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

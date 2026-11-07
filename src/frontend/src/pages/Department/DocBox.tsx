@@ -18,7 +18,9 @@ import { DOCUMENT_ACCEPT } from "@/api/files";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import { Panel } from "@/components/common/Panel";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import BoxTreePanel from "@/components/docbox/BoxTreePanel";
+import { locateDocNode } from "@/components/docbox/docAssist";
 import DocTable from "@/components/docbox/DocTable";
 import { ancestorIds, boxTree, codePoints, SHARED_NODE, type SortKey, type SortState, sortItems, toId, useDocError } from "@/components/docbox/docUtil";
 import MoveDialog from "@/components/docbox/MoveDialog";
@@ -56,6 +58,9 @@ type Dialog =
   | { kind: "move"; node: DocNodeView }
   | { kind: "share"; node: DocNodeView }
   | { kind: "trash" };
+
+// AI 업무지원 화면 id → 여는 창 (slices/21 8장 docbox.*)
+const ASSIST_DIALOG = { "docbox.rename": "rename", "docbox.move": "move", "docbox.share": "share" } as const;
 
 const outline =
   "inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
@@ -319,6 +324,42 @@ export default function DocBox() {
 
   const loadingTree = boxes === null || !orgLoaded;
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 문서함, slices/21 8장 docbox.*): 새 폴더 창(대상 문서함 부서, 지금 보는 폴더에. 다른 문서함이면 그 문서함 맨 위),
+  // 이름 바꾸기·옮기기·공유 창(대상 노드: 내 부서 문서함에서 찾아 그 노드가 든 폴더를 연 뒤). 고칠 수 있는 문서함(부서원)만
+  useAssistPage(["docbox.folder", "docbox.rename", "docbox.move", "docbox.share"], {
+    ready: boxes !== null || boxesError,
+    open: (screen, target, still) => {
+      const id = Number(target);
+      if (screen === "docbox.folder") {
+        if (!boxes?.some((b) => b.departmentId === id && b.canEdit)) return false;
+        setNotice(null);
+        if (box?.departmentId !== id || !data || recordFolder || q) go({ box: id });
+        setDialog({ kind: "newFolder" });
+        return true;
+      }
+      const kind = ASSIST_DIALOG[screen as keyof typeof ASSIST_DIALOG];
+      const own = user?.departmentId ?? null;
+      if (!kind || own === null || !boxes?.some((b) => b.departmentId === own && b.canEdit)) return false;
+      setNotice(null);
+      const here = box?.departmentId === own ? data?.items.find((i) => i.id === id) : undefined;
+      if (here && !q) {
+        setDialog({ kind, node: here });
+        return true;
+      }
+      // 늦게 찾는다: 찾은 뒤 그 작업이 아직 이어지고 있을 때만 연다. 못 찾으면 false(대상 없음)
+      return locateDocNode(own, id).then(
+        (found) => {
+          if (!found) return false;
+          if (still?.() === false) return true;
+          go({ box: own, folder: found.view.folderId, file: found.node.id });
+          setDialog({ kind, node: found.node });
+          return true;
+        },
+        () => false,
+      );
+    },
+  });
+
   return (
     <div>
       <PageMeta titleKey="sidebar.items.docs" />
@@ -558,8 +599,10 @@ export default function DocBox() {
 
       {dialog?.kind === "newFolder" && box && data && (
         <NameDialog
+          key={`newFolder-${box.departmentId}`}
           title={t("nameDialog.newFolder")}
           submitLabel={t("nameDialog.create")}
+          assist={{ screen: "docbox.folder", target: box.departmentId }}
           onSubmit={(name) => createDocFolder(box.departmentId, data.folderId, name)}
           onDone={afterSave}
           onClose={() => setDialog(null)}
@@ -567,10 +610,12 @@ export default function DocBox() {
       )}
       {dialog?.kind === "rename" && (
         <NameDialog
+          key={`rename-${dialog.node.id}`}
           title={t("nameDialog.rename", { name: dialog.node.name })}
           submitLabel={t("nameDialog.save")}
           initialName={dialog.node.name}
           isFile={dialog.node.kind === "FILE"}
+          assist={{ screen: "docbox.rename", target: dialog.node.id }}
           onSubmit={(name) => renameDocNode(dialog.node.id, name)}
           onDone={afterSave}
           onClose={() => setDialog(null)}
@@ -578,6 +623,7 @@ export default function DocBox() {
       )}
       {dialog?.kind === "move" && box && data && (
         <MoveDialog
+          key={`move-${dialog.node.id}`}
           departmentId={box.departmentId}
           boxName={box.name}
           node={dialog.node}
@@ -588,6 +634,7 @@ export default function DocBox() {
       )}
       {dialog?.kind === "share" && (
         <ShareDialog
+          key={`share-${dialog.node.id}`}
           node={dialog.node}
           onClose={() => {
             setDialog(null);

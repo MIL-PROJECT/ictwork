@@ -1,3 +1,5 @@
+import AssistLabel, { AiFilledMark } from "@/components/assist/AssistLabel";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import Checkbox from "@/components/form/input/Checkbox";
 import { Modal } from "@/components/ui/modal";
 import { useHolidays } from "@/hooks/useHolidays";
@@ -21,6 +23,7 @@ export interface CalendarEventModalProps {
   onSave: (data: EventFormData) => void;
   onDelete?: () => void; // 저장된 개인 일정 지우기 (DEC-060)
   error?: string | null; // 저장·삭제 실패 문구
+  errorCode?: string; // 저장·삭제 실패 오류 코드(AI 업무지원이 다음 질문에서 풀어 설명, REQ-C06)
 }
 
 type FieldErrors = { start?: string; end?: string; weekdays?: string };
@@ -38,6 +41,12 @@ const fieldBorder = (hasError: boolean) =>
     ? "border-error-500 focus:border-error-300 focus:ring-error-500/20 dark:border-error-500"
     : "border-gray-300 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:focus:border-brand-800";
 
+const isLevel = (value: unknown): value is keyof typeof CALENDAR_EVENT_LEVELS =>
+  typeof value === "string" && Object.hasOwn(CALENDAR_EVENT_LEVELS, value);
+const isDateText = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value);
+const COLOR_IDS = Object.keys(CALENDAR_EVENT_LEVELS).map((key) => `modal${key}`);
+
 const toDateKey = (value: CalendarEvent["start"]) =>
   typeof value === "string"
     ? value.split("T")[0]
@@ -54,6 +63,7 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   onSave,
   onDelete,
   error,
+  errorCode,
 }) => {
   const [eventTitle, setEventTitle] = useState("");
   const [eventStartDate, setEventStartDate] = useState("");
@@ -66,9 +76,17 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const endRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation("common", { keyPrefix: "calendar.modal" });
   const holidays = useHolidays();
+  // 창을 열 때 처음 값을 넣는 아래 효과가 끝난 뒤를 AI 업무지원의 준비로 본다 (slices/21 12.5 ready)
+  const [loadedFor, setLoadedFor] = useState<{
+    selectedEvent: CalendarEvent | null;
+    initialStartDate: string;
+    initialEndDate: string;
+  } | null>(null);
 
   useEffect(() => {
     setErrors({});
+    // 닫으면 비워, 다시 연 추가 창이 처음 값을 다시 찍게 한다(검토 A3)
+    setLoadedFor(isOpen ? { selectedEvent, initialStartDate, initialEndDate } : null);
     if (selectedEvent) {
       setEventTitle((selectedEvent.title as string) || "");
       const startStr = toDateKey(selectedEvent.start);
@@ -87,6 +105,58 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
       setImportant(false);
     }
   }, [selectedEvent, initialStartDate, initialEndDate, isOpen]);
+
+  // AI 업무지원 창 어댑터 (REQ-C07 달력, slices/21 8장 calendar): 제목·색·시작·끝·평일만 표시·중요 표시. [저장]은 사용자가 누른다
+  const ready =
+    isOpen &&
+    loadedFor !== null &&
+    loadedFor.selectedEvent === selectedEvent &&
+    loadedFor.initialStartDate === initialStartDate &&
+    loadedFor.initialEndDate === initialEndDate;
+  const fieldError = errors.start ? "start" : errors.end ? "end" : errors.weekdays ? "weekdays" : null;
+  const assist = useAssistAdapter("calendar", {
+    enabled: isOpen,
+    target: selectedEvent ? String(selectedEvent.id) : null,
+    ready,
+    values: {
+      title: eventTitle,
+      color: eventLevel,
+      start: eventStartDate,
+      end: eventEndDate,
+      weekdays: weekdaysOnly,
+      important,
+    },
+    apply: (v) => {
+      if (typeof v.title === "string") setEventTitle(Array.from(v.title).slice(0, 100).join(""));
+      if (isLevel(v.color)) setEventLevel(v.color);
+      if (isDateText(v.start)) setEventStartDate(v.start);
+      if (isDateText(v.end)) setEventEndDate(v.end);
+      if (typeof v.weekdays === "boolean") setWeekdaysOnly(v.weekdays);
+      if (typeof v.important === "boolean") setImportant(v.important);
+    },
+    labels: {
+      title: t("eventTitle"),
+      color: t("color"),
+      start: t("startDate"),
+      end: t("endDate"),
+      weekdays: t("weekdaysOnly"),
+      important: t("important"),
+    },
+    format: (field, value) => (field === "color" && isLevel(value) ? t(`colors.${value}`) : null),
+    ids: {
+      title: "event-title",
+      color: COLOR_IDS,
+      start: "event-start-date",
+      end: "event-end-date",
+      weekdays: "event-weekdays-only",
+      important: "event-important",
+    },
+    lastError: fieldError
+      ? { code: "VALIDATION", message: errors[fieldError] ?? "", field: fieldError }
+      : error
+        ? { code: errorCode ?? "", message: error, field: null }
+        : null,
+  });
 
   // 저장할 때 검사: 시작 날짜 필수, 끝 날짜는 시작과 같거나 뒤, 평일만 표시면 평일이 하루 이상
   const validate = (start: string, end: string): FieldErrors => {
@@ -149,12 +219,14 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
 
         <div className="mt-8 space-y-6">
           <div>
-            <label
+            <AssistLabel
+              assist={assist}
+              field="title"
               htmlFor="event-title"
               className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
             >
               {t("eventTitle")}
-            </label>
+            </AssistLabel>
             <div className="relative">
               <input
                 id="event-title"
@@ -185,12 +257,23 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 )}
               </button>
             </div>
+            {assist.marked("important") && (
+              <p className="mt-1.5 text-theme-xs text-gray-600 dark:text-gray-400">
+                {t("important")}
+                <AiFilledMark />
+              </p>
+            )}
           </div>
 
           <fieldset>
-            <legend className="mb-4 block text-sm font-medium text-gray-700 dark:text-gray-400">
+            <AssistLabel
+              assist={assist}
+              field="color"
+              as="legend"
+              className="mb-4 block text-sm font-medium text-gray-700 dark:text-gray-400"
+            >
               {t("color")}
-            </legend>
+            </AssistLabel>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               {Object.entries(CALENDAR_EVENT_LEVELS).map(([key, value]) => (
                 <div key={key} className="n-chk">
@@ -229,12 +312,14 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           </fieldset>
 
           <div>
-            <label
+            <AssistLabel
+              assist={assist}
+              field="start"
               htmlFor="event-start-date"
               className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
             >
               {t("startDate")}
-            </label>
+            </AssistLabel>
             <input
               ref={startRef}
               id="event-start-date"
@@ -256,12 +341,14 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           </div>
 
           <div>
-            <label
+            <AssistLabel
+              assist={assist}
+              field="end"
               htmlFor="event-end-date"
               className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
             >
               {t("endDate")}
-            </label>
+            </AssistLabel>
             <input
               ref={endRef}
               id="event-end-date"
@@ -286,13 +373,16 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             )}
           </div>
 
-          <Checkbox
-            id="event-weekdays-only"
-            label={t("weekdaysOnly")}
-            checked={weekdaysOnly}
-            onChange={setWeekdaysOnly}
-            describedBy={errors.weekdays ? "event-end-date-error" : undefined}
-          />
+          <div className="flex flex-wrap items-center">
+            <Checkbox
+              id="event-weekdays-only"
+              label={t("weekdaysOnly")}
+              checked={weekdaysOnly}
+              onChange={setWeekdaysOnly}
+              describedBy={errors.weekdays ? "event-end-date-error" : undefined}
+            />
+            {assist.marked("weekdays") && <AiFilledMark />}
+          </div>
         </div>
 
         {error && (

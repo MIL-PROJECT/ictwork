@@ -10,11 +10,14 @@ import {
   type LocationOption,
   updateEquipment,
 } from "@/api/equipment";
+import { applyAttributeFill, attributeFields, attributeFieldValues } from "@/components/attribute/attributeAssist";
 import { AttributeSheet } from "@/components/attribute/AttributeFields";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import { Panel } from "@/components/common/Panel";
 import CarryOutDialog from "@/components/equipment/CarryOutDialog";
+import { applyEquipmentFill, EQUIPMENT_TEXT_FIELDS, equipmentFieldValues } from "@/components/equipment/equipmentAssist";
 import EquipmentForm from "@/components/equipment/EquipmentForm";
 import EquipmentMaterials from "@/components/equipment/EquipmentMaterials";
 import { emptyValues, type FormValues, inputOf, valuesOf } from "@/components/equipment/equipmentFormValues";
@@ -32,6 +35,8 @@ const BUTTON_CLASS =
   "inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3";
 const PRIMARY_CLASS = "inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50";
 // 상태 알약 색 (OMNIS 상태 칩): 사용중 초록, 정비입고·불용대기 주황, 고장 빨강, 미사용·불용 회색
+// 확인 창에서 취소해 값을 되돌렸다는 알림 (저장 오류 아님)
+const KEPT_CODES = new Set(["STATUS_KEPT", "DEPARTMENT_KEPT"]);
 const STATUS_COLOR: Record<EquipmentStatus, "success" | "warning" | "error" | "light"> = {
   IN_USE: "success",
   UNUSED: "light",
@@ -67,12 +72,28 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
   const [editing, setEditing] = useState(creating);
   const [values, setValues] = useState<FormValues>(() => emptyValues(user?.departmentId ?? null));
   const [locations, setLocations] = useState<LocationOption[]>([]);
+  const [locationsRead, setLocationsRead] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<{ message: string; field: string | null } | null>(null);
+  const [error, setError] = useState<{ message: string; field: string | null; code: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(navState?.created ? t("detail.created") : null);
   const [carryOutOpen, setCarryOutOpen] = useState(false);
   // 추가 특성 (REQ-519): 보기는 그 장비 관리부서, 고칠 때는 고른 관리부서의 특성
   const [attributeDefs, setAttributeDefs] = useState<{ departmentId: number; list: AttributeDef[] } | null>(null);
+  // AI 업무지원이 관리부서와 함께 준 새 부서 특성 값: 그 부서 특성 정의를 받은 뒤에 넣는다 (slices/21 12.1 dependsOn 관리부서 → 특성)
+  const [pendingAttrs, setPendingAttrs] = useState<{ departmentId: string; values: Record<string, unknown> } | null>(null);
+  // 같은 상세 화면에서 주소의 장비가 바뀌면(/department/equipment/5 → 7) 앞 장비의 보기·편집 상태를 버리고 새로 읽는다
+  const [shownId, setShownId] = useState(id);
+  if (shownId !== id) {
+    setShownId(id);
+    setEquipment(null);
+    setLoadError(null);
+    setEditing(creating);
+    setValues(emptyValues(user?.departmentId ?? null));
+    setError(null);
+    setNotice(navState?.created ? t("detail.created") : null);
+    setCarryOutOpen(false);
+    setPendingAttrs(null);
+  }
   const attrDepartmentId = editing ? (values.departmentId === "" ? null : Number(values.departmentId)) : (equipment?.departmentId ?? null);
   useEffect(() => {
     if (attrDepartmentId === null) return;
@@ -125,8 +146,16 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
     if (!editing) return;
     let cancelled = false;
     fetchSelectableLocations().then(
-      (list) => !cancelled && setLocations(list),
-      () => !cancelled && setLocations([]),
+      (list) => {
+        if (cancelled) return;
+        setLocations(list);
+        setLocationsRead(true);
+      },
+      () => {
+        if (cancelled) return;
+        setLocations([]);
+        setLocationsRead(true);
+      },
     );
     return () => {
       cancelled = true;
@@ -173,6 +202,103 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
     setEditing(true);
   };
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 장비, slices/21 8장 equipment): 등록 화면은 이미 칸이 열려 있고, 상세는 [고치기]를 누른 것처럼 연다
+  // 상세는 주소의 장비를 불러온 뒤에 준비된다(앞 장비가 남은 동안은 준비 전)
+  const current = equipment !== null && equipment.id === id ? equipment : null;
+  useAssistPage(["equipment"], {
+    ready: creating || badId || current !== null || loadError !== null,
+    open: (_screen, target) => {
+      if (target === null) return creating && canCreate;
+      if (creating || !current?.editable || String(current.id) !== String(target)) return false;
+      if (!editing) startEdit();
+      return true;
+    },
+  });
+  // 창 어댑터: 장비 칸과 고른 관리부서의 추가 특성(attrs.{특성 id}, 파일 특성 제외). [등록]·[저장]은 사용자가 누른다.
+  // 관리부서를 AI가 바꾸면 같은 차례의 특성 값은 새 부서 특성 정의를 받은 뒤에 넣는다(그동안 준비 전). 관리부서가 또 바뀌거나 편집을 끝내면 버린다
+  if (pendingAttrs && (!editing || values.departmentId !== pendingAttrs.departmentId)) setPendingAttrs(null);
+  else if (pendingAttrs && attributeDefs?.departmentId === Number(pendingAttrs.departmentId)) {
+    const { list } = attributeDefs;
+    setPendingAttrs(null);
+    setValues((v) => ({ ...v, attributes: applyAttributeFill(list, v.attributes, pendingAttrs.values) }));
+  }
+  const attrFields = attributeFields(defs);
+  const assistIds: Record<string, string | string[]> = {
+    dept: "eq-departmentId",
+    location: "eq-storageLocationId",
+    status: "eq-status",
+    networkKind: "eq-networkKind",
+    software: values.software.flatMap((_, i) => [`eq-sw-${i}-name`, `eq-sw-${i}-version`, `eq-sw-${i}-date`]),
+    networks: values.networks.flatMap((_, i) => [`eq-net-${i}-name`, `eq-net-${i}-ip`, `eq-net-${i}-mac`]),
+    ...Object.fromEntries(Object.entries(EQUIPMENT_TEXT_FIELDS).map(([field, key]) => [field, `eq-${key}`])),
+    ...Object.fromEntries(attrFields.map((f) => [f.field, `eq-attr-${f.def.item.key}`])),
+  };
+  // 서버 오류 칸(화면 칸 이름) → 업무지원 칸 id
+  const assistFieldOf = (field: string | null): string | null => {
+    if (field === null) return null;
+    const base = field.replace(/\[.*$/, "");
+    const text = Object.entries(EQUIPMENT_TEXT_FIELDS).find(([, key]) => key === base)?.[0];
+    if (text) return text;
+    if (base === "departmentId") return "dept";
+    if (base === "storageLocationId") return "location";
+    if (base === "status" || base === "networkKind" || base === "software" || base === "networks") return base;
+    return attrFields.find((f) => f.def.item.key === field)?.field ?? null;
+  };
+  const assist = useAssistAdapter("equipment", {
+    enabled: editing && (!creating || canCreate),
+    target: creating ? null : (equipment?.id ?? null),
+    // 설치장소 목록과 고른 관리부서의 특성 정의를 받은 뒤 (관리부서가 바뀌면 다시 준비되어 새 특성 칸의 처음 값을 찍는다)
+    ready: locationsRead && (attrDepartmentId === null || attributeDefs?.departmentId === attrDepartmentId) && pendingAttrs === null,
+    values: { ...equipmentFieldValues(values), ...attributeFieldValues(defs, values.attributes) },
+    apply: (v) => {
+      const choices = {
+        departments: departmentOptions?.map((o) => o.value) ?? null,
+        locations: locationOptions.map((l) => l.id),
+        original: equipment ? valuesOf(equipment) : null,
+      };
+      setValues((prev) => {
+        const next = applyEquipmentFill(prev, v, choices);
+        return next.departmentId === prev.departmentId ? { ...next, attributes: applyAttributeFill(defs, next.attributes, v) } : next;
+      });
+      const movedTo = applyEquipmentFill(values, v, choices).departmentId;
+      const attrs = Object.fromEntries(Object.entries(v).filter(([field]) => field.startsWith("attrs.")));
+      if (movedTo !== values.departmentId && Object.keys(attrs).length > 0) setPendingAttrs({ departmentId: movedTo, values: attrs });
+    },
+    labels: {
+      dept: t("fields.DEPARTMENT"),
+      location: t("fields.LOCATION"),
+      system: t("fields.SYSTEM_NAME"),
+      name: t("fields.NAME"),
+      model: t("fields.MODEL_NAME"),
+      serial: t("fields.SERIAL_NUMBER"),
+      commonName: t("fields.COMMON_NAME"),
+      status: t("fields.STATUS"),
+      hwVersion: t("fields.HW_VERSION"),
+      hwInstalledOn: t("fields.HW_INSTALLED_ON"),
+      osType: t("fields.OS_TYPE"),
+      osVersion: t("fields.OS_VERSION"),
+      osInstalledOn: t("fields.OS_INSTALLED_ON"),
+      networkKind: t("fields.NETWORK_KIND"),
+      introduced: t("fields.INTRODUCED_ON"),
+      introProject: t("fields.INTRO_PROJECT"),
+      maintProject: t("fields.MAINTENANCE_PROJECT"),
+      memo: t("fields.MEMO"),
+      software: t("detail.sections.software"),
+      networks: t("detail.sections.network"),
+      ...Object.fromEntries(attrFields.map((f) => [f.field, f.label])),
+    },
+    format: (field, value) => {
+      if (field === "status" && typeof value === "string") return t(`statuses.${value}`);
+      if (field === "networkKind" && typeof value === "string") return t(`networkKinds.${value}`);
+      if (field === "dept" && typeof value === "number") return paths.get(value) ?? null;
+      if (field === "location" && typeof value === "number") return locationOptions.find((l) => l.id === value)?.name ?? null;
+      return null;
+    },
+    ids: assistIds,
+    // 확인 창에서 사용자가 취소한 일(상태·관리부서를 되돌림)은 저장 오류가 아니라 보내지 않는다
+    lastError: error && !KEPT_CODES.has(error.code) ? { code: error.code, message: error.message, field: assistFieldOf(error.field) } : null,
+  });
+
   const save = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (saving) return;
@@ -186,17 +312,17 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
       }
       if (!equipment) return;
       // 불용으로 바꾸면 저장 전에 확인받는다 (C-5). 취소하면 표 편집 모드처럼 상태만 되돌리고 알린다
-      if (values.status === "DISPOSED" && equipment.status !== "DISPOSED" && !window.confirm(t("detail.disposeConfirm"))) {
+      if (values.status === "DISPOSED" && equipment.status !== "DISPOSED" && (assist.pause(), !window.confirm(t("detail.disposeConfirm")))) {
         setValues((v) => ({ ...v, status: equipment.status }));
-        setError({ message: t("edit.statusKept"), field: "status" });
+        setError({ message: t("edit.statusKept"), field: "status", code: "STATUS_KEPT" });
         return;
       }
       // 관리부서를 옮기면 원래 부서 특성 값이 지워진다: 지우기 전에 건수를 알리고 확인받는다 (REQ-501·519). 취소하면 표 편집 모드처럼 관리부서만 되돌리고 알린다
       if (values.departmentId !== String(equipment.departmentId)) {
         const loss = await fetchEquipmentAttributeLoss(equipment.id, Number(values.departmentId)).catch(() => null);
-        if (loss && loss.valueCount > 0 && !window.confirm(t("detail.attributeLoss", { n: loss.valueCount }))) {
+        if (loss && loss.valueCount > 0 && (assist.pause(), !window.confirm(t("detail.attributeLoss", { n: loss.valueCount })))) {
           changeValues((v) => ({ ...v, departmentId: String(equipment.departmentId) }));
-          setError({ message: t("edit.departmentKept"), field: "departmentId" });
+          setError({ message: t("edit.departmentKept"), field: "departmentId", code: "DEPARTMENT_KEPT" });
           return;
         }
       }
@@ -212,13 +338,13 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
           setEquipment(fresh);
           setValues(valuesOf(fresh));
         }
-        setError({ message: t("detail.conflictReload"), field: null });
+        setError({ message: t("detail.conflictReload"), field: null, code: err.code });
       } else if (err instanceof ApiError) {
         // 칸 오류·겹침은 서버 문구가 어느 칸·장비인지 알려 준다
         const known = ["EQUIPMENT_FIELD_INVALID", "EQUIPMENT_SERIAL_DUPLICATE", "EQUIPMENT_MAC_DUPLICATE", "ANSWER_INVALID", "ATTRIBUTE_NOT_OF_DEPARTMENT", "FILE_NOT_TEMP"].includes(err.code);
-        setError({ message: known ? serverMessage(err) : t(`errors.${err.code}`, { defaultValue: t("errors.UNKNOWN") }), field: err.field ?? null });
+        setError({ message: known ? serverMessage(err) : t(`errors.${err.code}`, { defaultValue: t("errors.UNKNOWN") }), field: err.field ?? null, code: err.code });
       } else {
-        setError({ message: t("errors.UNKNOWN"), field: null });
+        setError({ message: t("errors.UNKNOWN"), field: null, code: "UNKNOWN" });
       }
     } finally {
       setSaving(false);
@@ -299,6 +425,7 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
             errorField={error?.field ?? null}
             errorId="eq-error"
             attributeDefs={defs}
+            assist={assist}
           />
           {error && (
             <p id="eq-error" role="alert" className="text-sm text-error-600 dark:text-error-400">

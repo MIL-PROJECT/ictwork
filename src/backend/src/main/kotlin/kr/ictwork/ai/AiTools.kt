@@ -34,11 +34,15 @@ import kr.ictwork.status.WorkStatusRepository
 import kr.ictwork.status.WorkStatusService
 import kr.ictwork.work.AssignedWorkLookup
 import kr.ictwork.work.FilterPeriod
+import kr.ictwork.work.ItemFilter
 import kr.ictwork.work.PeriodBases
+import kr.ictwork.work.StatusBuckets
 import kr.ictwork.work.WorkJudge
 import kr.ictwork.work.WorkListFilter
 import kr.ictwork.work.WorkQueryService
+import kr.ictwork.work.WorkStatuses
 import kr.ictwork.worktype.WorkTypeRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 import java.net.URLEncoder
 import java.time.Clock
@@ -94,7 +98,9 @@ class AiTools(
     /** context: 이어 묻기로 넘긴 앞 질문들(모델이 넣은 부서 낱말을 질문 글과 견줄 때 함께 본다) */
     fun run(name: String, args: JsonNode, actor: Actor, loginId: String, question: String, context: List<String> = emptyList()): AiToolResult = try {
         val asked = Asked(question, context)
-        when (name) {
+        // 칸에는 값 하나만 받는다: 여러 값(배열)·묶음을 넣으면 조건을 버리지 않고 다시 묻는다. 빈 배열·빈 묶음은 값이 없는 것으로 본다
+        val many = args.fields().asSequence().firstOrNull { (_, v) -> (v.isArray || v.isObject) && v.size() > 0 }?.key
+        if (many != null) retry("'$many'에 넣은 여러 값") else when (name) {
             "query_equipment" -> equipment(args, actor, asked)
             "query_work" -> work(args, actor, loginId, asked)
             "query_people" -> people(args, actor, asked)
@@ -202,6 +208,8 @@ class AiTools(
             carryOutReason?.let { add("반출 사유: '$it' 포함") }
             add("단위: 대")
         }
+        // 이름·글자로 찾았는데 없으면(볼 수 없는 장비 포함) 찾지 못했다고 답한다. 개수 질문의 0대는 그대로 센다 (REQ-B04)
+        if (a.text("mode") == "list" && (keyword != null || mac != null) && found.isEmpty()) return notFound(conditions)
         val shown = found.take(MAX_ITEMS)
         // 목록 화면(장비 목록 걸러 보기)에 있는 조건만이면 걸러 연 목록 링크, 아니면 찾은 장비 상세와 찾는 길 (11.6, H-20).
         // 목록 링크는 화면이 그 걸러 보기로 보일 장비가 찾은 장비와 같을 때만 준다(링크를 열면 같은 수가 보이게, 12.6). 다르면 상세와 찾는 길
@@ -396,24 +404,61 @@ class AiTools(
 
     private fun work(raw: JsonNode, actor: Actor, loginId: String, question: Asked): AiToolResult {
         val a = Args(raw)
-        // PoC normalize: 날짜가 있으면 CUSTOM, 목록 조건이 있으면 등록된 업무, 실적 지표면 업무 현황
+        // PoC normalize: 날짜가 있으면 CUSTOM
         if (a.text("date_from") != null || a.text("date_to") != null) a.set("period", "CUSTOM")
-        val listConditions = listOf("state", "priority", "work_type", "keyword", "requester").any { a.text(it) != null }
-        val basis = when {
-            // 긴급 완료는 업무 현황 실적이라 목록 조건(우선순위 등)이 함께 와도 업무 현황 (REQ-B04 ②, G-136)
-            a.text("metric") == "urgent_completed" -> "status_dashboard"
-            listConditions -> "work_list"
-            a.text("metric") in setOf("requested", "completed", "completion_rate") -> "status_dashboard"
-            else -> a.text("basis") ?: if (a.text("metric") != null) "status_dashboard" else "work_list"
-        }
+        // "나"는 질문한 사람: 요청자 칸은 질문자 성명으로 (REQ-B04)
+        if (a.text("requester") == ME) a.set("requester", myName(actor))
+        val metric = a.text("metric")
+        val state = a.text("state")
+        if (state != null && state !in WORK_STATUS_CODES) return retry("업무 상태 '$state'")
+        val listConditions = listOf("priority", "work_type", "keyword", "requester").any { a.text(it) != null }
         val today = LocalDate.now(clock)
         val period = a.text("period")?.let { p -> periodOf(p, a.text("date_from"), a.text("date_to"), today) ?: return retry("기간") }
-        return if (basis == "status_dashboard") {
-            dashboard(a, actor, loginId, question, period ?: periodOf("THIS_MONTH", null, null, today)!!)
-        } else {
-            workList(a, actor, loginId, question, period)
+        // 등록된 업무 걸러 보기와 같은 기간 검사: 2000~2099년, 1년 이하 (REQ-117 ②)
+        if (period != null && (period.from.year !in 2000..2099 || period.to.year !in 2000..2099 || !period.to.isBefore(period.from.plusYears(1)))) {
+            return retry("기간(2000~2099년 안에서 1년 이하)")
         }
+        val thisMonth = { periodOf("THIS_MONTH", null, null, today)!! }
+        // 기준 고르기 (REQ-B04 ②, H-18): 부서·기간 실적은 업무 현황, 그 밖 조건(유형·우선순위·상태·요청자·글자)은 등록된 업무.
+        // 긴급 완료는 업무 현황 실적이라 목록 조건이 함께 와도 업무 현황 (G-136)
+        if (metric == "urgent_completed") return dashboard(a, actor, loginId, question, period ?: thisMonth())
+        if (!listConditions && state == null && (metric != null || a.text("basis") == "status_dashboard")) {
+            return dashboard(a, actor, loginId, question, period ?: thisMonth())
+        }
+        // "이번 달 완료 몇 건"을 상태 칸으로 넣어도 업무 현황의 완료 실적이다
+        if (!listConditions && state == "완료" && metric in setOf(null, "completed") && (period != null || metric == "completed")) {
+            a.set("metric", "completed")
+            return dashboard(a, actor, loginId, question, period ?: thisMonth())
+        }
+        // 그 밖 조건이 함께 온 실적: 등록된 업무로 센다. 완료율·기한 지남은 걸러 보기로 셀 수 없어 업무 현황 기준으로 다시 묻게 한다
+        when (metric) {
+            "completion_rate", "overdue" -> return AiToolResult(
+                mapOf("오류" to "완료율·기한 지남은 업무 현황 기준(부서·기간)으로만 셉니다. 업무 유형·우선순위·상태·요청자·글자 조건을 빼고 다시 물어 주세요. $VERBATIM"),
+            )
+            "completed" -> {
+                if (state != null && state != "완료") return retry("완료 실적과 업무 상태 '$state'")
+                return workList(a, actor, loginId, question, period ?: thisMonth(), setOf(WorkStatuses.DONE), null, basis = PeriodBases.COMPLETED)
+            }
+            "pending" -> {
+                if (state != null && WORK_STATUS_CODES.getValue(state) !in WorkJudge.OPEN) return retry("미완료와 업무 상태 '$state'")
+                if (state == null) return workList(a, actor, loginId, question, period, WorkJudge.OPEN, null)
+            }
+        }
+        val code = state?.let(WORK_STATUS_CODES::getValue)
+        // 접수 대기·계획은 상태 단추 묶음(접수 결재 중·접수 뒤 결재 중 포함, REQ-117 G-115·REQ-902)
+        val bucket = when (state) {
+            "접수 대기" -> StatusBuckets.WAITING
+            "계획" -> StatusBuckets.ONGOING
+            else -> null
+        }
+        // 완료를 기간으로 물으면 걸러 보기의 완료한 날 기준. 반려·이송은 걸러 보기에 끝난 날 기준이 없어 업무 현황 카드와 같은 끝난 시각 기준 (REQ-117 ②, REQ-902 G-119)
+        if (code == WorkStatuses.DONE && period != null) return workList(a, actor, loginId, question, period, setOf(code), null, basis = PeriodBases.COMPLETED)
+        if (code != null && code in WorkStatuses.CLOSED && period != null) return workList(a, actor, loginId, question, null, setOf(code), null, closed = period)
+        return workList(a, actor, loginId, question, period, if (bucket == null) setOfNotNull(code) else emptySet(), bucket)
     }
+
+    /** 질문한 사람의 성명 ("나") */
+    private fun myName(actor: Actor) = personnelRepository.findByIdOrNull(actor.account.personnelId)?.name ?: actor.account.displayName
 
     private class Period(val from: LocalDate, val to: LocalDate, val kind: String)
 
@@ -480,51 +525,75 @@ class AiTools(
         )
     }
 
-    /** 그 밖 조건: 등록된 업무 "우리 부서 업무" 탭 걸러 보기 (REQ-117, H-18) */
-    private fun workList(a: Args, actor: Actor, loginId: String, question: Asked, period: Period?): AiToolResult {
-        val dept = when (val pick = pickDepartment(actor, a.text("department"), question, actor.workScope())) {
+    /**
+     * 그 밖 조건: 등록된 업무 "우리 부서 업무" 탭 걸러 보기 (REQ-117, H-18). statuses·bucket은 처리 상태·상태 단추.
+     * closed를 주면 업무 현황 카드에서 연 목록과 같이 업무 현황 보는 범위(REQ-904)에서 그 기간 안에 끝난 건만 센다 (REQ-902 G-119)
+     */
+    private fun workList(
+        a: Args, actor: Actor, loginId: String, question: Asked, period: Period?, statuses: Set<String>, bucket: String?,
+        basis: String = PeriodBases.APPLIED, closed: Period? = null,
+    ): AiToolResult {
+        val statusScope = closed?.let { statusScopes.of(actor) }
+        val dept = when (val pick = pickDepartment(actor, a.text("department"), question, statusScope?.allowed ?: actor.workScope())) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
             DeptPick.All -> null
         }
-        val state = a.text("state")?.let { WORK_STATUS_CODES[it] ?: return retry("업무 상태 '$it'") }
+        val selection = statusScope?.let { s -> dept?.let { listOf(it) } ?: s.fixedId?.let { listOf(it) } ?: s.roots }
+        if (selection != null && selection.isEmpty()) return outOfScope()
+        val sub = statusScope?.kind != kr.ictwork.status.StatusKinds.MEMBER
         val priority = a.text("priority")?.let { PRIORITY_CODES[it] ?: return retry("우선순위 '$it'") }
         val typeName = a.text("work_type")
         val typeIds = typeName?.let { name -> workTypeRepository.findAll().filter { it.name.contains(name, ignoreCase = true) }.mapNotNull { it.id }.toSet() }
         val conditions = buildList {
-            add("기준: 등록된 업무 ▸ 우리 부서 업무")
-            add("처리 부서: " + (dept?.let { AiLabels.path(actor.tree, it) + "(하위 포함)" } ?: "우리 부서 업무 탭 전체"))
-            state?.let { add("상태: ${AiLabels.WORK_STATUSES[it]}") }
+            if (closed == null) {
+                add("기준: 등록된 업무 ▸ 우리 부서 업무")
+                add("처리 부서: " + (dept?.let { AiLabels.path(actor.tree, it) + "(하위 포함)" } ?: "우리 부서 업무 탭 전체"))
+            } else {
+                add("기준: 등록된 업무 ▸ 우리 부서 업무(업무 현황 카드와 같은 범위, 끝난 시각 기준)")
+                add("부서: " + checkNotNull(selection).joinToString(", ") { AiLabels.path(actor.tree, it) + if (sub) "(하위 포함)" else "" })
+            }
+            if (statuses.isNotEmpty()) add("상태: " + statuses.joinToString("·") { AiLabels.WORK_STATUSES[it] ?: it })
+            bucket?.let { add("상태: " + BUCKET_LABELS.getValue(it)) }
+            closed?.let { add("끝난 날: ${it.from} ~ ${it.to}") }
             priority?.let { add("우선순위: ${AiLabels.PRIORITIES[it]}") }
             typeName?.let { add("업무 유형: '$it'") }
             a.text("requester")?.let { add("요청자: '$it'") }
             a.text("keyword")?.let { add("글자: '$it'") }
-            period?.let { add("신청일자: ${it.from} ~ ${it.to}") }
+            period?.let { add((if (basis == PeriodBases.COMPLETED) "완료한 날" else "신청일자") + ": ${it.from} ~ ${it.to}") }
             add("단위: 건")
         }
         if (typeIds != null && typeIds.isEmpty()) {
             return AiToolResult(mapOf("기준" to "등록된 업무", "조건" to conditions, "개수" to 0, "안내" to "체계에 그런 업무 유형이 없습니다"), conditions)
         }
         val filter = WorkListFilter(
-            statuses = setOfNotNull(state),
-            period = period?.let { FilterPeriod(PeriodBases.APPLIED, it.from, it.to) },
+            statuses = statuses,
+            bucket = bucket,
+            period = period?.let { FilterPeriod(basis, it.from, it.to) },
             typeIds = typeIds.orEmpty(),
             requester = a.text("requester"),
-            processDepartmentIds = setOfNotNull(dept),
+            processDepartmentIds = if (closed == null) setOfNotNull(dept) else emptySet(),
             priorities = setOfNotNull(priority),
             text = a.text("keyword"),
         )
-        val items = workQueryService.departmentItems(loginId, null, filter.takeUnless { it.isEmpty() })
+        val itemFilter = closed?.let { ItemFilter(checkNotNull(selection), closedFrom = it.from, closedTo = it.to) }
+        val items = workQueryService.departmentItems(loginId, itemFilter, filter.takeUnless { it.isEmpty() })
         val shown = items.take(MAX_ITEMS)
         val query = buildList {
             add("tab" to "department")
-            state?.let { add("fs" to it) }
-            dept?.let { add("fpd" to it.toString()) }
+            if (closed != null) {
+                add("d" to checkNotNull(selection).joinToString(","))
+                add("closedFrom" to closed.from.toString())
+                add("closedTo" to closed.to.toString())
+            }
+            if (statuses.isNotEmpty()) add("fs" to statuses.joinToString(","))
+            bucket?.let { add("fb" to it) }
+            if (closed == null) dept?.let { add("fpd" to it.toString()) }
             priority?.let { add("fpr" to it) }
             typeIds?.takeIf { it.isNotEmpty() }?.let { add("fty" to it.sorted().joinToString(",")) }
             a.text("requester")?.let { add("frq" to it) }
             a.text("keyword")?.let { add("fq" to it) }
-            period?.let { add("fpb" to PeriodBases.APPLIED); add("ffrom" to it.from.toString()); add("fto" to it.to.toString()) }
+            period?.let { add("fpb" to basis); add("ffrom" to it.from.toString()); add("fto" to it.to.toString()) }
         }.joinToString("&") { (k, v) -> "$k=${encode(v)}" }
         return AiToolResult(
             mapOf(
@@ -570,41 +639,31 @@ class AiTools(
             DeptPick.All -> null
         }
         val departments = dept?.let { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }
+        // "나"는 질문한 사람 (REQ-B04)
+        val me = name == ME
         val found = personnelRepository.findAll()
             .filter { it.active && it.departmentId in visible && (departments == null || it.departmentId in departments) }
-            .filter { (position == null || it.position == position) && (rank == null || it.rankCode == rank) && (name == null || it.name.contains(name)) }
+            .filter {
+                (position == null || it.position == position) && (rank == null || it.rankCode == rank) &&
+                    (name == null || if (me) it.id == actor.account.personnelId else it.name.contains(name))
+            }
             .sortedWith(compareBy({ AiLabels.path(actor.tree, it.departmentId) }, { it.name }))
         val shown = found.take(MAX_ITEMS)
         val detailed = found.size <= DETAIL_LIMIT
         val today = LocalDate.now(clock)
         val scope = actor.affiliationScope()
         val assigned = if (detailed) assignedWorkLookup.forPersonnel(actor, shown.filter { it.departmentId in scope }.mapNotNull { it.id }, today, today.plusYears(1)) else emptyMap()
-        val items = shown.map { p ->
-            buildMap<String, Any?> {
-                put("성명", p.name)
-                put("소속", AiLabels.path(actor.tree, p.departmentId))
-                put("직책", AiLabels.POSITIONS[p.position])
-                put("계급", AiLabels.RANKS[p.rankCode])
-                put("연락처", p.contact)
-                // 소속 범위 인원만 비고·추가 특성·배정된 업무(지금 끝나지 않은 계획, 볼 수 없는 업무 제목 가림) (REQ-B02 ⑤, REQ-402)
-                if (detailed && p.departmentId in scope) {
-                    put("비고", p.memo)
-                    put("추가 특성", attributeTexts(AttributeTargets.PERSONNEL, p.departmentId, p.attrValues))
-                    // 기간은 그 사람이 든 계획 칸 기간들 (칸이 여럿이면 이어 씀, G-148)
-                    put("배정된 업무", assigned[p.id].orEmpty().filter { !it.done }.map { w ->
-                        (if (w.viewable) w.title else "(볼 수 없는 업무)") + " " + w.periods.joinToString(", ") { listOf(it.startDate, it.endDate).distinct().joinToString(" ~ ") }
-                    })
-                }
-            }
-        }
+        val items = shown.map { p -> personItem(actor, p, detailed && p.departmentId in scope, assigned) }
         val conditions = buildList {
             add("기준: 조직도(사용 중인 인원)")
             add("부서: " + (dept?.let { AiLabels.path(actor.tree, it) + if (includeSub) "(하위 포함)" else "(하위 제외)" } ?: "전체"))
             position?.let { add("직책: ${AiLabels.POSITIONS[it]}") }
             rank?.let { add("계급: ${AiLabels.RANKS[it]}") }
-            name?.let { add("이름: '$it' 포함") }
+            name?.let { add(if (me) "이름: 나" else "이름: '$it' 포함") }
             add("단위: 명")
         }
+        // 이름으로 찾았는데 없으면(사용 중지된 인원 포함) 찾지 못했다고 답한다 (REQ-B04·B02)
+        if (name != null && found.isEmpty()) return notFound(conditions)
         val path = (dept ?: shown.singleOrNull()?.departmentId)?.let { id -> "조직도 ▸ " + AiLabels.path(actor.tree, id).replace(" ", " ▸ ") } ?: "조직도"
         val extra = buildMap<String, Any?> {
             if (name != null && found.size > 1) put("안내", "같은 이름이 여럿입니다. 소속으로 누구인지 다시 물을 것")
@@ -618,6 +677,51 @@ class AiTools(
                 val variant = if (detailed && p.departmentId in scope) AiVariants.DETAIL else AiVariants.NONE
                 AiSourceRef(AiRefTypes.PERSONNEL, checkNotNull(p.id), variant, label = p.name, link = "/department/org-chart")
             },
+        )
+    }
+
+    /** 인원 한 줄. detailed: 소속 범위 인원이라 비고·추가 특성·배정된 업무(지금 끝나지 않은 계획, 볼 수 없는 업무 제목 가림)까지 (REQ-B02 ⑤, REQ-402) */
+    private fun personItem(actor: Actor, p: kr.ictwork.org.Personnel, detailed: Boolean, assigned: Map<Long, List<kr.ictwork.work.AssignedWork>>): Map<String, Any?> = buildMap {
+        put("성명", p.name)
+        put("소속", AiLabels.path(actor.tree, p.departmentId))
+        put("직책", AiLabels.POSITIONS[p.position])
+        put("계급", AiLabels.RANKS[p.rankCode])
+        put("연락처", p.contact)
+        if (detailed) {
+            put("비고", p.memo)
+            put("추가 특성", attributeTexts(AttributeTargets.PERSONNEL, p.departmentId, p.attrValues))
+            // 기간은 그 사람이 든 계획 칸 기간들 (칸이 여럿이면 이어 씀, G-148)
+            put("배정된 업무", assigned[p.id].orEmpty().filter { !it.done }.map { w ->
+                (if (w.viewable) w.title else "(볼 수 없는 업무)") + " " + w.periods.joinToString(", ") { listOf(it.startDate, it.endDate).distinct().joinToString(" ~ ") }
+            })
+        }
+    }
+
+    // ───────────── 화면이 지금 보는 대상 (AI 업무지원 화면 맥락, slices/21) ─────────────
+
+    /** 지금 보는 장비 하나: 장비 목록 범위(조회 도구와 같은 판정)에 있을 때만 자세히. 없으면 null */
+    fun viewedEquipment(actor: Actor, id: Long): AiToolResult? {
+        val e = equipmentService.listed(actor, EquipmentListQuery()).firstOrNull { it.id == id } ?: return null
+        val v = equipmentService.views(actor, listOf(e)).single()
+        val conditions = listOf("기준: 지금 보는 장비")
+        return AiToolResult(
+            mapOf("기준" to "지금 보는 장비", "조건" to conditions, "개수" to 1, "목록" to listOf(equipmentItem(v, e, true))), conditions,
+            listOf(AiLink(e.displayName, "/department/equipment/$id")),
+            listOf(AiSourceRef(AiRefTypes.EQUIPMENT, id, label = e.displayName, link = "/department/equipment/$id")),
+        )
+    }
+
+    /** 지금 보는 인원 하나: 조직도에 보이는 사람(사용 중인 부서의 사용 중인 인원)만. 소속 범위면 비고·추가 특성·배정된 업무까지(DETAIL) */
+    fun viewedPerson(actor: Actor, id: Long): AiToolResult? {
+        val p = personnelRepository.findByIdOrNull(id)?.takeIf { it.active && actor.tree.find(it.departmentId)?.active == true } ?: return null
+        val detailed = p.departmentId in actor.affiliationScope()
+        val today = LocalDate.now(clock)
+        val assigned = if (detailed) assignedWorkLookup.forPersonnel(actor, listOf(id), today, today.plusYears(1)) else emptyMap()
+        val conditions = listOf("기준: 지금 보는 인원")
+        return AiToolResult(
+            mapOf("기준" to "지금 보는 인원", "조건" to conditions, "개수" to 1, "목록" to listOf(personItem(actor, p, detailed, assigned))), conditions,
+            listOf(AiLink("조직도", "/department/org-chart", "조직도 ▸ " + AiLabels.path(actor.tree, p.departmentId).replace(" ", " ▸ "))),
+            listOf(AiSourceRef(AiRefTypes.PERSONNEL, id, if (detailed) AiVariants.DETAIL else AiVariants.NONE, label = p.name, link = "/department/org-chart")),
         )
     }
 
@@ -645,10 +749,21 @@ class AiTools(
         val departments = dept?.let { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }
         val visible = directiveAccess.visibleDirectives(actor)
         val people = directiveAccess.namedPeople(visible.map { it.namedAccountId })
+        val me = named == ME
         val found = visible.filter { d ->
             (departments == null || d.departmentId in departments) &&
                 (period == null || (!d.directiveDate.isBefore(period.from) && !d.directiveDate.isAfter(period.to))) &&
-                (named == null || people[d.namedAccountId]?.name?.contains(named) == true)
+                (named == null || if (me) d.namedAccountId == actor.account.id else people[d.namedAccountId]?.name?.contains(named) == true)
+        }
+        // 이름이 맞는 명의자가 여럿이면 합쳐 세지 않고 후보(명의 부서와 함께)를 보이고 다시 묻는다 (REQ-B04)
+        if (named != null && !me) {
+            val byPerson = found.groupBy { it.namedAccountId }
+            if (byPerson.size > 1) {
+                val names = byPerson.map { (id, list) ->
+                    (people[id]?.label(AiLabels.RANKS) ?: "") + "(" + list.map { AiLabels.path(actor.tree, it.departmentId) }.distinct().joinToString(", ") + ")"
+                }
+                return candidatesResult("명의자", names)
+            }
         }
         val shown = found.take(MAX_ITEMS)
         // 3건 이하면 내용 전부, 넘으면 앞 100자 (설계 판단: 20건×1,000자를 넘기지 않게)
@@ -665,7 +780,7 @@ class AiTools(
         val conditions = buildList {
             add("기준: 기록 탭(볼 수 있는 지시사항)")
             add("명의 부서: " + (dept?.let { AiLabels.path(actor.tree, it) + if (includeSub) "(하위 포함)" else "(하위 제외)" } ?: "전체"))
-            named?.let { add("명의자: '$it' 포함") }
+            named?.let { add(if (me) "명의자: 나" else "명의자: '$it' 포함") }
             add(period?.let { "기간: ${it.from} ~ ${it.to}(지시 일자)" } ?: "기간: 전체 기간")
             add("단위: 건")
         }
@@ -701,16 +816,24 @@ class AiTools(
         val duty = a.text("duty")
         val person = a.text("person")
         val visible = dutyQuery.visible(actor)
-        val scope = visible.flatMap { chain(actor, it.departmentId) }.toSet()
+        // 범위: 볼 수 있는 근무표의 부서와 그 상위, 그리고 소속 범위. 범위 안인데 근무표가 없으면 범위 밖이 아니라 찾지 못한 것이다
+        val scope = visible.flatMap { chain(actor, it.departmentId) }.toSet() + actor.affiliationScope()
         val dept = when (val pick = pickDepartment(actor, a.text("department"), question, scope)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
             DeptPick.All -> null
         }
         val rosters = dept?.let { d -> (if (includeSub) actor.tree.selfAndDescendants(d) else setOf(d)).let { ids -> visible.filter { it.departmentId in ids } } } ?: visible
-        val me = person == "나"
-        val candidates = if (person == null || me) null else dutyQuery.people(person).mapNotNull { it.id }.toSet()
-        val many = AiToolResult(mapOf("오류" to "같은 이름이 여럿입니다. 소속으로 다시 물을 것"))
+        if (dept != null && rosters.isEmpty()) return notFound(listOf("부서: " + AiLabels.path(actor.tree, dept)))
+        val me = person == ME
+        val people = if (person == null || me) emptyList() else dutyQuery.people(person)
+        val candidates = if (person == null || me) null else people.mapNotNull { it.id }.toSet()
+        // 이름이 맞는 사람이 없으면 찾지 못했다고 답한다 (REQ-B04)
+        if (candidates != null && candidates.isEmpty()) return notFound(listOf("사람: $person"))
+        // 같은 이름이 여럿이면 후보(소속 경로와 함께)를 보이고 다시 묻는다 (REQ-B04)
+        val many = { ids: Collection<Long?> ->
+            candidatesResult("사람", people.filter { it.id in ids }.map { AiLabels.path(actor.tree, it.departmentId) + " " + it.name })
+        }
         val rows: List<DutyRow>
         val from: LocalDate
         val to: LocalDate
@@ -722,13 +845,14 @@ class AiTools(
             if (!DutyCalendarRules.inRange(from) || !DutyCalendarRules.inRange(to) || to.isBefore(from) || !to.isBefore(from.plusYears(1))) return retry("기간(1년 이하)")
             val found = dutyQuery.rows(rosters, from, to, duty, if (me) actor.account.personnelId else null)
                 .filter { candidates == null || it.personnel.id in candidates }
-            if (candidates != null && found.map { it.personnel.id }.distinct().size > 1) return many
+            val who = found.map { it.personnel.id }.distinct()
+            if (candidates != null && who.size > 1) return many(who)
             rows = found
         } else {
             if (person == null) return retry("누구의 다음 근무인지(사람)")
             val ids = if (me) listOf(actor.account.personnelId) else checkNotNull(candidates).toList()
             val found = ids.map { dutyQuery.next(rosters, it, today, duty) }.filter { it.isNotEmpty() }
-            if (found.size > 1) return many
+            if (found.size > 1) return many(found.map { it.first().personnel.id })
             rows = found.firstOrNull().orEmpty()
             from = rows.firstOrNull()?.date ?: today
             to = from
@@ -787,7 +911,8 @@ class AiTools(
         val a = Args(raw)
         val title = a.text("title")
         val boxes = ictBoxService.visibleBoxes(actor)
-        val scope = boxes.flatMap { chain(actor, it.departmentId) }.toSet()
+        // 범위: 볼 수 있는 박스의 부서와 그 상위, 그리고 소속 범위. 범위 안인데 박스가 없으면 찾지 못한 것이다
+        val scope = boxes.flatMap { chain(actor, it.departmentId) }.toSet() + actor.affiliationScope()
         val dept = when (val pick = pickDepartment(actor, a.text("department"), asked, scope)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
@@ -803,7 +928,7 @@ class AiTools(
             dept?.let { add("부서: " + AiLabels.path(actor.tree, it) + "(하위 포함)") }
             title?.let { add("박스 이름: '$it' 포함") }
         }
-        if (found.isEmpty() && title != null) return AiToolResult(mapOf("오류" to "${AiAnswerRules.NOT_FOUND}. $VERBATIM"), conditions)
+        if (found.isEmpty() && (title != null || dept != null)) return notFound(conditions)
         val shown = found.take(MAX_ITEMS)
         val detailed = found.size <= DETAIL_LIMIT
         val reader = ictBoxService.reader()
@@ -958,6 +1083,14 @@ class AiTools(
     /** 범위 밖: 세지 않는다 (REQ-B04, H-22) */
     private fun outOfScope() = AiToolResult(mapOf("오류" to "볼 수 있는 범위 밖이라 답할 수 없습니다. 이 문장 그대로 답할 것"), listOf("볼 수 있는 범위 밖"))
 
+    /** 이름·글자로 찾았는데 없음(볼 수 없는 것 포함): 체계가 정한 문장 그대로 답한다 (REQ-B04·B06) */
+    private fun notFound(conditions: List<String>) = AiToolResult(mapOf("오류" to "${AiAnswerRules.NOT_FOUND}. $VERBATIM"), conditions)
+
+    /** 같은 이름이 여럿: 합치지 않고 후보를 보이고 다시 묻는다 (REQ-B04) */
+    private fun candidatesResult(what: String, candidates: List<String>) = AiToolResult(
+        mapOf("오류" to "같은 이름이 여럿입니다(${what} 후보: ${candidates.joinToString(", ")}). 누구인지 소속을 붙여 다시 물어 주세요. $VERBATIM", "후보" to candidates),
+    )
+
     /** 칸에 맞지 않아 바로잡을 수 없는 값: 짐작하지 않고 다시 묻는다 (H-23) */
     private fun retry(what: String) = AiToolResult(mapOf("오류" to "$what 조건을 알아듣지 못했습니다. 짐작하지 말고 질문자에게 다시 물을 것"))
 
@@ -1005,6 +1138,15 @@ class AiTools(
     companion object {
         const val MAX_ITEMS = 20
         const val DETAIL_LIMIT = 3
+
+        /** 질문한 사람 자신 (REQ-B04) */
+        private const val ME = "나"
+
+        /** 상태 단추 묶음 표시 (REQ-117 G-115) */
+        private val BUCKET_LABELS = mapOf(
+            StatusBuckets.WAITING to "접수 대기(접수 결재 중 포함)",
+            StatusBuckets.ONGOING to "계획(접수·접수 뒤 결재 중 포함)",
+        )
 
         private val DAY_NAMES = mapOf(
             DayOfWeek.MONDAY to "월", DayOfWeek.TUESDAY to "화", DayOfWeek.WEDNESDAY to "수", DayOfWeek.THURSDAY to "목",
@@ -1098,7 +1240,7 @@ class AiTools(
       "state": {"type": "string", "enum": ["접수 대기", "결재중", "접수", "계획", "완료", "반려", "이송"]},
       "priority": {"type": "string", "enum": ["긴급", "일반"]},
       "work_type": {"type": "string", "description": "업무 유형 이름(전화·인터넷·인트라넷·전장망·화상회의 등)"},
-      "requester": {"type": "string", "description": "요청자 이름"},
+      "requester": {"type": "string", "description": "요청자 이름, 질문자 자신이면 '나'"},
       "keyword": {"type": "string", "description": "제목·장소·사유 글자"}},
       "required": ["mode", "basis"]}}},
   {"type": "function", "function": {
@@ -1110,7 +1252,7 @@ class AiTools(
       "include_sub": {"type": "boolean"},
       "position": {"type": "string", "enum": ["대대장", "중대장", "반장", "구성원"]},
       "rank": {"type": "string", "description": "계급(이병~대장, 군무원, 민간인)"},
-      "name": {"type": "string"}},
+      "name": {"type": "string", "description": "사람 이름, 질문자 자신이면 '나'"}},
       "required": ["mode"]}}},
   {"type": "function", "function": {
     "name": "query_directives",
@@ -1122,7 +1264,7 @@ class AiTools(
       "period": {"type": "string", "enum": ["TODAY", "THIS_WEEK", "THIS_MONTH", "LAST_WEEK", "LAST_MONTH", "CUSTOM"]},
       "date_from": {"type": "string", "description": "CUSTOM일 때 YYYY-MM-DD"},
       "date_to": {"type": "string", "description": "CUSTOM일 때 YYYY-MM-DD"},
-      "named": {"type": "string", "description": "명의자 이름"}},
+      "named": {"type": "string", "description": "명의자 이름, 질문자 자신이면 '나'"}},
       "required": ["mode"]}}},
   {"type": "function", "function": {
     "name": "query_duty",

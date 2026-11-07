@@ -1,5 +1,10 @@
+import { ApiError } from "@/api/client";
 import { type DocType, fetchRoutes, type RouteStep, type RouteView, saveRoute } from "@/api/work";
 import DataTable from "@/components/admin/DataTable";
+import { routeStepsOf, routeStepValues } from "@/components/admin/routeAssist";
+import AssistLabel, { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
+import type { AssistTarget } from "@/api/assist";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Panel } from "@/components/common/Panel";
 import PageMeta from "@/components/common/PageMeta";
@@ -29,7 +34,7 @@ export default function ApprovalRouteManage() {
   const [departmentId, setDepartmentId] = useState("");
   const [docType, setDocType] = useState<DocType>("SEND");
   const [steps, setSteps] = useState<RouteStep[]>([]);
-  const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+  const [message, setMessage] = useState<{ error: boolean; text: string; code?: string } | null>(null);
 
   const load = useCallback(
     () =>
@@ -50,13 +55,19 @@ export default function ApprovalRouteManage() {
     void load();
   }, [load]);
 
-  // 부서·종류를 고르면 그 부서 경로(없으면 빈 단계)를 편집한다
+  // AI 업무지원: 부서·종류를 골라 단계가 다시 채워지는 동안은 준비 전으로 둔다(다음 그리기에서 처음 값을 다시 찍음, slices/21 13.3 pick())
+  const [picking, setPicking] = useState(false);
+  // 부서·종류를 고르면 그 부서 경로(없으면 빈 단계)를 편집한다. 불러온 단계를 돌려준다
   const pick = (nextDepartment: string, nextType: DocType) => {
     const route = routes?.find((r) => String(r.departmentId) === nextDepartment && r.docType === nextType);
+    const loaded = route ? route.steps.map((s) => ({ ...s })) : [];
     setDepartmentId(nextDepartment);
     setDocType(nextType);
-    setSteps(route ? route.steps.map((s) => ({ ...s })) : []);
+    setSteps(loaded);
     setMessage(null);
+    setPicking(true);
+    setTimeout(() => setPicking(false), 0);
+    return loaded;
   };
 
   const save = async () => {
@@ -66,7 +77,7 @@ export default function ApprovalRouteManage() {
       await load();
       setMessage({ error: false, text: t("admin.routeSaved") });
     } catch (err) {
-      setMessage({ error: true, text: describeError(err) });
+      setMessage({ error: true, text: describeError(err), code: err instanceof ApiError ? err.code : "UNKNOWN" });
     }
   };
 
@@ -79,6 +90,49 @@ export default function ApprovalRouteManage() {
       return s;
     });
   const update = (index: number, patch: Partial<RouteStep>) => setSteps(normalize(steps.map((s, i) => (i === index ? { ...s, ...patch } : s))));
+  // AI 업무지원 (REQ-C07 결재 경로, slices/21 8장 route): 칸 dept·doc·steps[{position, kind}]. 부서·종류를 먼저 넣어(pick) 그 부서 경로를 불러온 뒤
+  // 받은 단계 줄로 바꾼다(stepOrder는 차례 + 1, 마지막 단계 구분은 화면 규칙대로). [저장]은 사용자가 누른다
+  const [assistTarget, setAssistTarget] = useState<AssistTarget>(null);
+  // AI가 같은 차례에 부서·종류와 단계를 주면, 새 (부서, 종류)의 경로를 다 불러온 뒤(picking이 끝난 뒤) 그 위에 단계를 넣는다(그동안 준비 전).
+  // 불러온 경로는 AI 단계보다 먼저 들어가 AI 단계를 덮지 않는다. 부서·종류가 그사이 또 바뀌면 버린다
+  const [pendingSteps, setPendingSteps] = useState<{ dept: string; doc: DocType; steps: RouteStep[] } | null>(null);
+  if (pendingSteps && (pendingSteps.dept !== departmentId || pendingSteps.doc !== docType)) setPendingSteps(null);
+  else if (pendingSteps && !picking) {
+    setPendingSteps(null);
+    setSteps(normalize(pendingSteps.steps));
+  }
+  useAssistPage(["route"], {
+    ready: routes !== null || failed,
+    open: (_screen, target) => {
+      if (target !== null && !departments.some((d) => String(d.id) === String(target))) return false;
+      setAssistTarget(target);
+      if (target !== null && String(target) !== departmentId) pick(String(target), docType);
+      return true;
+    },
+  });
+  const assist = useAssistAdapter("route", {
+    target: assistTarget,
+    ready: routes !== null && !picking && pendingSteps === null,
+    values: { dept: departmentId === "" ? null : Number(departmentId), doc: docType, steps: routeStepValues(steps) },
+    apply: (v) => {
+      const dept = typeof v.dept === "number" && departments.some((d) => d.id === v.dept) ? String(v.dept) : departmentId;
+      const doc = typeof v.doc === "string" && (DOC_TYPES as string[]).includes(v.doc) ? (v.doc as DocType) : docType;
+      const next = routeStepsOf(v.steps);
+      if (dept !== departmentId || doc !== docType) {
+        // 서버는 새 (부서, 종류)의 저장된 경로를 지금 단계로 보고 빠짐이 있으면 [바꾸기]로 돌린다. 불러온 경로를 화면이 스스로 넣은 값으로 돌려준다(aiApplied에는 그 위에 실제로 들어간 AI 단계만)
+        const loaded = pick(dept, doc);
+        if (next && dept !== "") setPendingSteps({ dept, doc, steps: next });
+        return { steps: routeStepValues(loaded) };
+      }
+      if (next && dept !== "") setSteps(normalize(next));
+    },
+    labels: { dept: t("admin.routeDepartment"), doc: t("admin.routeDocType"), steps: t("admin.routeSteps") },
+    format: (field, value) =>
+      field === "dept" && typeof value === "number" ? (paths.get(value) ?? null) : field === "doc" && typeof value === "string" ? t(`docTypes.${value}`) : null,
+    ids: { dept: "route-department", doc: "route-doc-type" },
+    lastError: message?.error ? { code: message.code ?? "", message: message.text, field: null } : null,
+  });
+
   const hasOwn = routes?.some((r) => String(r.departmentId) === departmentId && r.docType === docType) ?? false;
   const selectClass = "h-10 rounded-lg border border-gray-300 bg-transparent px-3 pe-8 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
@@ -120,9 +174,9 @@ export default function ApprovalRouteManage() {
         >
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="route-department" className={LABEL_CLASS}>
+              <AssistLabel assist={assist} field="dept" htmlFor="route-department" className={LABEL_CLASS}>
                 {t("admin.routeDepartment")}
-              </label>
+              </AssistLabel>
               <select id="route-department" value={departmentId} onChange={(e) => pick(e.target.value, docType)} className={INPUT_CLASS}>
                 <option value="" disabled>
                   {t("choose")}
@@ -135,9 +189,9 @@ export default function ApprovalRouteManage() {
               </select>
             </div>
             <div>
-              <label htmlFor="route-doc-type" className={LABEL_CLASS}>
+              <AssistLabel assist={assist} field="doc" htmlFor="route-doc-type" className={LABEL_CLASS}>
                 {t("admin.routeDocType")}
-              </label>
+              </AssistLabel>
               <select id="route-doc-type" value={docType} onChange={(e) => pick(departmentId, e.target.value as DocType)} className={INPUT_CLASS}>
                 {DOC_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -155,6 +209,7 @@ export default function ApprovalRouteManage() {
                   {t("admin.inherited")}
                 </p>
               )}
+              <AssistSources sources={assist.sources("steps")} className="mb-2" />
               <ol className="space-y-2">
                 {steps.map((step, index) => (
                   <li key={index} className="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 px-3 py-2 dark:bg-white/5">
@@ -173,6 +228,7 @@ export default function ApprovalRouteManage() {
                         </option>
                       ))}
                     </select>
+                    {assist.marked("steps", { position: step.position, kind: step.kind }) && <AiFilledMark />}
                     <button type="button" onClick={() => setSteps(normalize(steps.filter((_, i) => i !== index)))} className="ms-auto rounded-lg px-2 py-1 text-[13px] font-semibold text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-white/5">
                       {t("steps.remove")}
                     </button>

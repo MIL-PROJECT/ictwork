@@ -1,5 +1,6 @@
 "use client";
 
+import AssistButton from "@/components/assist/AssistButton";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
@@ -118,6 +119,8 @@ const AppHeader: React.FC = () => {
         >
           <div className="flex items-center gap-2 2xsm:gap-2.5">
             <HeaderPills />
+            {/* AI 업무지원 (REQ-C01): 모든 화면. 어느 메뉴에서든 패널을 열어 질문한다 */}
+            <AssistButton />
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}

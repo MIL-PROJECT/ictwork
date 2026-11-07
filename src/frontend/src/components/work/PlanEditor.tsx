@@ -1,4 +1,5 @@
 import { fetchOwnRoster, fetchRoster, type PlanView, type Roster } from "@/api/work";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import Checkbox from "@/components/form/input/Checkbox";
 import { PlusIcon } from "@/icons";
 import { useEffect, useState } from "react";
@@ -23,6 +24,7 @@ export default function PlanEditor({
   selectedNames,
   errorSlots,
   newSlotPeriod,
+  marked,
 }: {
   workItemId?: number; // 없으면 업무 등록: 내 소속 부서 명단
   paths: Map<number, string>;
@@ -33,6 +35,7 @@ export default function PlanEditor({
   selectedNames?: PlanView | null; // 지금 계획의 이름(명단에서 빠진 인원·장비를 보여 체크를 풀게 함, DEC-064)
   errorSlots?: number[]; // 서버 오류 rows의 칸 번호: 그 칸 카드를 펴고 빨갛게 (업무 등록만, J11)
   newSlotPeriod?: ScheduleValue; // 칸이 없을 때 새 칸의 기간 (업무 등록의 작업 일자)
+  marked?: (slot: SlotForm) => boolean; // AI 업무지원 "AI가 채움": 칸마다 (REQ-C03 ④)
 }) {
   const { t } = useTranslation("work");
   const [roster, setRoster] = useState<Roster | null>(null);
@@ -103,6 +106,7 @@ export default function PlanEditor({
         <ul className="space-y-3">
           {slots.map((slot, i) => (
             <li key={slot.key}>
+              {marked?.(slot) && <AiFilledMark className="ms-0 mb-1" />}
               <PlanSlotFields
                 index={i}
                 idPrefix={`${idPrefix}-s${slot.key}`}

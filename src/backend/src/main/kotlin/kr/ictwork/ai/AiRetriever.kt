@@ -5,6 +5,9 @@ import org.springframework.stereotype.Component
 /** 찾은 조각 하나: 모델에 넘길 글과 출처 */
 class AiFound(val ref: AiSourceRef, val header: String?, val text: String, val cosine: Double)
 
+/** 화면이 지금 보는 색인 대상: 이름과 조각 (AiRetriever.viewed) */
+class AiViewed(val title: String, val found: List<AiFound>)
+
 /**
  * 글 찾기 (REQ-B02·B03, slices/12 5.4·11.5). 읽기 트랜잭션 안에서 부른다(권한 판정이 DB를 읽음).
  * 1. 메모리 코사인 순위(모든 조각)와 FULLTEXT 상위 200을 RRF(k = 60)로 합친다
@@ -58,6 +61,22 @@ class AiRetriever(
                 cosineOf[id] ?: 0.0,
             )
         }
+    }
+
+    /**
+     * 화면이 지금 보는 대상 하나의 글 (AI 업무지원 화면 맥락, slices/21): 그 대상을 볼 수 있으면 이름과 앞 조각 PER_SOURCE개.
+     * 색인이 아직 끝나지 않았으면 조각 없이 이름만. 색인 대상이 없거나 볼 수 없으면 null
+     */
+    fun viewed(judge: AiSourceAccess.Judge, key: AiSourceKey): AiViewed? {
+        val source = sourceRepository.findBySourceTypeAndSourceIdAndVariant(key.type, key.id, key.variant) ?: return null
+        if (!judge.canUse(source.key, source.shareKey)) return null
+        if (source.status != AiIndexStatuses.DONE) return AiViewed(source.title, emptyList())
+        val ids = chunkRepository.findVectorsOf(checkNotNull(source.id)).map { it.id }.sorted().take(PER_SOURCE)
+        val header = judge.workHeader(source.key)
+        val found = chunkRepository.findAllById(ids).sortedBy { it.seq }.map {
+            AiFound(judge.ref(source.key, source.title, it.locator, source.shareKey), header, it.text, 0.0)
+        }
+        return AiViewed(source.title, found)
     }
 
     companion object {

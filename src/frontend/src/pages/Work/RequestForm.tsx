@@ -1,7 +1,35 @@
 import PreferredScheduleFields from "@/components/work/PreferredScheduleFields";
 import { exactRequestScheduleValid } from "@/components/work/requestSchedule";
 import { emptyPreference, preferencesValid, preferenceInputs, preferredMax, type PreferredDraft } from "@/components/work/preferredSchedule";
-import TypeRecommendations from "@/components/work/TypeRecommendations";
+import TypeRecommendations, { type TypeRecommendationsHandle } from "@/components/work/TypeRecommendations";
+import AssistLabel, { AiFilledMark } from "@/components/assist/AssistLabel";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
+import type { NextResult } from "@/context/AssistContext";
+import {
+  type AssistMode,
+  answerOf,
+  assistScreenOf,
+  formFieldLabels,
+  formInputIds,
+  formItemOf,
+  formsFieldValues,
+  formValueText,
+  isDate,
+  isTime,
+  itemFieldIds,
+  nextTargets,
+  nextStepRows,
+  pickIds,
+  planRow,
+  planSlotsOf,
+  preferenceDrafts,
+  preferenceRow,
+  preferenceRows,
+  RECEIVER_GROUPS,
+  serverFieldsOf,
+  targetsOf,
+  textOf,
+} from "@/components/work/requestAssist";
 import { ApiError } from "@/api/client";
 import { deleteTempFile, uploadFile } from "@/api/files";
 import { fetchProfile, type Profile } from "@/api/me";
@@ -33,8 +61,12 @@ import {
   SelectedList,
 } from "@/components/work/common";
 import {
+  emptySlot,
+  FINAL_KINDS,
   idParam,
   inactiveSteps,
+  MAX_SLOTS,
+  MIDDLE_KINDS,
   INPUT_CLASS,
   isNotFound,
   LABEL_CLASS,
@@ -99,6 +131,7 @@ import {
 import FormFill from "@/components/workform/FormFill";
 import {
   type FormDefinition,
+  type FormItem,
   normalize,
 } from "@/components/workform/questions";
 import { clip, cn } from "@/utils";
@@ -107,6 +140,7 @@ import {
   type FormEvent,
   type SetStateAction,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -173,6 +207,7 @@ export default function RequestForm({
   const { t } = useTranslation("work");
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("workform");
+  const { t: ts } = useTranslation("scope");
   const { id } = useParams();
   // 고쳐 다시 올리기(/work/requests/:id/edit): 번호가 잘못되면 서버를 부르지 않고 "찾을 수 없음"
   const editing = id !== undefined;
@@ -241,6 +276,13 @@ export default function RequestForm({
   const [sendDoc, setSendDoc] = useState<DocResponse | null>(null);
   // 결재자로 고를 수 있는 계정(사용 중 계정 전체): 받는 부서의 접수할 사람을 가린다. 읽기 전·실패면 null
   const [accounts, setAccounts] = useState<AccountOption[] | null>(null);
+  // AI 업무지원 (REQ-C03·C06, slices/21 12.6·12.9): 업무 추천 찾기 글, AI가 더한 받는 부서(칩 표시), 양식을 불러오기 전에 받은 양식 답, 마지막 오류의 구역
+  const [recommendQuery, setRecommendQuery] = useState("");
+  const recommendRef = useRef<TypeRecommendationsHandle>(null);
+  const [aiTargets, setAiTargets] = useState<number[]>([]);
+  const [pendingForms, setPendingForms] = useState<Record<string, unknown>>({});
+  const [failure, setFailure] = useState<{ code: string; section: string | null } | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const myAccountId = user?.accountId ?? null;
   const myName = user?.displayName ?? "";
   const activeAccounts = useActiveAccountIds();
@@ -248,7 +290,9 @@ export default function RequestForm({
 
   useEffect(() => {
     // 신청자 정보: 작성(다시 올리기 포함)하는 내 인원 정보 (G-4)
-    fetchProfile().then(setProfile, () => setProfile(null));
+    fetchProfile()
+      .then(setProfile, () => setProfile(null))
+      .finally(() => setProfileLoaded(true));
     fetchApprovalAccounts().then(setAccounts, () => setAccounts(null));
   }, []);
 
@@ -481,15 +525,18 @@ export default function RequestForm({
     const answered = removed.filter((id) =>
       fillHasAnswers(fills[fillKey(d, id)]),
     );
-    if (
-      answered.length > 0 &&
-      !window.confirm(
-        tw("request.removeTypeConfirm", {
-          name: answered.map((id) => typeName(d, id)).join(", "),
-        }),
+    if (answered.length > 0) {
+      // 확인 창을 열면 AI 채우기를 멈춘다 (REQ-C09). AI는 유형을 빼지 않아 이 창을 거치지 않는다(12.9)
+      assist.pause();
+      if (
+        !window.confirm(
+          tw("request.removeTypeConfirm", {
+            name: answered.map((id) => typeName(d, id)).join(", "),
+          }),
+        )
       )
-    )
-      return;
+        return;
+    }
     dropFills(removed.map((id) => fillKey(d, id)));
     setChosenTypes((prev) => ({ ...prev, [d]: ids }));
   };
@@ -624,16 +671,18 @@ export default function RequestForm({
         ? "request-steps"
         : null,
   ];
-  const goToStep = (next: number) => {
-    if (submitting) return;
+  // 단계 옮기기. 단계 검사에 걸리면 그 칸(구역) id를 돌려준다(AI 업무지원 [다음]의 결과, slices/21 12.6), 옮기면 null
+  const goToStep = (next: number): string | null => {
+    if (submitting) return null;
     if (next > flowStep) {
       const problem = flowProblems().slice(0, next).find(Boolean);
       if (problem) {
         setTried(true);
         if (stepForField(problem) === (intake ? 0 : 1)) setShowRequired(true);
         setError(t(`${intake ? "guidance.flow" : "flow"}.errors.${stepForField(problem)}`));
+        setFailure({ code: "VALIDATION", section: problem });
         focusField(problem);
-        return;
+        return problem;
       }
     }
     setError(null);
@@ -642,6 +691,7 @@ export default function RequestForm({
       id: "request-flow-heading",
       n: (prev?.n ?? 0) + 1,
     }));
+    return null;
   };
   useEffect(() => {
     if (!focusRequest) return;
@@ -687,6 +737,7 @@ export default function RequestForm({
         setTried(true);
         setShowRequired(true);
         setError(t(`${intake ? "guidance.flow" : "flow"}.errors.${stepForField(problem)}`));
+        setFailure({ code: "VALIDATION", section: problem });
         focusField(problem);
         return;
       }
@@ -696,6 +747,7 @@ export default function RequestForm({
         setTried(true);
         // 칸 밖 문제(올리는 중인 첨부·삭제된 항목)가 아니면 화면 순서로 첫 오류 칸으로. 양식 답도 틀렸으면 함께 표시
         const problem = uploading || stale ? null : firstProblem();
+        setFailure({ code: "VALIDATION", section: problem });
         if (formProblem()) setShowRequired(true);
         if (problem) focusField(problem);
       }
@@ -724,6 +776,7 @@ export default function RequestForm({
     if (answer) {
       const { form, problem } = answer;
       setShowRequired(true);
+      setFailure({ code: "VALIDATION", section: `request-form-${form.key.replace(":", "-")}` });
       setError(
         tw("request.answerProblem", {
           type: typeName(form.d, form.typeId),
@@ -812,6 +865,7 @@ export default function RequestForm({
       // 칸 오류로 거부되면 그 칸으로 (REQ-101). 지원 계획 칸 오류는 rows의 칸 번호로 그 칸 카드를 편다 (J11)
       const field =
         err instanceof ApiError ? SERVER_FIELDS[err.code] : undefined;
+      setFailure({ code: err instanceof ApiError ? err.code : "", section: field ?? null });
       if (field === "request-support" && err instanceof ApiError)
         setSupportErrorSlots(
           (err.rows ?? []).filter((n): n is number => typeof n === "number"),
@@ -823,31 +877,41 @@ export default function RequestForm({
 
   const add = (list: number[], set: (ids: number[]) => void, value: number) =>
     !list.includes(value) && set([...list, value]);
-  const addTarget = (d: number) => {
+  // 받는 부서 더하기: 그 부서의 유형 목록을 읽는다. AI가 여럿을 한 번에 더할 때도 같은 길(addTargets)
+  const addTargets = (ds: number[]) => {
     if (intake) setError(null);
-    if (targets.includes(d)) return;
-    setTargets([...targets, d]);
-    loadTypeOptions(d);
+    const fresh = ds.filter((d, i) => !targets.includes(d) && ds.indexOf(d) === i);
+    if (fresh.length === 0) return;
+    setTargets([...targets, ...fresh]);
+    fresh.forEach(loadTypeOptions);
   };
-  const departmentItems = (ids: number[], set: (ids: number[]) => void) =>
+  const addTarget = (d: number) => addTargets([d]);
+  // field: "AI가 채움"을 칩마다 보일 AI 업무지원 칸 id
+  const departmentItems = (ids: number[], set: (ids: number[]) => void, field?: string) =>
     ids.map((d) => ({
       key: `d-${d}`,
       label: paths.get(d) ?? t("register.inactiveItem"),
       onRemove: () => set(ids.filter((x) => x !== d)),
+      marked: field ? assist.marked(field, d) : undefined,
     }));
   // 받는 부서를 빼면 고른 유형도 빠진다. 고른 유형이 있으면 먼저 묻는다 (REQ-118 "빼면 경고")
   const targetItems = targets.map((d) => ({
     key: `d-${d}`,
     label: paths.get(d) ?? t("register.inactiveItem"),
+    marked: aiTargets.includes(d),
     onRemove: () => {
-      if (
-        (chosenTypes[d] ?? []).length > 0 &&
-        !window.confirm(
-          t("register.removeTargetConfirm", { name: paths.get(d) ?? "" }),
+      if ((chosenTypes[d] ?? []).length > 0) {
+        // 확인 창을 열면 AI 채우기를 멈춘다 (REQ-C09). AI는 받는 부서를 빼지 않아 이 창을 거치지 않는다(12.9)
+        assist.pause();
+        if (
+          !window.confirm(
+            t("register.removeTargetConfirm", { name: paths.get(d) ?? "" }),
+          )
         )
-      )
-        return;
+          return;
+      }
       setTargets(targets.filter((x) => x !== d));
+      setAiTargets((prev) => prev.filter((x) => x !== d));
       dropFills((chosenTypes[d] ?? []).map((id) => fillKey(d, id)));
       setChosenTypes((prev) =>
         Object.fromEntries(
@@ -863,10 +927,305 @@ export default function RequestForm({
     ]),
   );
 
+  // ── AI 업무지원 어댑터 (REQ-C03·C04·C06·C07·C09, slices/21 8장 request·register, 12.6 request.edit, 12.9, 13.3) ──
+  // 칸 id·값 모양은 서버 AssistScreens·AssistShapes와 같다(requestAssist.ts). 최종 단추([보내기]·[결재 올리기]·[다시 올리기])는 사용자가 누른다
+  const assistScreen = assistScreenOf(editing, register);
+  const assistMode: AssistMode = register ? "register" : intake ? "intake" : "legacy";
+  const assistValues: Record<string, unknown> = {
+    place,
+    // 내 인원 정보에 연락처가 있으면 그 값(서버는 그때 칸을 비워 둠)
+    contact: profile?.contact || applicantContact,
+    viewerDepartments,
+    viewerPeople,
+    steps: steps.map((s) => ({ kind: s.kind, accountId: s.accountId })),
+    ...formsFieldValues(forms.map((f) => ({ departmentId: f.d, typeId: f.typeId, definition: f.definition, answers: fills[f.key]?.answers ?? {} }))),
+    ...(assistMode === "intake"
+      ? {
+          ...(assistScreen === "request" ? { "recommend.query": recommendQuery, targets, chosenTypes } : {}),
+          detail: content,
+          preferences: preferenceRows(shownPreferences),
+          "schedule.startDate": schedule.startDate,
+          "schedule.startTime": schedule.startTime,
+          "schedule.endDate": schedule.endDate,
+          "schedule.endTime": schedule.endTime,
+        }
+      : { title, reason: content, start: schedule.startDate, end: schedule.endDate, assignees }),
+    ...(assistMode === "register"
+      ? {
+          types: registerTarget !== null ? (chosenTypes[registerTarget] ?? []) : [],
+          plan: support.slots.map(planRow),
+          priority,
+          origins,
+        }
+      : {}),
+  };
+  // 양식 질문 칸: 지금 보이는 양식에서 찾아 넣는다. 받는 부서·유형을 막 더해 양식이 아직 없으면 유형 목록을 읽은 뒤 넣는다(pendingForms)
+  const formTargetOf = (field: string) => {
+    for (const form of forms) {
+      const hit = formItemOf(field, form.d, form.typeId, form.definition);
+      if (hit) return { form, ...hit };
+    }
+    return null;
+  };
+  const applyFormValues = (entries: Record<string, unknown>) => {
+    const missing: Record<string, unknown> = {};
+    const found: { key: string; item: FormItem; row: string | null; value: unknown }[] = [];
+    for (const [field, value] of Object.entries(entries)) {
+      const hit = formTargetOf(field);
+      if (hit) found.push({ key: hit.form.key, item: hit.item, row: hit.row, value });
+      else missing[field] = value;
+    }
+    if (found.length > 0)
+      setFills((prev) => {
+        const next = { ...prev };
+        for (const f of found) {
+          const fill = next[f.key] ?? emptyFill();
+          const answer = answerOf(f.item, f.row, f.value, fill.answers[f.item.key]);
+          if (answer !== undefined) next[f.key] = { ...fill, answers: { ...fill.answers, [f.item.key]: answer } };
+        }
+        return next;
+      });
+    return missing;
+  };
+  const typesLoaded = typeTargets.every((d) => typeOptions[d] != null || typeErrors[d]);
+  // 유형 목록을 다 읽으면 기다리던 양식 답을 넣는다(없는 질문은 버림). 그리는 동안 상태 맞추기
+  if (typesLoaded && Object.keys(pendingForms).length > 0) {
+    setPendingForms({});
+    applyFormValues(pendingForms);
+  }
+  const accountLabel = (a: AccountOption) => `${a.name}${a.departmentId !== null ? ` (${paths.get(a.departmentId) ?? ""})` : ""}`;
+  // 받은 값을 칸 상태에 넣는다. 화면 검사(글자 수·날짜·후보)를 지킨다.
+  // 목록 칸은 서버가 최종 목록 전체를 보내므로 받은 목록으로 바꾼다(빼기는 서버가 [바꾸기] 제안으로 돌려 사용자가 확인한 뒤에만 온다, 사용자 결정 A). 확인 창 처리기는 거치지 않는다(12.9)
+  const applyAssist = (v: Record<string, unknown>) => {
+    if (typeof v["recommend.query"] === "string") recommendRef.current?.search(v["recommend.query"]);
+    const pairs =
+      assistScreen === "request"
+        ? nextTargets(v, { targets, chosen: chosenTypes }, (d) => receivers !== null && receivers.has(d))
+        : null;
+    if (pairs) {
+      // 받는 부서는 화면과 같이 접수할 사람이 있는 부서만 더하고, 더한 부서는 화면의 더하기(addTargets)와 같이 유형·양식을 읽는다
+      const added = pairs.targets.filter((d) => !targets.includes(d));
+      const removed = targets.filter((d) => !pairs.targets.includes(d));
+      // 빠지는 유형(빠지는 부서의 유형 포함)의 양식 답을 지운다
+      const droppedFills = targets.flatMap((d) => (chosenTypes[d] ?? []).filter((typeId) => !(pairs.chosen[d] ?? []).includes(typeId)).map((typeId) => fillKey(d, typeId)));
+      if (added.length > 0 || removed.length > 0) setTargets([...targets.filter((d) => !removed.includes(d)), ...added]);
+      if (added.length > 0) {
+        if (intake) setError(null);
+        added.forEach(loadTypeOptions);
+      }
+      setAiTargets((prev) => [...prev.filter((d) => !removed.includes(d)), ...added.filter((d) => !prev.includes(d))]);
+      if (droppedFills.length > 0) dropFills(droppedFills);
+      setChosenTypes(pairs.chosen);
+    }
+    const text = (field: string, max: number, set: (value: string) => void) => {
+      const value = textOf(v[field], max);
+      if (value !== null) set(value);
+    };
+    if (assistMode !== "intake") text("title", 100, setTitle);
+    text("place", 100, setPlace);
+    text(assistMode === "intake" ? "detail" : "reason", 2000, setContent);
+    if (!profile?.contact) text("contact", 30, setApplicantContact);
+    const day = (field: string, key: keyof ScheduleValue, check: (value: unknown) => value is string) => {
+      const value = v[field];
+      if (check(value)) setSchedule((prev) => ({ ...prev, [key]: value }));
+    };
+    if (assistMode === "intake") {
+      day("schedule.startDate", "startDate", isDate);
+      day("schedule.startTime", "startTime", isTime);
+      day("schedule.endDate", "endDate", isDate);
+      day("schedule.endTime", "endTime", isTime);
+      const drafts = preferenceDrafts(v.preferences);
+      if (drafts) setPreferences(drafts.length > 0 ? drafts : [emptyPreference()]);
+    } else {
+      day("start", "startDate", isDate);
+      day("end", "endDate", isDate);
+      const nextAssignees = pickIds(v.assignees, (p) => activePeople.has(p), 20, assignees);
+      if (nextAssignees) setAssignees(nextAssignees);
+    }
+    if ("viewerDepartments" in v || "viewerPeople" in v) {
+      // 둘을 합쳐 50개까지. 받지 않은 쪽은 지금 목록
+      const peopleGiven = Array.isArray(v.viewerPeople);
+      const departmentIds = pickIds(v.viewerDepartments, (d) => paths.has(d), 50 - (peopleGiven ? 0 : viewerPeople.length), viewerDepartments) ?? viewerDepartments;
+      setViewerDepartments(departmentIds);
+      setViewerPeople(pickIds(v.viewerPeople, (p) => activePeople.has(p), 50 - departmentIds.length, viewerPeople) ?? viewerPeople);
+    }
+    const stepList = v.steps;
+    if (Array.isArray(stepList))
+      setSteps((prev) => {
+        // 받은 줄로 바꾼다. 본인 첫 줄(기안자)은 남기고, 이미 있던 사람의 줄은 그 줄(key·이름)을 다시 쓴다(결재자 목록에 없거나 목록 읽기에 실패해도). 새 사람은 결재자 목록에 있을 때만
+        const rows = nextStepRows(stepList, prev, myAccountId, [...FINAL_KINDS, ...MIDDLE_KINDS], "APPROVE", (accountId, kind) => {
+          const account = (accounts ?? []).find((a) => a.accountId === accountId);
+          return account ? { key: newStepKey(), kind, accountId, name: accountLabel(account) } : null;
+        }, 10);
+        // 결재 경로 지정(StepsEditor)과 같은 규칙: 마지막 줄이 결재 급, 앞의 결재 급은 검토로
+        return normalizeSteps(rows);
+      });
+    if (assistMode === "register") {
+      // 업무 유형: 우리 부서 기준 목록에 있는 유형과 지금 고른 유형만, 받은 목록으로 바꾼다. 빠지는 유형의 양식 답은 지운다
+      const typeIds =
+        registerTarget !== null
+          ? pickIds(v.types, (typeId) => (typeOptions[registerTarget] ?? []).some((o) => o.typeId === typeId), Infinity, chosenTypes[registerTarget] ?? [])
+          : null;
+      if (registerTarget !== null && typeIds) {
+        const removedTypes = (chosenTypes[registerTarget] ?? []).filter((typeId) => !typeIds.includes(typeId));
+        if (removedTypes.length > 0) dropFills(removedTypes.map((typeId) => fillKey(registerTarget, typeId)));
+        setChosenTypes((prev) => ({ ...prev, [registerTarget]: typeIds }));
+      }
+      const slots = planSlotsOf(v.plan, MAX_SLOTS)?.map((s) => ({ ...emptySlot(), ...s }));
+      if (slots) {
+        setSupport((prev) => ({ ...prev, slots }));
+        setSupportErrorSlots([]);
+      }
+      if (v.priority === "NORMAL" || v.priority === "URGENT") setPriority(v.priority);
+      const nextOrigins = pickIds(v.origins, (d) => paths.has(d), 20, origins);
+      if (nextOrigins) setOrigins(nextOrigins);
+    }
+    const missing = applyFormValues(Object.fromEntries(Object.entries(v).filter(([field]) => field.startsWith("form."))));
+    if (Object.keys(missing).length > 0) setPendingForms((prev) => ({ ...prev, ...missing }));
+  };
+  // 준비: 요청·인원 정보·조직·결재 경로(본인 첫 줄)·받는 부서의 유형 목록을 읽고 기다리던 양식 답을 넣은 뒤. 받는 부서를 더하면 다시 준비가 된다(baseline 다시 찍기, 13.3)
+  const assistReady =
+    loadedEdit &&
+    !notEditable &&
+    departments.length > 0 &&
+    personnel.length > 0 &&
+    profileLoaded &&
+    (myAccountId === null || steps[0]?.accountId === myAccountId) &&
+    (assistScreen !== "request" || receivers !== null) &&
+    typesLoaded &&
+    Object.keys(pendingForms).length === 0;
+  const formProblemField = () => {
+    const found = formProblem();
+    const item = found?.problem.field ? found.form.definition.sections.flatMap((s) => s.items).find((i) => i.key === found.problem.field) : undefined;
+    return found && item ? (itemFieldIds(found.form.d, found.form.typeId, item)[0] ?? null) : null;
+  };
+  const problemFields = (section: string) =>
+    serverFieldsOf(section, assistMode, { screen: assistScreen, exact: exactRequired, form: section.startsWith("request-form") ? formProblemField() : null });
+  const assistLabels: Record<string, string> = {
+    "recommend.query": t("recommend.issue"),
+    targets: t("register.targets"),
+    types: t("register.type"),
+    title: t("register.requestTitle"),
+    place: t(intake ? "intake.place" : "register.place"),
+    detail: t("intake.details"),
+    reason: t("register.content"),
+    contact: t("applicant.contact"),
+    assignees: t("register.assignees"),
+    start: t("schedule.startDate"),
+    end: t("schedule.endDate"),
+    preferences: t("intake.date"),
+    "schedule.startDate": t("schedule.startDate"),
+    "schedule.startTime": t("guidance.startTime"),
+    "schedule.endDate": t("schedule.endDate"),
+    "schedule.endTime": t("guidance.endTime"),
+    viewerDepartments: `${t("register.viewers")} (${ts("departments")})`,
+    viewerPeople: `${t("register.viewers")} (${ts("people")})`,
+    plan: t("plan.support"),
+    priority: t("priority.label"),
+    origins: t("register.origins"),
+    steps: t("steps.title"),
+    ...forms.reduce<Record<string, string>>((acc, f) => ({ ...acc, ...formFieldLabels(f.d, f.typeId, f.definition, typeName(f.d, f.typeId)) }), {}),
+  };
+  // 패널 [바꾸기]에 보일 값 글: id를 이름으로
+  const assistFormat = (field: string, value: unknown): string | null => {
+    const names = (ids: unknown, name: (id: number) => string | undefined) => (Array.isArray(ids) ? ids.map((x) => name(Number(x)) ?? String(x)).join(", ") : null);
+    if (field === "targets") {
+      const picked = targetsOf({ targets: value });
+      if (!picked) return null;
+      return [...new Set([...picked.targets, ...Object.keys(picked.chosen).map(Number)])]
+        .map((d) => [paths.get(d) ?? String(d), ...(picked.chosen[d] ?? []).map((typeId) => typeName(d, typeId))].filter(Boolean).join(" · "))
+        .join(", ");
+    }
+    if (field === "viewerDepartments" || field === "origins") return names(value, (d) => paths.get(d));
+    if (field === "viewerPeople" || field === "assignees") return names(value, (p) => personName.get(p));
+    if (field === "steps" && Array.isArray(value))
+      return value
+        .map((raw) => {
+          const row = (typeof raw === "object" && raw !== null ? raw : {}) as { kind?: unknown; accountId?: unknown };
+          const account = (accounts ?? []).find((a) => a.accountId === row.accountId);
+          return `${account ? accountLabel(account) : String(row.accountId ?? "")}${typeof row.kind === "string" ? ` (${t(`stepKinds.${row.kind}`)})` : ""}`;
+        })
+        .join(" → ");
+    if (field === "types" && registerTarget !== null) return names(value, (typeId) => typeName(registerTarget, typeId) || undefined);
+    if (field === "priority" && typeof value === "string") return t(`priority.${value}`);
+    const hit = field.startsWith("form.") ? formTargetOf(field) : null;
+    return hit ? formValueText(hit.item, value) : null;
+  };
+  // [다음] (REQ-C03 ⑥, 12.6): 값이 화면에 들어가고 더한 받는 부서의 유형·양식을 다 읽은 뒤(준비) 화면의 단계 검사로 넘긴다
+  const assistNext = useRef<() => NextResult>(() => ({ ok: true }));
+  const assistReadyNow = useRef(false);
+  const assistWaiting = useRef<(() => void)[]>([]);
+  useEffect(() => {
+    assistReadyNow.current = assistReady;
+    assistNext.current = () => {
+      if (flowStep >= (intake ? 1 : 3)) return { ok: true };
+      const problem = goToStep(flowStep + 1);
+      return problem === null ? { ok: true } : { ok: false, fields: problemFields(problem) };
+    };
+    if (!assistReady || assistWaiting.current.length === 0) return;
+    const waiting = assistWaiting.current;
+    assistWaiting.current = [];
+    waiting.forEach((run) => run());
+  });
+  // 페이지 어댑터: 이 화면이 곧 채울 창이다(다른 창·탭을 열 것이 없음). 다시 올리기는 주소의 요청이 대상
+  useAssistPage(["request", "request.edit", "register"], {
+    ready: loadedEdit,
+    open: (screen, target) => screen === assistScreen && (screen !== "request.edit" || String(target) === String(editId)),
+  });
+  const assist = useAssistAdapter(assistScreen, {
+    enabled: loadedEdit && !notEditable,
+    target: editing ? editId : null,
+    ready: assistReady,
+    values: assistValues,
+    apply: applyAssist,
+    // 받는 부서 targets·chosenTypes는 한 칸처럼 비교하고 [바꾸기]도 targets 하나로 낸다(검토 A5)
+    groups: assistScreen === "request" ? RECEIVER_GROUPS : undefined,
+    labels: assistLabels,
+    format: assistFormat,
+    ids: {
+      "recommend.query": "request-department-issue",
+      title: "request-title",
+      place: "request-place",
+      [assistMode === "intake" ? "detail" : "reason"]: "request-content",
+      contact: "request-contact",
+      start: "request-schedule-startDate",
+      end: "request-schedule-endDate",
+      "schedule.startDate": "requested-exact-startDate",
+      "schedule.startTime": "requested-exact-startTime",
+      "schedule.endDate": "requested-exact-endDate",
+      "schedule.endTime": "requested-exact-endTime",
+      preferences: ["", "-2", "-3"].flatMap((n) => [`request-preference-date${n}`, `request-preference-time${n}`]),
+      ...forms.reduce<Record<string, string>>((acc, f) => ({ ...acc, ...formInputIds(f.d, f.typeId, f.definition, `form-${f.key.replace(":", "-")}`) }), {}),
+    },
+    // 양식 질문 칸을 정하는 받는 부서·유형 짝 (서버 AssistFields.pairsOf 모양), 업무 등록은 우리 부서의 고른 유형
+    context:
+      assistScreen === "request"
+        ? { targets: targets.flatMap((d) => (chosenTypes[d] ?? []).map((typeId) => ({ departmentId: d, typeId }))) }
+        : assistMode === "register" && registerTarget !== null
+          ? { types: chosenTypes[registerTarget] ?? [] }
+          : undefined,
+    lastError: error ? { code: failure?.code ?? "", message: error, field: failure?.section ? (problemFields(failure.section)[0] ?? null) : null } : null,
+    next:
+      assistScreen === "request"
+        ? () =>
+            new Promise<NextResult>((resolve) => {
+              const run = () => resolve(assistNext.current());
+              if (assistReadyNow.current) run();
+              else assistWaiting.current.push(run);
+            })
+        : undefined,
+  });
+  const formMarked = (form: { d: number; typeId: number; definition: FormDefinition }, key: string) => {
+    const item = form.definition.sections.flatMap((s) => s.items).find((i) => i.key === key);
+    return item !== undefined && itemFieldIds(form.d, form.typeId, item).some((field) => assist.marked(field));
+  };
+  const stepMarked = (row: StepRow) => assist.marked("steps", { kind: row.kind, accountId: row.accountId });
+
   const assigneeItems = assignees.map((p) => ({
     key: `a-${p}`,
     label: personName.get(p) ?? String(p),
     onRemove: () => setAssignees(assignees.filter((x) => x !== p)),
+    marked: assist.marked("assignees", p),
   }));
 
   const applicantSection = (
@@ -890,14 +1249,17 @@ export default function RequestForm({
             {profile?.contact ? (
               profile.contact
             ) : (
-              <input
-                id="request-contact"
-                aria-label={t("applicant.contactInput")}
-                value={applicantContact}
-                onChange={(e) => setApplicantContact(clip(e, 30))}
-                placeholder={t("applicant.contactPlaceholder")}
-                className={INPUT_CLASS}
-              />
+              <>
+                <input
+                  id="request-contact"
+                  aria-label={t("applicant.contactInput")}
+                  value={applicantContact}
+                  onChange={(e) => setApplicantContact(clip(e, 30))}
+                  placeholder={t("applicant.contactPlaceholder")}
+                  className={INPUT_CLASS}
+                />
+                {assist.marked("contact") && <AiFilledMark />}
+              </>
             )}
           </InfoRow>
           <InfoRow label={t("applicant.sentAt")}>
@@ -927,7 +1289,7 @@ export default function RequestForm({
           title={t("register.targets")}
         >
           {/* 추천 유형을 고르면 그 유형을 만든 부서가 받는 부서로 들어가고 그 유형이 함께 골라진다 */}
-          <TypeRecommendations receivers={receivers} chosen={chosenTypes} onSelect={(departmentId, typeId, issue) => { addTarget(departmentId); setChosenTypes((prev) => ((prev[departmentId] ?? []).includes(typeId) ? prev : { ...prev, [departmentId]: [...(prev[departmentId] ?? []), typeId] })); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
+          <TypeRecommendations ref={recommendRef} onQueryChange={setRecommendQuery} marked={assist.marked("recommend.query")} receivers={receivers} chosen={chosenTypes} onSelect={(departmentId, typeId, issue) => { addTarget(departmentId); setChosenTypes((prev) => ((prev[departmentId] ?? []).includes(typeId) ? prev : { ...prev, [departmentId]: [...(prev[departmentId] ?? []), typeId] })); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
           <RequestDisclosure title={t("recommend.manual")} open={manualOpen} onOpenChange={setManualOpen}>
           <div id="request-manual-departments" tabIndex={-1}>
           <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
@@ -983,6 +1345,7 @@ export default function RequestForm({
                     </button>
                   </p>
                 )}
+                {register && (chosenTypes[d] ?? []).some((typeId) => assist.marked("types", typeId)) && <AiFilledMark className="ms-0 mb-2" />}
                 <TypePicker
                   options={typeOptions[d] == null ? null : intake ? typeOptions[d].filter((option) => option.departmentId === d) : typeOptions[d]}
                   selected={chosenTypes[d] ?? []}
@@ -1023,10 +1386,10 @@ export default function RequestForm({
       <Section icon={<DocsIcon />} title={t("register.fields")}>
         <div className="space-y-4">
           <div>
-            <label htmlFor="request-title" className={LABEL_CLASS}>
+            <AssistLabel assist={assist} field="title" htmlFor="request-title" className={LABEL_CLASS}>
               {t("register.requestTitle")}{" "}
               <span className="text-error-500">*</span>
-            </label>
+            </AssistLabel>
             <input
               id="request-title"
               value={title}
@@ -1039,9 +1402,9 @@ export default function RequestForm({
             />
           </div>
           <div>
-            <label htmlFor="request-place" className={LABEL_CLASS}>
+            <AssistLabel assist={assist} field="place" htmlFor="request-place" className={LABEL_CLASS}>
               {t("register.place")} <span className="text-error-500">*</span>
-            </label>
+            </AssistLabel>
             <input
               id="request-place"
               value={place}
@@ -1054,9 +1417,9 @@ export default function RequestForm({
             />
           </div>
           <div>
-            <label htmlFor="request-content" className={LABEL_CLASS}>
+            <AssistLabel assist={assist} field="reason" htmlFor="request-content" className={LABEL_CLASS}>
               {t("register.content")} <span className="text-error-500">*</span>
-            </label>
+            </AssistLabel>
             <textarea
               id="request-content"
               rows={6}
@@ -1088,6 +1451,7 @@ export default function RequestForm({
           idPrefix="request-schedule"
           value={schedule}
           onChange={(patch) => setSchedule({ ...schedule, ...patch })}
+          marked={(key) => (key === "startDate" ? assist.marked("start") : key === "endDate" && assist.marked("end"))}
         />
       </Section>
     </>
@@ -1140,6 +1504,7 @@ export default function RequestForm({
                       idPrefix={`form-${form.key.replace(":", "-")}`}
                       upload={(file) => uploadFile("FORM_ANSWER", file)}
                       showRequired={showRequired}
+                      marked={(key) => formMarked(form, key)}
                     />
                   </>
                 ) : (
@@ -1157,6 +1522,7 @@ export default function RequestForm({
                       idPrefix={`form-${form.key.replace(":", "-")}`}
                       upload={(file) => uploadFile("FORM_ANSWER", file)}
                       showRequired={showRequired}
+                      marked={(key) => formMarked(form, key)}
                     />
                   </RequestDisclosure>
                 )}
@@ -1165,16 +1531,16 @@ export default function RequestForm({
           </div>
           {intake && <div className="mt-5 space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
             <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t("intake.context")}</p>
-            <div><label htmlFor="request-place" className={LABEL_CLASS}>{t("intake.place")} <span className="text-error-500">*</span></label><input id="request-place" value={place} onChange={(event) => setPlace(clip(event, 100))} {...invalid(place)} className={INPUT_CLASS} /></div>
-            <div><label htmlFor="request-content" className={LABEL_CLASS}>{t("intake.details")} <span className="text-error-500">*</span></label><textarea id="request-content" rows={4} value={content} onChange={(event) => setContent(clip(event, 2000))} {...invalid(content)} className={TEXTAREA_CLASS} /></div>
+            <div><AssistLabel assist={assist} field="place" htmlFor="request-place" className={LABEL_CLASS}>{t("intake.place")} <span className="text-error-500">*</span></AssistLabel><input id="request-place" value={place} onChange={(event) => setPlace(clip(event, 100))} {...invalid(place)} className={INPUT_CLASS} /></div>
+            <div><AssistLabel assist={assist} field="detail" htmlFor="request-content" className={LABEL_CLASS}>{t("intake.details")} <span className="text-error-500">*</span></AssistLabel><textarea id="request-content" rows={4} value={content} onChange={(event) => setContent(clip(event, 2000))} {...invalid(content)} className={TEXTAREA_CLASS} /></div>
           </div>}
           {intake && <div id="request-schedule-section" className="mt-5 space-y-3">
             {exactRequired ? <div className="space-y-3 rounded-xl border border-brand-200 p-4 dark:border-brand-800">
               <h3 className="font-semibold text-gray-900 dark:text-white">{t("guidance.exactTitle")}</h3>
               <p className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
-              <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} />
+              <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} marked={(key) => assist.marked(`schedule.${key}`)} />
             </div> : maxPreferences > 0 && <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
-              <PreferredScheduleFields values={shownPreferences} max={maxPreferences} onChange={setPreferences} invalid={tried && !scheduleReady} />
+              <PreferredScheduleFields values={shownPreferences} max={maxPreferences} onChange={setPreferences} invalid={tried && !scheduleReady} marked={(index) => assist.marked("preferences", preferenceRow(shownPreferences[index]))} />
             </RequestDisclosure>}
           </div>}
         </Section>
@@ -1209,10 +1575,11 @@ export default function RequestForm({
             <SelectedList
               title={t("register.viewers")}
               items={[
-                ...departmentItems(viewerDepartments, setViewerDepartments),
+                ...departmentItems(viewerDepartments, setViewerDepartments, "viewerDepartments"),
                 ...viewerPeople.map((p) => ({
                   key: `p-${p}`,
                   label: personName.get(p) ?? String(p),
+                  marked: assist.marked("viewerPeople", p),
                   onRemove: () =>
                     setViewerPeople(viewerPeople.filter((x) => x !== p)),
                 })),
@@ -1237,10 +1604,11 @@ export default function RequestForm({
             <SelectedList
               title={t("register.viewers")}
               items={[
-                ...departmentItems(viewerDepartments, setViewerDepartments),
+                ...departmentItems(viewerDepartments, setViewerDepartments, "viewerDepartments"),
                 ...viewerPeople.map((p) => ({
                   key: `p-${p}`,
                   label: personName.get(p) ?? String(p),
+                  marked: assist.marked("viewerPeople", p),
                   onRemove: () => setViewerPeople(viewerPeople.filter((x) => x !== p)),
                 })),
               ]}
@@ -1279,10 +1647,11 @@ export default function RequestForm({
             <SelectedList
               title={t("register.viewers")}
               items={[
-                ...departmentItems(viewerDepartments, setViewerDepartments),
+                ...departmentItems(viewerDepartments, setViewerDepartments, "viewerDepartments"),
                 ...viewerPeople.map((p) => ({
                   key: `p-${p}`,
                   label: personName.get(p) ?? String(p),
+                  marked: assist.marked("viewerPeople", p),
                   onRemove: () =>
                     setViewerPeople(viewerPeople.filter((x) => x !== p)),
                 })),
@@ -1319,6 +1688,7 @@ export default function RequestForm({
               errorSlots={supportErrorSlots}
               selectedNames={sendDoc?.proposal}
               newSlotPeriod={schedule}
+              marked={(slot) => assist.marked("plan", planRow(slot))}
             />
           </Section>
           <Section
@@ -1331,6 +1701,7 @@ export default function RequestForm({
               value={priority}
               onChange={setPriority}
             />
+            {assist.marked("priority") && <AiFilledMark className="ms-0 mt-2" />}
           </Section>
           <Section
             id="request-origins"
@@ -1347,7 +1718,7 @@ export default function RequestForm({
             />
             <SelectedList
               title={t("register.origins")}
-              items={departmentItems(origins, setOrigins)}
+              items={departmentItems(origins, setOrigins, "origins")}
               emptyText={t("register.originsEmpty")}
             />
           </Section>
@@ -1370,6 +1741,7 @@ export default function RequestForm({
               rows={steps}
               onChange={setSteps}
               showTitle={false}
+              marked={stepMarked}
             />
           </Section>{" "}
         </>
@@ -1390,6 +1762,7 @@ export default function RequestForm({
                 rows={steps}
                 onChange={setSteps}
                 showTitle={false}
+                marked={stepMarked}
               />
             </RequestDisclosure>
           </Section>{" "}

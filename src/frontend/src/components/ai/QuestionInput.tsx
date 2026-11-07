@@ -9,9 +9,11 @@ const countChars = (text: string) => Array.from(text).length;
 
 /**
  * 질문 입력 (REQ-B01·B08, slices/12 6.3): 1~1,000자와 글자 수, Enter 보내기·Shift+Enter 줄바꿈.
- * 답을 받는 동안 보내기는 막고 멈춤(차례를 기다리는 중이면 앞에 기다리는 사람 수와 취소)을 보인다
+ * 답을 받는 동안 보내기는 막고 멈춤(차례를 기다리는 중이면 앞에 기다리는 사람 수와 취소)을 보인다.
+ * idPrefix: 한 화면에 둘이 있을 때(AI 질의응답 화면과 업무지원 패널) 칸 id가 겹치지 않게
+ * disabled: AI를 끈 서버의 업무지원 패널처럼 입력·보내기를 막을 때 (REQ-C10)
  */
-export default function QuestionInput({ value, onChange, onSubmit, busy, busyHere, onStop, inputRef }: {
+export default function QuestionInput({ value, onChange, onSubmit, busy, busyHere, onStop, inputRef, idPrefix = "ai-question", disabled = false }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -19,10 +21,12 @@ export default function QuestionInput({ value, onChange, onSubmit, busy, busyHer
   busyHere: boolean; // 받는 중인 질문이 지금 보는 대화의 것
   onStop: () => void;
   inputRef: RefObject<HTMLTextAreaElement | null>;
+  idPrefix?: string;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation("ai");
   const length = countChars(value.trim());
-  const canSend = !busy && length > 0 && length <= MAX_QUESTION;
+  const canSend = !disabled && !busy && length > 0 && length <= MAX_QUESTION;
   const waiting = busy?.phase === "queued" || busy?.phase === "sending";
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -53,25 +57,26 @@ export default function QuestionInput({ value, onChange, onSubmit, busy, busyHer
       // OMNIS 대화상자 바닥처럼 옅은 띠 위에 입력 칸
       className="border-t border-gray-100 bg-gray-50 px-[22px] py-4 dark:border-gray-800 dark:bg-white/[0.02]"
     >
-      <label htmlFor="ai-question" className="sr-only">
+      <label htmlFor={idPrefix} className="sr-only">
         {t("input.label")}
       </label>
       <textarea
         ref={inputRef}
-        id="ai-question"
+        id={idPrefix}
         rows={3}
         value={value}
         onChange={(e) => onChange(clip(e, MAX_QUESTION))}
         onKeyDown={onKeyDown}
+        disabled={disabled}
         placeholder={t("input.placeholder")}
-        aria-describedby="ai-question-help ai-question-count"
-        className="w-full resize-y rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+        aria-describedby={`${idPrefix}-help ${idPrefix}-count`}
+        className="w-full resize-y rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:bg-white/5"
       />
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p id="ai-question-help" className="text-theme-xs text-gray-500 dark:text-gray-400">
+        <p id={`${idPrefix}-help`} className="text-theme-xs text-gray-500 dark:text-gray-400">
           {t("input.help")}
         </p>
-        <p id="ai-question-count" className="text-theme-xs text-gray-500 tabular-nums dark:text-gray-400">
+        <p id={`${idPrefix}-count`} className="text-theme-xs text-gray-500 tabular-nums dark:text-gray-400">
           {t("input.count", { count: countChars(value).toLocaleString() })}
         </p>
         <div className="ms-auto flex flex-wrap items-center justify-end gap-2">

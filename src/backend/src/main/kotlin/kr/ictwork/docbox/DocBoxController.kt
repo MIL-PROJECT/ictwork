@@ -44,6 +44,10 @@ class DocBoxController(private val service: DocBoxService, private val bodyWrite
     fun folder(principal: Principal, @PathVariable deptId: Long, @RequestParam(required = false) folderId: Long?) =
         service.folder(principal.name, deptId, folderId)
 
+    /** 폴더 트리 (AI 업무지원 옮길 곳 펼치기, slices/21 13.8) */
+    @GetMapping("/doc-boxes/{deptId}/folder-tree")
+    fun folderTree(principal: Principal, @PathVariable deptId: Long) = service.folderTree(principal.name, deptId)
+
     @PostMapping("/doc-boxes/{deptId}/folders")
     fun createFolder(principal: Principal, @PathVariable deptId: Long, @RequestBody body: DocFolderRequest) =
         ResponseEntity.status(HttpStatus.CREATED).body(service.createFolder(principal.name, deptId, body))

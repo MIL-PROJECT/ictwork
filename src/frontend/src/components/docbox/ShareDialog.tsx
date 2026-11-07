@@ -1,6 +1,7 @@
 import { addDocShares, type DocNodeView, type DocShareView, fetchDocShares, removeDocShare } from "@/api/docbox";
 import type { Department, PersonnelItem } from "@/api/org";
 import { RowButton } from "@/components/admin/DataTable";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import OrgPicker from "@/components/work/OrgPicker";
@@ -22,6 +23,8 @@ export default function ShareDialog({ node, onClose }: { node: DocNodeView; onCl
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // AI 업무지원 (REQ-C07 문서함 공유, slices/21 12.6): 더하기·빼기는 바로 저장되므로 창만 열고 칸은 넣지 않는다(서버가 단추 위치를 안내)
+  useAssistAdapter("docbox.share", { target: node.id, ready: true, values: {}, apply: () => undefined });
 
   useEffect(() => {
     let cancelled = false;

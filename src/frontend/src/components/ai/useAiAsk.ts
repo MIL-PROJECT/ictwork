@@ -1,5 +1,6 @@
 import { ApiError } from "@/api/client";
 import { type AiLink, type AiMessage, type AiSource, postQuestion } from "@/api/ai";
+import { type AskExtra, type AssistFill, type AssistOption, type ChatExtra, parseFill, parseOptions } from "@/api/assist";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseData, readEventStream } from "./sse";
 
@@ -24,11 +25,15 @@ export interface AskError {
 export interface AskResult {
   /** 흐름이 열리기 전에 거절됨(409·400·503·404): 질문이 저장되지 않았다 */
   rejected: boolean;
-  /** 답을 쓰기 전(차례를 기다리는 중)에 멈춤: 서버는 답을 저장하지 않고 질문도 지운다 (slices/12 12.6) */
+  /** 받은 글 없이(차례를 기다리는 중, 첫 글 전) 멈춤: 서버는 답을 저장하지 않고 질문도 지운다 (slices/12 12.6) */
   cancelled: boolean;
   /** 답(완료·멈춤·시간 넘김·실패). 답이 없으면 null */
   answer: AiMessage | null;
   error: AskError | null;
+  /** AI 업무지원 제안 단추(proposal 이벤트, slices/21 13.1) */
+  proposal: AssistOption[] | null;
+  /** 채우기 결과(fill 이벤트). 멈춘 차례면 받았어도 null(그 차례 결과는 넣지 않음, REQ-C09) */
+  fill: AssistFill | null;
 }
 
 let localId = 0;
@@ -55,8 +60,12 @@ export function useAiAsk() {
   // 화면을 떠나면 받던 답을 멈춘다(서버는 받은 데까지 STOPPED로 저장)
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const ask = useCallback(async (conversationId: number, question: string): Promise<AskResult> => {
-    if (controllerRef.current) return { rejected: true, cancelled: false, answer: null, error: { code: "AI_BUSY", message: "" } };
+  // extra: AI 업무지원 채우기 차례의 몸(mode=fill …). 채우기 차례는 멈춰도 서버가 질문을 남기고 "멈췄습니다" 답을 저장한다 (slices/21 13.6)
+  // fill 이벤트는 받아 두기만 하고, done을 받은 결과(AskResult.fill)로 돌려준다. 멈춘 차례의 fill은 버린다(REQ-C09, slices/21 13.1)
+  const ask = useCallback(async (conversationId: number, question: string, extra?: AskExtra | ChatExtra): Promise<AskResult> => {
+    const none = { proposal: null, fill: null };
+    if (controllerRef.current) return { rejected: true, cancelled: false, answer: null, error: { code: "AI_BUSY", message: "" }, ...none };
+    const filling = extra?.mode === "fill";
     const controller = new AbortController();
     controllerRef.current = controller;
     let phase = "sending" as AskPhase; // 콜백 안에서 바뀌므로 좁히지 않는다
@@ -65,6 +74,8 @@ export function useAiAsk() {
     let meta: Pick<AiMessage, "sources" | "conditions" | "links" | "pending"> = { sources: [], conditions: [], links: [] };
     let done = null as { messageId: number; status: string } | null;
     let streamError = null as AskError | null;
+    let proposal = null as AssistOption[] | null;
+    let fill = null as AssistFill | null;
     const update = (patch: Partial<AskState>) => setState((s) => (s ? { ...s, ...patch } : s));
     setState({ conversationId, question, phase, position: 0, text });
 
@@ -75,10 +86,11 @@ export function useAiAsk() {
       status,
       createdAt: new Date().toISOString(),
       ...meta,
+      assist: proposal ? { kind: "proposal", options: proposal } : filling ? { kind: "fill", stopped: status === "STOPPED" } : null,
     });
 
     try {
-      const response = await postQuestion(conversationId, question, controller.signal);
+      const response = await postQuestion(conversationId, question, controller.signal, extra);
       opened = true;
       await readEventStream(response, ({ event, data }) => {
         const payload = parseData(data);
@@ -115,23 +127,46 @@ export function useAiAsk() {
           case "error":
             streamError = { code: String(obj.code ?? "UNKNOWN"), message: String(obj.message ?? "") };
             break;
+          case "proposal":
+            proposal = parseOptions(payload);
+            break;
+          case "progress": // 구조화 호출 동안 1초마다 오는 연결 유지(값 없음, 13.2)
+            phase = "answering";
+            update({ phase });
+            break;
+          case "fill":
+            fill = parseFill(payload);
+            break;
         }
       });
-      if (done) return { rejected: false, cancelled: false, answer: answer(done.status, done.messageId), error: streamError };
+      if (done) {
+        const finished: { messageId: number; status: string } = done;
+        return { rejected: false, cancelled: false, answer: answer(finished.status, finished.messageId), error: streamError, proposal, fill: finished.status === "STOPPED" ? null : fill };
+      }
       // done 없이 끝남: 받은 글이 있으면 실패한 답으로 보인다
       return {
         rejected: false,
         cancelled: false,
-        answer: phase === "answering" || text ? answer("FAILED") : null,
+        answer: phase === "answering" || text || filling ? answer("FAILED") : null,
         error: streamError ?? { code: "UNKNOWN", message: "" },
+        ...none,
       };
     } catch (e) {
       if (controller.signal.aborted) {
-        // 멈춤: 답을 받던 중이면 받은 데까지, 차례를 기다리던 중이면 취소(서버도 질문을 지움)
-        return { rejected: !opened, cancelled: opened && phase !== "answering", answer: phase === "answering" ? answer("STOPPED") : null, error: null };
+        // 채우기 차례: 흐름이 열렸으면 서버가 질문을 남기고 "멈췄습니다"를 저장한다(받은 fill도 넣지 않음)
+        if (filling) return { rejected: !opened, cancelled: false, answer: opened ? answer("STOPPED") : null, error: null, ...none };
+        // 멈춤: 받은 글이 있으면 받은 데까지, 받은 글이 없으면 취소(서버도 빈 답을 저장하지 않고 질문을 지움)
+        const got = phase === "answering" && text !== "";
+        return { rejected: !opened, cancelled: opened && !got, answer: got ? answer("STOPPED") : null, error: null, proposal: got ? proposal : null, fill: null };
       }
-      if (e instanceof ApiError) return { rejected: true, cancelled: false, answer: null, error: { code: e.code, message: e.message } };
-      return { rejected: !opened, cancelled: false, answer: opened && (phase === "answering" || text) ? answer("FAILED") : null, error: { code: "UNKNOWN", message: "" } };
+      if (e instanceof ApiError) return { rejected: true, cancelled: false, answer: null, error: { code: e.code, message: e.message }, ...none };
+      return {
+        rejected: !opened,
+        cancelled: false,
+        answer: opened && (phase === "answering" || text || filling) ? answer("FAILED") : null,
+        error: { code: "UNKNOWN", message: "" },
+        ...none,
+      };
     } finally {
       controllerRef.current = null;
       setState(null);

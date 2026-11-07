@@ -1,6 +1,7 @@
 import type { AiMessage } from "@/api/ai";
 import { AiIcon } from "@/icons";
-import { useEffect, useRef } from "react";
+import { cn } from "@/utils";
+import { type ReactNode, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import AnswerMeta from "./AnswerMeta";
 import type { AskState } from "./useAiAsk";
@@ -13,9 +14,10 @@ const answerBubble = `${bubble} rounded-es-md bg-gray-50 text-gray-800 ring-1 ri
 
 /**
  * 대화 내용 (REQ-B01, slices/12 6.3): 질문·답을 차례로, 답은 줄바꿈을 지킨 글(마크다운 안 씀)과 그 아래 정보.
- * 빈 대화는 예시 질문 단추. 받는 중인 답은 글자가 이어 붙는다(낭독은 끝났을 때만, 화면의 aria-live 구역)
+ * 빈 대화는 예시 질문 단추. 받는 중인 답은 글자가 이어 붙는다(낭독은 끝났을 때만, 화면의 aria-live 구역).
+ * renderExtra: 답 글 아래에 더 그릴 것(AI 업무지원 제안 단추·채우기 요약, slices/21 6.1). className: 높이를 바꿀 때(업무지원 패널)
  */
-export default function ChatMessages({ messages, draft, loading, error, examples, canAsk, onExample }: {
+export default function ChatMessages({ messages, draft, loading, error, examples, canAsk, onExample, renderExtra, className }: {
   messages: AiMessage[];
   draft: AskState | null;
   loading: boolean;
@@ -23,6 +25,8 @@ export default function ChatMessages({ messages, draft, loading, error, examples
   examples: string[];
   canAsk: boolean;
   onExample: (question: string) => void;
+  renderExtra?: (message: AiMessage) => ReactNode;
+  className?: string;
 }) {
   const { t } = useTranslation("ai");
   const scroller = useRef<HTMLDivElement>(null);
@@ -43,7 +47,7 @@ export default function ChatMessages({ messages, draft, loading, error, examples
         const el = e.currentTarget;
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       }}
-      className="custom-scrollbar h-[min(calc(60vh/var(--app-zoom)),40rem)] min-h-72 overflow-y-auto px-[22px] py-5"
+      className={cn("custom-scrollbar h-[min(calc(60vh/var(--app-zoom)),40rem)] min-h-72 overflow-y-auto px-[22px] py-5", className)}
     >
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>}
       {error && (
@@ -93,6 +97,7 @@ export default function ChatMessages({ messages, draft, loading, error, examples
               <li key={m.id} aria-label={t("message.answer")}>
                 <div className={answerBubble}>
                   {m.content && <p className={text}>{m.content}</p>}
+                  {renderExtra?.(m)}
                   <AnswerMeta message={m} />
                 </div>
               </li>

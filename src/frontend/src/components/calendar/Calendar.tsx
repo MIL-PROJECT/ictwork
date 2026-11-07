@@ -10,6 +10,8 @@ import {
   type WorkCalendarEvent,
   writeShowPending,
 } from "@/api/work";
+import { ApiError } from "@/api/client";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import Checkbox from "@/components/form/input/Checkbox";
 import { useWorkError } from "@/components/work/format";
 import { useAuth } from "@/context/AuthContext";
@@ -133,6 +135,7 @@ const Calendar: React.FC = () => {
   const [loadedRange, setLoadedRange] = useState<{ start: string; end: string } | null>(null);
   const [showPending, setShowPending] = useState(() => readShowPending(loginId));
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorCode, setSaveErrorCode] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
     null,
   );
@@ -256,6 +259,30 @@ const Calendar: React.FC = () => {
     openModal();
   };
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 달력, slices/21 12.5): 개인 일정 추가 창, 고칠 개인 일정 창을 연다
+  const openStoredEvent = (ev: CalendarEvent) => {
+    const startStr = String(ev.start);
+    const endStr = ev.end ? shiftDate(String(ev.end), -1) : startStr;
+    setSelectedEvent({ id: String(ev.id), title: ev.title, start: startStr, end: endStr, extendedProps: { ...ev.extendedProps } });
+    setSelectedStartDate(startStr);
+    setSelectedEndDate(endStr);
+    setSaveError(null);
+    openModal();
+  };
+  useAssistPage(["calendar"], {
+    ready: personalLoaded,
+    open: (_screen, target) => {
+      if (target === null) {
+        handleOpenAddModal();
+        return true;
+      }
+      const ev = events.find((e) => String(e.id) === String(target));
+      if (!ev) return false;
+      openStoredEvent(ev);
+      return true;
+    },
+  });
+
   const handleSaveEvent = async (formData: EventFormData) => {
     const input: PersonalEventInput = {
       title: formData.title.trim() || t("calendar.modal.untitled"),
@@ -270,6 +297,7 @@ const Calendar: React.FC = () => {
       else await createPersonalEvent(input);
     } catch (err) {
       setSaveError(describeError(err));
+      setSaveErrorCode(err instanceof ApiError ? err.code : "");
       return;
     }
     closeModal();
@@ -282,6 +310,7 @@ const Calendar: React.FC = () => {
       await deletePersonalEvent(Number(selectedEvent.id));
     } catch (err) {
       setSaveError(describeError(err));
+      setSaveErrorCode(err instanceof ApiError ? err.code : "");
       return;
     }
     closeModal();
@@ -693,6 +722,7 @@ const Calendar: React.FC = () => {
         onSave={(data) => void handleSaveEvent(data)}
         onDelete={() => void handleDeleteEvent()}
         error={saveError}
+        errorCode={saveErrorCode}
       />
     </div>
   );

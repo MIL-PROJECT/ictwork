@@ -27,6 +27,12 @@ export default function RulesPanel({ detail, departments, personnel, write, star
   const daysText = useDaysText();
   // 근무표를 막 추가했으면 편집 창을 연 채로 시작한다(부모가 근무표마다 새로 그림)
   const [editing, setEditing] = useState<{ rule: DutyRuleView | null } | null>(() => (startAdding ? { rule: null } : null));
+  // 이미 그려진 탭에 여는 요청이 오면(AI 업무지원 duty.rule, slices/21 12.5) 그때 새 규칙 창을 연다
+  const [prevStart, setPrevStart] = useState(startAdding);
+  if (startAdding !== prevStart) {
+    setPrevStart(startAdding);
+    if (startAdding) setEditing({ rule: null });
+  }
   const [removing, setRemoving] = useState<DutyRuleView | null>(null);
   const rules = detail.rules;
 

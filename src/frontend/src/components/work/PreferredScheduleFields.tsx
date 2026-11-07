@@ -1,3 +1,4 @@
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import { CalenderIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
 import { emptyPreference, type PreferredDraft } from "./preferredSchedule";
@@ -8,11 +9,12 @@ import QuickTimeButtons from "./QuickTimeButtons";
  * 희망 일자 칸: 처음에는 하나, [희망 일자 추가]로 고른 유형이 받는 개수(max)까지 늘린다.
  * 하나만 받으면 "1지망" 없이 "희망 일자"로 보인다. 첫 칸의 id는 request-preference-date·time, 그다음은 -2·-3을 붙인다
  */
-export default function PreferredScheduleFields({ values, max, onChange, invalid }: {
+export default function PreferredScheduleFields({ values, max, onChange, invalid, marked }: {
   values: PreferredDraft[];
   max: number;
   onChange: (values: PreferredDraft[]) => void;
   invalid: boolean;
+  marked?: (index: number) => boolean; // AI 업무지원 "AI가 채움": 지망마다 (REQ-C03 ④)
 }) {
   const { t } = useTranslation("work");
   // 칸을 누르면 달력·시각 고르기 창을 바로 연다(지원하지 않는 브라우저는 그대로 입력)
@@ -29,7 +31,7 @@ export default function PreferredScheduleFields({ values, max, onChange, invalid
         {max > 1 && <legend className="px-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{label}</legend>}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor={dateId} className={LABEL_CLASS}>{t("intake.date")}</label>
+            <label htmlFor={dateId} className={LABEL_CLASS}>{t("intake.date")}{marked?.(index) && <AiFilledMark />}</label>
             <div className="relative">
               <input id={dateId} type="date" min="2000-01-01" max="2099-12-31" value={value.date} aria-invalid={invalid || undefined} onClick={() => openPicker(dateId)} onChange={(event) => change(index, { date: event.target.value })} className={`${INPUT_CLASS} cursor-pointer pe-11`} />
               <button type="button" aria-label={t("schedule.pickDate", { label })} onClick={() => openPicker(dateId)} className="absolute inset-e-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-500 hover:text-gray-700 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:text-gray-400 dark:hover:text-gray-200">

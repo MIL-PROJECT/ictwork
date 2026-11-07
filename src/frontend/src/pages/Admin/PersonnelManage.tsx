@@ -15,6 +15,9 @@ import {
 } from "@/api/org";
 import AccountPanel from "@/components/admin/AccountPanel";
 import ActionModal from "@/components/admin/ActionModal";
+import { AssistSelectField, AssistTextField } from "@/components/admin/AssistFields";
+import { assistErrorOf } from "@/components/admin/assistError";
+import type { AssistError } from "@/api/assist";
 import DataTable, { RowButton } from "@/components/admin/DataTable";
 import ColumnChooser from "@/components/attribute/ColumnChooser";
 import {
@@ -22,7 +25,8 @@ import {
   writeSavedColumns,
 } from "@/components/attribute/columnStorage";
 import { personAttributeText } from "@/components/attribute/personColumns";
-import { SelectField, TextField } from "@/components/admin/FormFields";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
+import { SelectField } from "@/components/admin/FormFields";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Panel } from "@/components/common/Panel";
 import PageMeta from "@/components/common/PageMeta";
@@ -116,7 +120,10 @@ export default function PersonnelManage() {
     ]);
   };
 
+  // AI 업무지원 lastError: 인원 등록·수정 창의 마지막 저장 오류
+  const [saveError, setSaveError] = useState<AssistError | null>(null);
   const open = (next: Dialog) => {
+    setSaveError(null);
     const person = next.kind === "create" ? undefined : next.person;
     setName(person?.name ?? "");
     setDepartmentId(
@@ -144,6 +151,102 @@ export default function PersonnelManage() {
     }
     setDialog(next);
   };
+  // AI 업무지원 (REQ-C07 인원관리, slices/21 8장 personnel.*): 등록 창, 수정 창(수정 단추가 보이는 인원만), 계정 창의 역할 줄(AccountPanel).
+  // [저장]·[주기]는 사용자가 누른다
+  const editable = (p: PersonnelItem) =>
+    managed.has(p.departmentId) && p.active && (accountOf(p.id)?.guardable ?? true) && memos !== null && !memosFailed;
+  useAssistPage(["personnel.new", "personnel.edit", "personnel.role"], {
+    ready: (loaded || failed) && (memos !== null || memosFailed),
+    open: (screen, target) => {
+      if (screen === "personnel.new") {
+        open({ kind: "create" });
+        return true;
+      }
+      const person = personnel.find((p) => String(p.id) === String(target));
+      if (!person) return false;
+      if (screen === "personnel.edit") {
+        if (!editable(person)) return false;
+        open({ kind: "edit", person });
+        return true;
+      }
+      const account = accountOf(person.id);
+      const self = account !== undefined && account.id === user?.accountId;
+      if (!account || !(managed.has(person.departmentId) || self)) return false;
+      open({ kind: "account", person });
+      return true;
+    },
+  });
+  const personValues = (creating: boolean) => ({
+    name,
+    ...(creating ? { dept: departmentId === "" ? null : Number(departmentId), loginId } : {}),
+    position: position === "" ? null : position,
+    rank: rankCode === "" ? null : rankCode,
+    contact,
+    memo,
+  });
+  // 받은 값 넣기: 소속을 바꾸면 화면처럼 직책을 비우고, 직책은 그 소속 종류에 맞는 것만
+  const applyPerson = (v: Record<string, unknown>, creating: boolean) => {
+    let dept = departmentId;
+    if (creating && typeof v.dept === "number" && managedDepartmentOptions.some((o) => o.value === String(v.dept))) {
+      dept = String(v.dept);
+      setDepartmentId(dept);
+    }
+    const pos = v.position;
+    if (typeof pos === "string" && positionOptions(dept).some((o) => o.value === pos)) setPosition(pos);
+    else if (dept !== departmentId) setPosition("");
+    const rank = v.rank;
+    if (typeof rank === "string" && (RANKS as readonly string[]).includes(rank)) setRankCode(rank);
+    const text = (value: unknown, max: number) => (typeof value === "string" ? [...value].slice(0, max).join("") : null);
+    const nextName = text(v.name, 50);
+    if (nextName !== null) setName(nextName);
+    const nextContact = text(v.contact, 30);
+    if (nextContact !== null) setContact(nextContact);
+    const nextMemo = text(v.memo, 500);
+    if (nextMemo !== null) setMemo(nextMemo);
+    const nextLogin = creating ? text(v.loginId, 50) : null;
+    if (nextLogin !== null) setLoginId(nextLogin);
+  };
+  const personLabels = {
+    name: ta("columns.name"),
+    dept: ta("columns.department"),
+    position: ta("columns.position"),
+    rank: ta("columns.rank"),
+    contact: ta("columns.contact"),
+    memo: ta("columns.memo"),
+    loginId: ta("columns.loginId"),
+  };
+  const personFormat = (field: string, value: unknown) =>
+    field === "dept" && typeof value === "number"
+      ? (paths.get(value) ?? null)
+      : field === "position" && typeof value === "string"
+        ? ta(`positions.${value}`)
+        : field === "rank" && typeof value === "string"
+          ? ta(`ranks.${value}`)
+          : null;
+  const personIds = { name: "person-name", dept: "person-department", position: "person-position", rank: "person-rank", contact: "person-contact", memo: "person-memo", loginId: "person-login-id" };
+  const newAssist = useAssistAdapter("personnel.new", {
+    enabled: dialog?.kind === "create",
+    ready: true,
+    values: personValues(true),
+    apply: (v) => applyPerson(v, true),
+    labels: personLabels,
+    format: personFormat,
+    ids: personIds,
+    lastError: saveError,
+  });
+  const editAssist = useAssistAdapter("personnel.edit", {
+    enabled: dialog?.kind === "edit",
+    target: dialog?.kind === "edit" ? dialog.person.id : null,
+    ready: true,
+    values: personValues(false),
+    apply: (v) => applyPerson(v, false),
+    labels: personLabels,
+    format: personFormat,
+    ids: personIds,
+    lastError: saveError,
+  });
+  const personAssist = dialog?.kind === "create" ? newAssist : editAssist;
+
   const shownAttrs = attrColumns.filter((c) =>
     attrShown.includes(attrColumnKey(c)),
   );
@@ -323,6 +426,7 @@ export default function PersonnelManage() {
 
       {(dialog?.kind === "create" || dialog?.kind === "edit") && (
         <ActionModal
+          key={dialog.kind === "edit" ? `edit-${dialog.person.id}` : "create"}
           title={ta(dialog.kind === "create" ? "personnel.add" : "edit")}
           submitLabel={ta("save")}
           canSubmit={
@@ -349,16 +453,23 @@ export default function PersonnelManage() {
                 })
           }
           onDone={reloadAll}
+          onError={(err, message) =>
+            setSaveError(assistErrorOf(err, message, { name: "name", departmentId: "dept", position: "position", rankCode: "rank", contact: "contact", memo: "memo", loginId: "loginId" }))
+          }
         >
-          <TextField
+          <AssistTextField
             id="person-name"
             required
             label={ta("columns.name")}
             value={name}
             onChange={setName}
+            assist={personAssist}
+            field="name"
           />
           {dialog.kind === "create" && (
-            <SelectField
+            <AssistSelectField
+              assist={personAssist}
+              field="dept"
               id="person-department"
               required
               label={ta("columns.department")}
@@ -371,7 +482,9 @@ export default function PersonnelManage() {
               }}
             />
           )}
-          <SelectField
+          <AssistSelectField
+            assist={personAssist}
+            field="position"
             id="person-position"
             required
             label={ta("columns.position")}
@@ -380,7 +493,9 @@ export default function PersonnelManage() {
             options={positionOptions(departmentId)}
             onChange={setPosition}
           />
-          <SelectField
+          <AssistSelectField
+            assist={personAssist}
+            field="rank"
             id="person-rank"
             required
             label={ta("columns.rank")}
@@ -389,13 +504,17 @@ export default function PersonnelManage() {
             options={rankOptions}
             onChange={setRankCode}
           />
-          <TextField
+          <AssistTextField
+            assist={personAssist}
+            field="contact"
             id="person-contact"
             label={ta("columns.contact")}
             value={contact}
             onChange={setContact}
           />
-          <TextField
+          <AssistTextField
+            assist={personAssist}
+            field="memo"
             id="person-memo"
             label={ta("columns.memo")}
             value={memo}
@@ -403,7 +522,9 @@ export default function PersonnelManage() {
           />
           {dialog.kind === "create" && (
             <div>
-              <TextField
+              <AssistTextField
+                assist={personAssist}
+                field="loginId"
                 id="person-login-id"
                 required
                 label={ta("columns.loginId")}
@@ -472,6 +593,7 @@ export default function PersonnelManage() {
 
       {dialog?.kind === "account" && (
         <AccountPanel
+          key={dialog.person.id}
           person={dialog.person}
           account={accountOf(dialog.person.id)}
           departments={departments}

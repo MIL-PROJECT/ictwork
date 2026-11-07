@@ -1,5 +1,6 @@
 import type { BoxField, TableRow } from "@/api/ictStatus";
 import { RowButton } from "@/components/admin/DataTable";
+import { AiFilledMark } from "@/components/assist/AssistLabel";
 import { INPUT_CLASS } from "@/components/work/format";
 import { useTranslation } from "react-i18next";
 import { LIMITS } from "./boxFields";
@@ -10,7 +11,13 @@ const cell = "px-2 py-1.5 align-top";
  * 표 칸 값 고치기 (REQ-503): 행 더하기·지우기, 열 종류마다 입력(단답 300자·숫자·날짜·드롭다운·체크박스는 칸마다 체크 하나, DEC-111). 100행까지.
  * 넓은 표는 가로로 밀어 본다
  */
-export default function TableValueInput({ field, rows, onChange }: { field: BoxField; rows: TableRow[]; onChange: (rows: TableRow[]) => void }) {
+export default function TableValueInput({ field, rows, onChange, marked }: {
+  field: BoxField;
+  rows: TableRow[];
+  onChange: (rows: TableRow[]) => void;
+  /** 그 줄이 AI 업무지원이 넣은 그대로인가 ("AI가 채움", slices/21 12.5) */
+  marked?: (row: TableRow) => boolean;
+}) {
   const { t } = useTranslation("ictStatus");
   const columns = field.table?.columns ?? [];
   const set = (index: number, id: string, value: string | boolean) =>
@@ -44,7 +51,10 @@ export default function TableValueInput({ field, rows, onChange }: { field: BoxF
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td className={`${cell} text-gray-500 dark:text-gray-400`}>{i + 1}</td>
+                  <td className={`${cell} text-gray-500 dark:text-gray-400`}>
+                    {i + 1}
+                    {marked?.(row) && <AiFilledMark />}
+                  </td>
                   {columns.map((c) => {
                     const label = `${field.title} ${i + 1} ${c.title}`;
                     const v = row[c.id];

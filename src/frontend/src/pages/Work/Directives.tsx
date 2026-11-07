@@ -15,6 +15,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import { PagingFooter } from "@/components/common/Pagination";
 import { EmptyState } from "@/components/common/Panel";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import DirectiveBoxes from "@/components/directive/DirectiveBoxes";
 import DirectiveDialog from "@/components/directive/DirectiveDialog";
 import DirectiveFilters, { type DirectiveFilterValues } from "@/components/directive/DirectiveFilters";
@@ -438,6 +439,22 @@ function DirectivesPage() {
   const items = data?.items ?? [];
   const options = data?.nameOptions ?? [];
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 지시사항, slices/21 12.5): 올리기 창(명의 목록이 있을 때), 고칠 지시사항의 고치기 창(고칠 수 있을 때)을 연다
+  useAssistPage(["directive.new", "directive.edit"], {
+    ready: data !== null,
+    open: (screen, target) => {
+      if (screen === "directive.new") {
+        if (options.length === 0) return false;
+        setDialog({ editing: null });
+        return true;
+      }
+      const item = items.find((d) => String(d.id) === String(target));
+      if (!item || !item.canEdit) return false;
+      setDialog({ editing: item });
+      return true;
+    },
+  });
+
   return (
     <>
       <PageMeta titleKey="sidebar.items.directives" />
@@ -538,7 +555,7 @@ function DirectivesPage() {
         </section>
       )}
 
-      {dialog && <DirectiveDialog options={options} editing={dialog.editing} onSubmit={save} onClose={() => setDialog(null)} />}
+      {dialog && <DirectiveDialog key={dialog.editing?.id ?? "new"} options={options} editing={dialog.editing} onSubmit={save} onClose={() => setDialog(null)} />}
 
       <Modal isOpen={removing !== null} onClose={() => setRemoving(null)} labelledBy="directive-delete-title" describedBy="directive-delete-message" className="max-w-md p-5 sm:p-8">
         <h2 id="directive-delete-title" className="text-lg font-semibold text-gray-800 dark:text-white/90">

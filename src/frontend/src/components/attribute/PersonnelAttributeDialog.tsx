@@ -1,11 +1,13 @@
 import type { AttributeDef } from "@/api/attributes";
 import { ApiError } from "@/api/client";
 import { type PersonnelDetail, updatePersonnelAttributes } from "@/api/org";
+import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import { fromAttachments, type AttachmentItem } from "@/components/file/attachments";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { applyAttributeFill, attributeFieldValues, attributeFields } from "./attributeAssist";
 import AttributeFields from "./AttributeFields";
 import { changedAttributeValues, filesBusy } from "./changes";
 
@@ -32,7 +34,20 @@ export default function PersonnelAttributeDialog({
     Object.fromEntries(Object.entries(person.attributeFiles).map(([k, list]) => [k, fromAttachments(list)])),
   );
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ message: string; field: string | null } | null>(null);
+  const [error, setError] = useState<{ message: string; field: string | null; code: string } | null>(null);
+
+  // AI 업무지원 창 어댑터 (REQ-C07 인원, slices/21 8장 people.attr): 추가 특성 값만(파일 특성 제외). [저장]은 사용자가 누른다
+  const idPrefix = `person-${person.id}`;
+  const assistFields = attributeFields(definitions);
+  const assist = useAssistAdapter("people.attr", {
+    target: person.id,
+    ready: true,
+    values: attributeFieldValues(definitions, values),
+    apply: (v) => setValues((prev) => applyAttributeFill(definitions, prev, v)),
+    labels: Object.fromEntries(assistFields.map((f) => [f.field, f.label])),
+    ids: Object.fromEntries(assistFields.map((f) => [f.field, `${idPrefix}-${f.def.item.key}`])),
+    lastError: error ? { code: error.code, message: error.message, field: assistFields.find((f) => f.def.item.key === error.field)?.field ?? null } : null,
+  });
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,15 +61,15 @@ export default function PersonnelAttributeDialog({
     } catch (err) {
       if (err instanceof ApiError && err.code === "PERSONNEL_EDIT_CONFLICT") {
         onConflict();
-        setError({ message: t("errors.PERSONNEL_EDIT_CONFLICT"), field: null });
+        setError({ message: t("errors.PERSONNEL_EDIT_CONFLICT"), field: null, code: err.code });
       } else if (err instanceof ApiError) {
         // 값 검사 오류는 서버 문구가 어느 특성인지 알려 준다(서버 문구는 한국어라 영어 화면에서는 코드별 문구)
         const message = !i18n.language.startsWith("en") && ["ANSWER_INVALID", "FILE_NOT_TEMP", "ATTRIBUTE_NOT_OF_DEPARTMENT"].includes(err.code)
           ? err.message
           : t(`errors.${err.code}`, { defaultValue: t("errors.UNKNOWN") });
-        setError({ message, field: err.field ?? null });
+        setError({ message, field: err.field ?? null, code: err.code });
       } else {
-        setError({ message: t("errors.UNKNOWN"), field: null });
+        setError({ message: t("errors.UNKNOWN"), field: null, code: "UNKNOWN" });
       }
     } finally {
       setBusy(false);
@@ -75,7 +90,8 @@ export default function PersonnelAttributeDialog({
           setFiles={(id) => (next) => setFiles((prev) => ({ ...prev, [id]: typeof next === "function" ? next(prev[id] ?? []) : next }))}
           errorField={error?.field ?? null}
           errorId="person-attr-error"
-          idPrefix={`person-${person.id}`}
+          idPrefix={idPrefix}
+          assist={assist}
         />
         {error && (
           <p id="person-attr-error" role="alert" className="text-sm text-error-600 dark:text-error-400">

@@ -51,11 +51,14 @@ class PersonnelAttributeService(
                 attributes = attrs?.values.orEmpty(),
                 attributeFiles = attrs?.files.orEmpty(),
                 attrEditedAt = p.attrEditedAt,
-                canEditAttributes = editable && p.active && p.departmentId == actor.personnelDepartmentId,
+                canEditAttributes = editable && canEditAttributes(actor, p),
             )
         }
         return PersonnelListResponse(items, result.columns)
     }
+
+    /** 추가 특성 값을 고칠 수 있는가: 사용 중인 인원이고 그 인원 부서의 부서원 (부서관리 ▸ 인원 편집 단추, AI 업무지원 판정 slices/21 12.8) */
+    fun canEditAttributes(actor: Actor, p: Personnel): Boolean = p.active && p.departmentId == actor.personnelDepartmentId
 
     /** 값 고치기: 그 인원 부서의 부서원만. 볼 수 없는 인원은 404, 화면을 연 뒤 다른 사람이 고쳤으면 409 */
     fun update(loginId: String, id: Long, input: PersonnelAttributesInput): PersonnelAttributesResponse {

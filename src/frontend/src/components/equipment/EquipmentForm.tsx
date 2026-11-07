@@ -1,13 +1,16 @@
 import type { AttributeDef } from "@/api/attributes";
 import AttributeFields from "@/components/attribute/AttributeFields";
+import AssistLabel, { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
+import type { AssistHandle } from "@/components/assist/useAssistAdapter";
 import type { AttachmentItem } from "@/components/file/attachments";
 import { EQUIPMENT_STATUSES, type EquipmentStatus, type LocationOption, NETWORK_KINDS, type SuggestField } from "@/api/equipment";
-import Label from "@/components/form/Label";
+import { RequiredMark } from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { BoxCubeIcon, ChipIcon, GlobeIcon, GridIcon, ListIcon, MapIcon } from "@/icons";
 import { clip, cn } from "@/utils";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import { compactRow, EQUIPMENT_TEXT_FIELDS } from "./equipmentAssist";
 import type { FormValues } from "./equipmentFormValues";
 import SuggestInput from "./SuggestInput";
 
@@ -27,6 +30,9 @@ function PanelLegend({ icon, title }: { icon: ReactNode; title: string }) {
     </legend>
   );
 }
+const LABEL_CLASS = "mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400";
+// 장비 칸 키 → AI 업무지원 칸 id (slices/21 8장 equipment)
+const ASSIST_FIELD: Partial<Record<keyof FormValues, string>> = Object.fromEntries(Object.entries(EQUIPMENT_TEXT_FIELDS).map(([field, key]) => [key, field]));
 const SMALL_BUTTON = "rounded-md px-2 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-white/5";
 
 export default function EquipmentForm({
@@ -39,6 +45,7 @@ export default function EquipmentForm({
   errorField,
   errorId,
   attributeDefs,
+  assist = null,
 }: {
   values: FormValues;
   onChange: Dispatch<SetStateAction<FormValues>>;
@@ -49,23 +56,19 @@ export default function EquipmentForm({
   errorField: string | null;
   errorId: string; // 오류 문구의 id: 틀린 칸이 aria-describedby로 가리킨다
   attributeDefs: AttributeDef[]; // 고른 관리부서의 추가 특성 (REQ-519)
+  assist?: AssistHandle | null; // AI 업무지원 (REQ-C03 ④⑤, slices/21 8장 equipment): 칸 이름 옆 "AI가 채움"·출처
 }) {
   const { t } = useTranslation("equipment");
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) => onChange({ ...values, [key]: value });
   const bad = (field: string) => errorField === field || (errorField?.startsWith(`${field}[`) ?? false);
   const invalid = (on: boolean) => ({ "aria-invalid": on || undefined, "aria-describedby": on ? errorId : undefined });
 
-  const field = (id: string, label: string, control: ReactNode, required = false) => (
+  const field = (id: string, label: ReactNode, control: ReactNode, required = false, assistField = "") => (
     <div>
-      <Label htmlFor={id}>
+      <AssistLabel assist={assist} field={assistField} htmlFor={id} className={LABEL_CLASS}>
         {label}
-        {required && (
-          <span className="ms-1 text-error-600 dark:text-error-400">
-            <span aria-hidden>*</span>
-            <span className="sr-only">{t("detail.required")}</span>
-          </span>
-        )}
-      </Label>
+        {required && <RequiredMark />}
+      </AssistLabel>
       {control}
     </div>
   );
@@ -79,9 +82,12 @@ export default function EquipmentForm({
         <Input id={`eq-${key}`} value={values[key] as string} onChange={(e) => set(key, clip(e, 100) as never)} error={bad(key)} {...invalid(bad(key))} />
       ),
       required,
+      ASSIST_FIELD[key],
     );
   const date = (key: keyof FormValues & string, label: string) =>
-    field(`eq-${key}`, label, <Input id={`eq-${key}`} type="date" value={values[key] as string} onChange={(e) => set(key, e.target.value as never)} error={bad(key)} {...invalid(bad(key))} />);
+    field(`eq-${key}`, label, <Input id={`eq-${key}`} type="date" value={values[key] as string} onChange={(e) => set(key, e.target.value as never)} error={bad(key)} {...invalid(bad(key))} />, false, ASSIST_FIELD[key]);
+  // SW·네트워크 줄: 줄마다 "AI가 채움" (그 줄이 AI가 넣은 그대로일 때)
+  const rowMark = (list: "software" | "networks", row: Record<string, string>) => assist?.marked(list, compactRow(row)) && <AiFilledMark />;
 
   const section = (title: string, icon: ReactNode, children: ReactNode) => (
     <fieldset className={PANEL_FIELDSET}>
@@ -116,6 +122,7 @@ export default function EquipmentForm({
               <p className="py-2.5 text-sm text-gray-800 dark:text-white/90">{departmentFixedText}</p>
             ),
             true,
+            "dept",
           )}
           {text("systemName", t("fields.SYSTEM_NAME"), false, "SYSTEM_NAME")}
           {text("name", t("fields.NAME"), true, "NAME")}
@@ -134,6 +141,7 @@ export default function EquipmentForm({
               ))}
             </select>,
             true,
+            "status",
           )}
           <div className="sm:col-span-2 lg:col-span-3">
             {field(
@@ -146,6 +154,8 @@ export default function EquipmentForm({
                 onChange={(e) => set("memo", clip(e, 200))}
                 className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />,
+              false,
+              "memo",
             )}
           </div>
         </>,
@@ -165,6 +175,8 @@ export default function EquipmentForm({
                 </option>
               ))}
             </select>,
+            false,
+            "location",
           )}
           {field(
             "eq-networkKind",
@@ -177,6 +189,8 @@ export default function EquipmentForm({
                 </option>
               ))}
             </select>,
+            false,
+            "networkKind",
           )}
           {date("introducedOn", t("fields.INTRODUCED_ON"))}
           {text("introProject", t("fields.INTRO_PROJECT"), false, "INTRO_PROJECT")}
@@ -197,11 +211,12 @@ export default function EquipmentForm({
 
       <fieldset className={PANEL_FIELDSET}>
         <PanelLegend icon={<GridIcon />} title={t("detail.sections.software")} />
+        {assist && <AssistSources sources={assist.sources("software")} className="mb-3 clear-both" />}
         {values.software.length === 0 && <p className="mb-3 clear-both text-sm text-gray-500 dark:text-gray-400">{t("software.none")}</p>}
         <ul className="clear-both space-y-3">
           {values.software.map((s, i) => (
             <li key={i} className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_12rem_auto]">
-              {field(`eq-sw-${i}-name`, t("software.name"), <SuggestInput id={`eq-sw-${i}-name`} field="SW_NAME" value={s.name} onChange={(v) => updateSoftware(i, { name: v })} invalid={errorField === `software[${i}].name`} describedBy={errorField === `software[${i}].name` ? errorId : undefined} />, true)}
+              {field(`eq-sw-${i}-name`, <>{t("software.name")}{rowMark("software", s)}</>, <SuggestInput id={`eq-sw-${i}-name`} field="SW_NAME" value={s.name} onChange={(v) => updateSoftware(i, { name: v })} invalid={errorField === `software[${i}].name`} describedBy={errorField === `software[${i}].name` ? errorId : undefined} />, true)}
               {field(`eq-sw-${i}-version`, t("software.version"), <SuggestInput id={`eq-sw-${i}-version`} field="SW_VERSION" value={s.version} onChange={(v) => updateSoftware(i, { version: v })} invalid={errorField === `software[${i}].version`} describedBy={errorField === `software[${i}].version` ? errorId : undefined} />)}
               {field(`eq-sw-${i}-date`, t("software.installedOn"), <Input id={`eq-sw-${i}-date`} type="date" value={s.installedOn} onChange={(e) => updateSoftware(i, { installedOn: e.target.value })} />)}
               <button type="button" onClick={() => set("software", values.software.filter((_, j) => j !== i))} className={cn(SMALL_BUTTON, "mb-2")} aria-label={t("software.removeRow", { n: i + 1 })}>
@@ -217,11 +232,12 @@ export default function EquipmentForm({
 
       <fieldset className={PANEL_FIELDSET}>
         <PanelLegend icon={<GlobeIcon />} title={t("detail.sections.network")} />
+        {assist && <AssistSources sources={assist.sources("networks")} className="mb-3 clear-both" />}
         {values.networks.length === 0 && <p className="mb-3 clear-both text-sm text-gray-500 dark:text-gray-400">{t("network.none")}</p>}
         <ul className="clear-both space-y-3">
           {values.networks.map((n, i) => (
             <li key={i} className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-              {field(`eq-net-${i}-name`, t("network.name"), <Input id={`eq-net-${i}-name`} value={n.name} onChange={(e) => updateNetwork(i, { name: clip(e, 100) })} error={errorField === `networks[${i}].name`} {...invalid(errorField === `networks[${i}].name`)} />)}
+              {field(`eq-net-${i}-name`, <>{t("network.name")}{rowMark("networks", n)}</>, <Input id={`eq-net-${i}-name`} value={n.name} onChange={(e) => updateNetwork(i, { name: clip(e, 100) })} error={errorField === `networks[${i}].name`} {...invalid(errorField === `networks[${i}].name`)} />)}
               {field(`eq-net-${i}-ip`, t("network.ip"), <Input id={`eq-net-${i}-ip`} value={n.ip} onChange={(e) => updateNetwork(i, { ip: clip(e, 100) })} error={errorField === `networks[${i}]` || errorField === `networks[${i}].ip`} {...invalid(errorField === `networks[${i}]` || errorField === `networks[${i}].ip`)} />)}
               {field(
                 `eq-net-${i}-mac`,
@@ -264,6 +280,7 @@ export default function EquipmentForm({
             errorField={errorField}
             errorId={errorId}
             idPrefix="eq-attr"
+            assist={assist}
           />
         </fieldset>
       )}

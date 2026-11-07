@@ -11,6 +11,7 @@ import {
   writeSavedColumns,
 } from "@/components/attribute/columnStorage";
 import PersonnelAttributeDialog from "@/components/attribute/PersonnelAttributeDialog";
+import { useAssistPage } from "@/components/assist/useAssistAdapter";
 import {
   definitionsOfDepartment,
   personAttributeText,
@@ -232,6 +233,17 @@ export default function PeopleList() {
     definitionsOfDepartment(attrColumns, p.departmentId).length > 0;
   const anyEditable = visible.some(editable);
 
+  // AI 업무지원 페이지 어댑터 (REQ-C07 인원, slices/21 8장 people.attr): 그 인원의 추가 특성 편집 창을 연다(편집 단추가 보이는 인원만)
+  useAssistPage(["people.attr"], {
+    ready: people !== null || peopleFailed,
+    open: (_screen, target) => {
+      const person = visible.find((p) => String(p.id) === String(target));
+      if (!person || !editable(person)) return false;
+      setEditing(person);
+      return true;
+    },
+  });
+
   return (
     <div>
       <PageMeta titleKey="sidebar.items.people" />
@@ -409,7 +421,9 @@ export default function PeopleList() {
         </div>
       </Panel>
       {editing && (
+        // 대상 인원이 바뀌면 창 상태(값·파일·오류)를 새로 시작한다(AI 작업이 창을 연 채 다른 인원으로 시작할 때)
         <PersonnelAttributeDialog
+          key={editing.id}
           person={editing}
           definitions={definitionsOfDepartment(
             attrColumns,

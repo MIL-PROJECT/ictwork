@@ -1,10 +1,15 @@
 import { createWorkType, fetchAdminWorkTypes, fetchWorkTypeDepartments, reorderWorkTypes, updateWorkType, type ScheduleMode, type WorkTypeAdminRow } from "@/api/work";
 import ActionModal from "@/components/admin/ActionModal";
 import DataTable, { RowButton } from "@/components/admin/DataTable";
-import { TextField } from "@/components/admin/FormFields";
+import { assistErrorOf } from "@/components/admin/assistError";
+import AssistLabel from "@/components/assist/AssistLabel";
+import type { AssistError } from "@/api/assist";
+import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Panel } from "@/components/common/Panel";
 import PageMeta from "@/components/common/PageMeta";
+import { RequiredMark } from "@/components/form/Label";
+import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import { INPUT_CLASS, LABEL_CLASS, TEXTAREA_CLASS, useWorkError } from "@/components/work/format";
 import FormEditor from "@/components/workform/FormEditor";
@@ -25,6 +30,7 @@ const SCHEDULE_CHOICES: { value: string; mode: ScheduleMode; count: number }[] =
 ];
 const scheduleValue = (type: WorkTypeAdminRow) => (type.scheduleMode === "PREFERRED" ? `PREFERRED-${type.preferredCount}` : type.scheduleMode);
 const DESCRIPTION_MAX = 500;
+const NAME_MAX = 50; // AI 업무지원이 넣는 유형 이름 한도 (서버 AssistScreens worktype.type)
 
 /**
  * 관리 ▸ 업무 유형 (REQ-808 유형 부분, slices/11 3.4.8): 부서 관리자가 역할의 대상 부서(하위 부서 제외)의 유형을
@@ -76,18 +82,87 @@ export default function WorkTypeManage() {
     void load();
   }, [load]);
 
+  // AI 업무지원 lastError: 유형 추가·고치기 창의 마지막 저장 오류
+  const [saveError, setSaveError] = useState<AssistError | null>(null);
+  const typeError = (err: unknown, message: string) => setSaveError(assistErrorOf(err, message, { name: "name", description: "description" }));
   const open = (next: Dialog) => {
+    setSaveError(null);
     setName(next.kind === "rename" ? next.type.name : "");
     setDescription(next.kind === "rename" ? next.type.description : "");
     setDialog(next);
   };
   const canSave = name.trim() !== "" && description.trim() !== "";
+
+  // AI 업무지원 페이지 어댑터 (REQ-C07 업무 유형, slices/21 8장 worktype.type·worktype.form): 유형 추가(지금 부서)·고치기 창, 양식 편집을 연다.
+  // 대상 유형이 다른 부서에 있으면 그 부서로 바꿔 연다. "기타"는 고정이라 열지 않는다
+  const openFor = (screen: string, type: WorkTypeAdminRow) => {
+    if (screen === "worktype.form") setEditing(type);
+    else open({ kind: "rename", type });
+  };
+  useAssistPage(["worktype.type", "worktype.form"], {
+    ready: failed || (departments !== null && (departments.length === 0 || types !== null)),
+    open: (screen, target, still) => {
+      if (target === null) {
+        if (screen !== "worktype.type" || departmentId === null) return false;
+        open({ kind: "create" });
+        return true;
+      }
+      const found = types?.find((x) => String(x.id) === String(target));
+      if (found) {
+        if (found.isOther) return false;
+        openFor(screen, found);
+        return true;
+      }
+      const others = (departments ?? []).filter((d) => d.id !== departmentId);
+      if (others.length === 0) return false;
+      // 늦게 찾는다: 찾은 뒤 그 작업이 아직 이어지고 있을 때만 연다. 어느 부서에도 없으면 false(대상 없음)
+      return (async () => {
+        for (const d of others) {
+          const list = await fetchAdminWorkTypes(d.id).catch(() => null);
+          const type = list?.find((x) => String(x.id) === String(target));
+          if (!list || !type) continue;
+          if (type.isOther) return false;
+          if (still?.() === false) return true;
+          setTypes(list);
+          setDepartmentId(d.id);
+          openFor(screen, type);
+          return true;
+        }
+        return false;
+      })();
+    },
+  });
+  // 창 어댑터: 유형 이름·설명. [저장]은 사용자가 누른다
+  const typeDialog = dialog?.kind === "create" || dialog?.kind === "rename" ? dialog : null;
+  const nameId = typeDialog?.kind === "rename" ? "work-type-rename" : "work-type-name";
+  const assist = useAssistAdapter("worktype.type", {
+    enabled: typeDialog !== null,
+    target: typeDialog?.kind === "rename" ? typeDialog.type.id : null,
+    ready: true,
+    values: { name, description },
+    apply: (v) => {
+      if (typeof v.name === "string") setName([...v.name].slice(0, NAME_MAX).join(""));
+      if (typeof v.description === "string") setDescription([...v.description].slice(0, DESCRIPTION_MAX).join(""));
+    },
+    labels: { name: t("columns.name"), description: t("admin.description") },
+    ids: { name: nameId, description: "work-type-description" },
+    lastError: saveError,
+  });
+  const nameField = (
+    <div>
+      <AssistLabel assist={assist} field="name" htmlFor={nameId} className={LABEL_CLASS}>
+        {t("columns.name")}
+        <RequiredMark />
+      </AssistLabel>
+      <Input id={nameId} value={name} onChange={(e) => setName(e.target.value)} />
+    </div>
+  );
   // 설명: 추천 근거라 1~500자 필수
   const descriptionField = (
     <div>
-      <label htmlFor="work-type-description" className={LABEL_CLASS}>
+      <AssistLabel assist={assist} field="description" htmlFor="work-type-description" className={LABEL_CLASS}>
         {t("admin.description")} <span className="text-error-500">*</span>
-      </label>
+      </AssistLabel>
       <textarea
         id="work-type-description"
         rows={4}
@@ -284,15 +359,15 @@ export default function WorkTypeManage() {
       </Panel>
       {dialog?.kind === "create" && departmentId !== null && (
         <ActionModal title={t("admin.addType")} submitLabel={t("save")} canSubmit={canSave} describeError={describeError}
-          onSubmit={() => createWorkType(departmentId, name, description)} onClose={close} onDone={load}>
-          <TextField id="work-type-name" required label={t("columns.name")} value={name} onChange={setName} />
+          onSubmit={() => createWorkType(departmentId, name, description)} onClose={close} onDone={load} onError={typeError}>
+          {nameField}
           {descriptionField}
         </ActionModal>
       )}
       {dialog?.kind === "rename" && (
-        <ActionModal title={t("admin.editType")} submitLabel={t("save")} canSubmit={canSave} describeError={describeError}
-          onSubmit={() => updateWorkType(dialog.type.id, dialog.type.version, { name, description })} onClose={close} onDone={load}>
-          <TextField id="work-type-rename" required label={t("columns.name")} value={name} onChange={setName} />
+        <ActionModal key={dialog.type.id} title={t("admin.editType")} submitLabel={t("save")} canSubmit={canSave} describeError={describeError}
+          onSubmit={() => updateWorkType(dialog.type.id, dialog.type.version, { name, description })} onClose={close} onDone={load} onError={typeError}>
+          {nameField}
           {descriptionField}
         </ActionModal>
       )}

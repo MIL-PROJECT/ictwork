@@ -152,7 +152,10 @@ class AiIndexer(
         indexPending()
     }
 
-    /** 대기 대상을 차례로 색인한다(맞추기 없이). 시험은 맞추기와 색인 사이에 자료를 바꿔 보려고 바로 부른다 */
+    /**
+     * 대기 대상을 차례로 색인한다(맞추기 없이). 시험은 맞추기와 색인 사이에 자료를 바꿔 보려고 바로 부른다.
+     * 실행기에 닿지 않을 때만 이 회차를 멈춘다. 한 대상만 실패하면 그 대상을 건너뛰고 뒤의 대상을 한다(뒤의 자료가 묶이지 않게, REQ-B03)
+     */
     fun indexPending() = synchronized(runLock) {
         for (source in tx.execute { sourceRepository.findByStatusOrderByIdAsc(AiIndexStatuses.PENDING) }.orEmpty()) {
             if (stopped) return
@@ -197,7 +200,13 @@ class AiIndexer(
     /** 대상 하나를 색인한다. 실행기에 닿지 않으면 거짓(대기로 남김) */
     private fun index(source: AiSource): Boolean {
         val pk = checkNotNull(source.id)
-        val content = tx.execute { catalog.content(source.key) } ?: return true // 사라짐: 다음 맞추기가 지운다
+        val content = try {
+            tx.execute { catalog.content(source.key) } ?: return true // 사라짐: 다음 맞추기가 지운다
+        } catch (e: Exception) {
+            // 자료를 읽지 못함(일시 오류일 수 있음): 대기로 두고(다음 회차에 다시) 뒤의 대상을 한다
+            log.warn("AI 색인 대상을 읽지 못했습니다: {}", source.key, e)
+            return true
+        }
         val units = try {
             content.units ?: extractor.extract(checkNotNull(content.extension), checkNotNull(content.bytes))
         } catch (e: Exception) {
@@ -215,6 +224,10 @@ class AiIndexer(
                 waitIdle()
                 vectors += ollama.embed(batch.map { it.text })
             }
+        } catch (e: AiRejectedException) {
+            // 실행기가 이 글만 오류로 돌려줌: 대기로 두고(다음 회차에 다시) 뒤의 대상을 한다
+            log.warn("AI 실행기가 색인 대상을 처리하지 못했습니다: {} ({})", source.key, e.message)
+            return true
         } catch (e: AiUnavailableException) {
             log.info("AI 실행기에 닿지 않아 색인을 다음 회차로 미룹니다")
             return false

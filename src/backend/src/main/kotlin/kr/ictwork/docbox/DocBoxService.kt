@@ -105,6 +105,9 @@ data class DocShareView(val id: Long, val targetType: String, val targetId: Long
 /** 이름 찾기 한 줄. path: 그 노드가 있는 폴더 경로(문서함 맨 위 또는 공유받은 곳부터, 노드 자신은 빼고). via: BOX·SHARED */
 data class DocSearchItem(val node: DocNodeView, val departmentId: Long, val boxName: String, val path: List<DocPathItem>, val via: String)
 
+/** 폴더 트리 한 줄 (AI 업무지원 옮길 곳, slices/21 13.8). system: 체계 관리 폴더(기록 폴더와 그 안) */
+data class DocFolderNode(val id: Long, val name: String, val parentId: Long?, val path: String, val system: Boolean)
+
 data class DocFolderRequest(val parentId: Long? = null, val name: String)
 data class DocRenameRequest(val name: String)
 data class DocMoveRequest(val parentId: Long? = null)
@@ -179,6 +182,49 @@ class DocBoxService(
         val dept = folder.departmentId
         val box = DocBoxInfo(dept, boxName(actor, dept), false, false, false, false, false, null, null, null, null)
         return DocFolderView(box, folderId, path, views(actor, sorted(tree.liveChildren(dept, folderId))), folder.systemKind == DocSystemKinds.ICT_FOLDER)
+    }
+
+    /**
+     * 폴더 트리 (slices/21 13.8): 그 문서함의 지우지 않은 폴더 모두(부모가 먼저, 이름 순). 볼 수 없는 문서함은 404.
+     * 화면 어댑터가 고른 폴더의 위 폴더들을 펼쳐 보이는 데 쓴다
+     */
+    @Transactional(readOnly = true)
+    fun folderTree(loginId: String, departmentId: Long): List<DocFolderNode> {
+        val actor = accessPolicy.actor(loginId)
+        if (!access.boxViewable(actor, departmentId)) throw notFound()
+        return folderNodes(DocTree(nodeRepository.findByDepartmentId(departmentId)), departmentId)
+    }
+
+    /**
+     * 옮길 곳 후보 (AI 업무지원, 옮기기 창 MoveDialog와 같은 규칙, slices/21 13.8): 맨 위(id null)와 지우지 않은 폴더에서
+     * 자기와 그 아래 폴더, 체계 관리 폴더(와 그 안), 옮기면 폴더 층 한도를 넘는 폴더를 뺀다. 고칠 수 없는 노드(부서원 아님·체계 관리)는 빈 목록
+     */
+    @Transactional(readOnly = true)
+    fun moveTargets(actor: Actor, nodeId: Long): List<DocFolderNode?> {
+        val departmentId = nodeRepository.departmentOf(nodeId) ?: return emptyList()
+        val tree = DocTree(nodeRepository.findByDepartmentId(departmentId))
+        val node = tree.find(nodeId) ?: return emptyList()
+        if (!access.canView(actor, tree, node) || !access.member(actor, departmentId) || node.systemKind != null) return emptyList()
+        val height = if (node.isFolder) tree.subtree(node).filter { it.isFolder }.maxOf { tree.depth(it) - tree.depth(node) + 1 } else 0
+        val folders = folderNodes(tree, departmentId).filter { f ->
+            val folder = checkNotNull(tree.find(f.id))
+            !f.system && folder !== node && tree.ancestors(folder).none { it === node } && tree.depth(folder) + height <= MAX_DEPTH
+        }
+        return listOf<DocFolderNode?>(null) + folders
+    }
+
+    private fun folderNodes(tree: DocTree, departmentId: Long): List<DocFolderNode> {
+        val out = mutableListOf<DocFolderNode>()
+        fun walk(parentId: Long?, path: String, system: Boolean) {
+            sorted(tree.liveChildren(departmentId, parentId)).filter { it.isFolder }.forEach { f ->
+                val fullPath = if (path.isEmpty()) f.name else "$path / ${f.name}"
+                val inSystem = system || f.systemKind != null
+                out += DocFolderNode(checkNotNull(f.id), f.name, parentId, fullPath, inSystem)
+                walk(f.id, fullPath, inSystem)
+            }
+        }
+        walk(null, "", false)
+        return out
     }
 
     /** 이름 찾기 (REQ-A03): departmentId가 있으면 그 문서함 안, 없으면 볼 수 있는 모든 문서함과 공유받은 문서. 휴지통 제외 */

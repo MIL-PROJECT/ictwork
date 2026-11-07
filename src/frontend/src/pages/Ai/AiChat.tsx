@@ -13,8 +13,10 @@ import ChatMessages from "@/components/ai/ChatMessages";
 import ConversationList from "@/components/ai/ConversationList";
 import QuestionInput from "@/components/ai/QuestionInput";
 import { nextLocalId, useAiAsk } from "@/components/ai/useAiAsk";
+import ProposalButtons from "@/components/assist/ProposalButtons";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import { useAssist } from "@/context/AssistContext";
 import { AiIcon, AlertHexaIcon, InfoIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +41,7 @@ export default function AiChat() {
   const { t: tc } = useTranslation();
   const { t: tf } = useTranslation("frameAdmin");
   const { state: busy, ask, stop } = useAiAsk();
+  const { setPageConversation, startTask, turnSignal, notifyTurn } = useAssist();
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [statusError, setStatusError] = useState<"off" | "error" | null>(null); // off: AI가 꺼져 있음(서버 404)
   const [reachable, setReachable] = useState<boolean | null>(null); // 질문 결과로 안 연결 상태(상태 조회보다 앞섬)
@@ -85,6 +88,24 @@ export default function AiChat() {
       cancelled = true;
     };
   }, [loadList]);
+
+  // 지금 대화 id를 업무지원에 올린다: 상단바 [AI 업무지원]이 이 대화를 패널에 연다 (REQ-C01, slices/21 12.9)
+  useEffect(() => {
+    setPageConversation(thread.id);
+    return () => setPageConversation(null);
+  }, [thread.id, setPageConversation]);
+
+  // 패널에서 같은 대화에 한 차례가 끝나면 다시 읽는다(받는 중이 아닐 때)
+  useEffect(() => {
+    if (!turnSignal || turnSignal.from !== "panel" || busy || turnSignal.conversationId !== thread.id) return;
+    const id = turnSignal.conversationId;
+    fetchConversation(id).then(
+      (c) => setThread((cur) => (cur.id === id && !cur.loading ? { ...cur, messages: c.messages } : cur)),
+      () => undefined,
+    );
+    // busy가 끝날 때마다 다시 읽지 않게 알림만 본다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnSignal]);
 
   const unreachable = reachable === false || (reachable === null && status?.reachable === false);
 
@@ -195,7 +216,10 @@ export default function AiChat() {
     if (done) setLive((l) => ({ text: t(`live.${done}`, { defaultValue: t("live.DONE") }), n: l.n + 1 }));
     // 이 질문으로 만든 대화가 비었으면 지우고(지운 뒤 목록을 다시 읽음), 아니면 제목(첫 질문 앞 30자)과 순서를 서버 값으로
     if (isNew && (result.rejected || result.cancelled)) discard(conversationId);
-    else void loadList();
+    else {
+      void loadList();
+      notifyTurn(conversationId, "chat");
+    }
   };
 
   const busyHere = !!busy && busy.conversationId === thread.id;
@@ -257,6 +281,10 @@ export default function AiChat() {
             examples={status?.examples ?? []}
             canAsk={!busy}
             onExample={(q) => void send(q, false)}
+            // 할 일을 적으면 업무지원 제안 단추(REQ-B01 끝·C02). 누르면 패널에 이 대화를 열고 그 화면으로 옮긴다
+            renderExtra={(m) =>
+              m.assist?.kind === "proposal" ? <ProposalButtons options={m.assist.options} disabled={!!busy} onPick={(o) => startTask(o, thread.id, m.id)} /> : null
+            }
           />
           {notice && (
             <p role={notice.error ? "alert" : "status"} className={cn("px-[22px] pb-2 text-sm", notice.error ? "text-error-600 dark:text-error-400" : "text-success-600 dark:text-success-500")}>
