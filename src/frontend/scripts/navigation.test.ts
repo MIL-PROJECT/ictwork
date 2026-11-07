@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { navigationContext, listPathOf, matchesTarget, safeListReturn, withListReturn, screens, visibleLinks, topMenus, contextualActions } from "../src/layout/navigationSections.ts";
+import { navigationContext, listPathOf, matchesTarget, safeListReturn, safeDepartmentListReturn, withListReturn, screens, visibleLinks, topMenus, contextualActions, menuTrail } from "../src/layout/navigationSections.ts";
 
 test("six top-level menus resolve to accessible destinations", () => {
   assert.deepEqual(topMenus.map(menu => menu.key), ["overview","requests","processing","schedule","departmentInfo","aiChat"]);
@@ -82,11 +82,42 @@ test("request edit retains a safe filtered request list", () => {
 });
 
 test("registration is a processing command and calendar is a direct destination", () => {
-  assert.equal(navigationContext("/approvals/new")?.screen.key,"ownDepartmentRegister");
+  assert.equal(navigationContext("/approvals/new")?.screen.key,"departmentTasks");
   assert.equal(navigationContext("/approvals/new")?.screen.owner,"processing");
   assert.equal(screens.find(screen=>screen.key==="newRequest")!.tabs.length,1);
   assert.equal(topMenus.find(menu=>menu.key==="schedule")!.screen,"calendar");
   assert.equal(topMenus.find(menu=>menu.key==="schedule")!.children.length,0);
+});
+
+test("registration is a page action under the department list, not a sidebar destination", () => {
+  const screen = screens.find(screen=>screen.key==="departmentTasks")!;
+  assert.ok(!topMenus.find(menu=>menu.key==="processing")!.children.includes("ownDepartmentRegister"));
+  assert.equal(navigationContext("/approvals/new")?.active.key,"ownDepartmentRegister");
+  assert.deepEqual(menuTrail("/approvals/new"),{group:"processing",item:"departmentTasks",sub:"ownDepartmentRegister"});
+  assert.deepEqual(contextualActions(screen,"departmentTasks"),[]);
+  assert.equal(visibleLinks(screen.actions!,[])[0].path,"/approvals/new");
+});
+
+test("new registration preserves department filters but rejects other and unsafe list destinations", () => {
+  const list="/tasks?tab=department&fq=%EB%93%B1%EB%A1%9D&fb=open&page=3";
+  const query="?returnTo="+encodeURIComponent(list);
+  assert.equal(listPathOf("/approvals/new",query),list);
+  assert.equal(navigationContext("/approvals/new",query)?.active.key,"ownDepartmentRegister");
+  assert.equal(safeDepartmentListReturn(list),list);
+  for(const value of [null,"https://example.com/tasks","//example.com/tasks","/tasks?tab=mine","/approvals/todo","/tasks/1"]) {
+    assert.equal(safeDepartmentListReturn(value),null);
+    assert.equal(listPathOf("/approvals/new","?returnTo="+encodeURIComponent(value??"")),"/tasks?tab=department");
+  }
+});
+
+test("created registration retains creator server view and returns to department list on detail and resubmit", () => {
+  const list="/tasks?tab=department&fq=test&page=2";
+  for(const path of ["/work/requests/55?from=mine","/work/requests/55/edit?from=mine"]) {
+    const target=new URL(withListReturn(path,list),"http://omnis.local");
+    assert.equal(target.searchParams.get("from"),"mine");
+    assert.equal(listPathOf(target.pathname,target.search),list);
+    assert.equal(navigationContext(target.pathname,target.search)?.screen.key,"departmentTasks");
+  }
 });
 
 test("organization, equipment and documents have distinct workspaces under management", () => {

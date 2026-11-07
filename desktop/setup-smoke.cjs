@@ -103,6 +103,15 @@ async function csrfHeaders(context, origin) {
         const registered = await api.get(origin+'/api/work/requests/'+workflow.registeredRequestId+'?from=mine');
         assert.equal(registered.status(),200);
         assert.equal((await registered.json()).kind,'REGISTER');
+        const registration=JSON.parse(fs.readFileSync(path.join(evidence,'registration-result.json'),'utf8'));
+        for(const id of [registration.uiRequestId,registration.pendingRequestId]) {
+          const response=await api.get(origin+'/api/work/requests/'+id+'?from=mine');
+          assert.equal(response.status(),200);
+          const data=await response.json();
+          assert.equal(data.kind,'REGISTER');
+          assert.equal(data.phase,'SENT');
+          assert.equal(data.items.length,1);
+        }
         console.log('PASS request, registration, completion and rejection persisted across restart');
       }
       result.runs.push({ run, startSeconds, origin, loginStatus: login.status(), dashboardMetrics: metrics, eventId, persistence: true, rendererIsolation: actual.sandbox && actual.contextIsolation && !actual.nodeIntegration });

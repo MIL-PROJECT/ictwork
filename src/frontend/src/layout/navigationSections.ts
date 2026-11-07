@@ -1,4 +1,4 @@
-export type NavigationLink = { key: string; path: string; feature?: string; tabKey?: string };
+export type NavigationLink = { key: string; path: string; feature?: string; tabKey?: string; inPage?: boolean };
 type Screen = { key: string; owner: string; tabs: NavigationLink[]; actions?: NavigationLink[] };
 export const screens: Screen[] = [
   { key: "overviewPanels", owner: "overview", tabs: [
@@ -14,7 +14,6 @@ export const screens: Screen[] = [
     { key: "departmentService", path: "/department/services" },
     { key: "workTypes", path: "/admin/work-types", feature: "ADMIN_WORK_TYPE" },
   ] },
-  { key: "ownDepartmentRegister", owner: "processing", tabs: [{ key: "ownDepartmentRegister", path: "/approvals/new" }] },
   { key: "requestStatus", owner: "requests", tabs: [
     { key: "requestedTasks", path: "/tasks?tab=mine" },
     { key: "sharedTasks", path: "/tasks?tab=viewable" },
@@ -25,7 +24,9 @@ export const screens: Screen[] = [
     { key: "approvalInProgress", path: "/approvals/in-progress" },
     { key: "handledApprovals", path: "/approvals/todo?tab=handled" },
   ], actions: [{ key: "approvalRoutes", path: "/admin/approval-routes", feature: "ADMIN_SYSTEM" }] },
-  { key: "departmentTasks", owner: "processing", tabs: [{ key: "departmentTasks", path: "/tasks?tab=department" }] },
+  { key: "departmentTasks", owner: "processing", tabs: [{ key: "departmentTasks", path: "/tasks?tab=department" }], actions: [
+    { key: "ownDepartmentRegister", path: "/approvals/new", inPage: true },
+  ] },
   { key: "calendar", owner: "schedule", tabs: [{ key: "calendar", path: "/calendar" }] },
   { key: "organizationPeople", owner: "departmentInfo", tabs: [
     { key: "orgChart", path: "/department/org-chart" },
@@ -49,7 +50,7 @@ export const screens: Screen[] = [
 export const topMenus = [
   { key: "overview", screen: "overviewPanels", children: ["directives", "duty", "ictStatus"] },
   { key: "requests", screen: "newRequest", children: ["newRequest", "requestStatus"] },
-  { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "ownDepartmentRegister", "approvals"] },
+  { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "approvals"] },
   { key: "schedule", screen: "calendar", children: [] },
   { key: "departmentInfo", screen: "organizationPeople", children: ["organizationPeople", "equipmentDiagrams", "docs"] },
   { key: "aiChat", screen: "aiChat", children: [] },
@@ -99,7 +100,16 @@ export function withListReturn(target: string, list: string) {
   return path + "?" + params.toString();
 }
 
+// Registration belongs to the department list, even when a hand-edited URL names another list.
+export function safeDepartmentListReturn(value: string | null): string | null {
+  const safe = safeListReturn(value);
+  if (!safe) return null;
+  const url = new URL(safe, "http://omnis.local");
+  return url.pathname === "/tasks" && normalizedSearch(url.pathname, url.search).get("tab") === "department" ? safe : null;
+}
+
 export function listPathOf(pathname: string, search = ""): string | null {
+  if (pathname === "/approvals/new") return safeDepartmentListReturn(new URLSearchParams(search).get("returnTo")) ?? "/tasks?tab=department";
   if (!/^\/(work\/(items|requests)|approvals\/docs)\/\d+(\/edit)?$/.test(pathname)) return null;
   const params = new URLSearchParams(search);
   const saved = safeListReturn(params.get("returnTo"));
@@ -111,7 +121,7 @@ export function listPathOf(pathname: string, search = ""): string | null {
 }
 
 export function navigationContext(pathname: string, search = "") {
-  const list = listPathOf(pathname, search);
+  const list = pathname === "/approvals/new" ? null : listPathOf(pathname, search);
   if (list) {
     const url = new URL(list, "http://omnis.local");
     pathname = url.pathname;
@@ -158,7 +168,7 @@ export function contextualActions(screen: Screen, activeKey: string) {
     people: ["personnelManage"],
     equipment: ["equipmentManage"],
   };
-  const actions = screen.actions ?? [];
+  const actions = (screen.actions ?? []).filter(({ inPage }) => !inPage);
   return screen.owner === "departmentInfo"
     ? actions.filter(({ key }) => associations[activeKey]?.includes(key))
     : actions.filter(({ key }) => key !== activeKey);

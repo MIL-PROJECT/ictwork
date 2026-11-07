@@ -48,10 +48,30 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   }
 
   await top('업무 처리').click();
-  await top('우리 부서 업무 등록').click();
-  await page.waitForURL(origin+'/approvals/new');
+  await page.waitForURL(origin+'/tasks?tab=department');
+  assert.equal(await aside.getByRole('link',{name:'우리 부서 업무 등록',exact:true}).count(),0);
+  const registrationList='/tasks?'+new URLSearchParams({tab:'department',fq:'등록 복귀 시험',page:'3',fb:'ONGOING'});
+  await go(registrationList);
+  const registerLink=()=>page.locator('main').getByRole('link',{name:'우리 부서 업무 등록',exact:true});
+  await registerLink().waitFor();
+  assert.equal(new URL(await registerLink().getAttribute('href'),origin).searchParams.get('returnTo'),registrationList);
+  await snapshot('department-list-register-button.png');
+  await registerLink().click();
+  await page.waitForURL(url=>url.pathname==='/approvals/new');
+  await page.getByRole('heading',{level:1,name:'우리 부서 업무 등록',exact:true}).waitFor();
   await owner('업무 처리');
+  await top('우리 부서 업무').locator('xpath=self::*[@aria-current="page"]').waitFor();
   assert.equal(await pane('새 요청').count(),0);
+  await page.reload();
+  await page.locator('main').getByRole('link',{name:'목록으로',exact:true}).click();
+  await page.waitForURL(origin+registrationList);
+  await registerLink().click();
+  await page.getByRole('heading',{level:1,name:'우리 부서 업무 등록',exact:true}).waitFor();
+  await page.locator('header nav').getByRole('link',{name:'우리 부서 업무',exact:true}).click();
+  await page.waitForURL(origin+registrationList);
+  await go('/approvals/new?returnTo='+encodeURIComponent('https://example.com/tasks'));
+  await page.locator('main').getByRole('link',{name:'목록으로',exact:true}).waitFor();
+  assert.equal(await page.locator('main').getByRole('link',{name:'목록으로',exact:true}).getAttribute('href'),'/tasks?tab=department');
   await snapshot('processing-registration.png');
   await top('업무요청').click();
   await page.waitForURL(origin+'/approvals/request');
@@ -138,6 +158,7 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   const registered=await (await post('/api/work/requests',registration,201)).json();
   const registeredDetail=await (await page.request.get(origin+'/api/work/requests/'+registered.id+'?from=mine')).json();
   assert.equal(registeredDetail.kind,'REGISTER');
+  await require('./verify-registration.cjs')({page,origin,evidence,go,post,sql,me,ownType,registration});
   await go('/tasks?tab=department&fq='+encodeURIComponent(marker)+'&page=1');
   await owner('업무 처리');
   await page.locator('main a[href^="/work/items/'+registeredDetail.items[0].id+'?"]').first().waitFor();
@@ -248,6 +269,9 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
       const [res]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/auth/login')&&r.request().method()==='POST'),page.locator('[name=password]').press('Enter')]);
       assert.equal(res.status(),200);
       assert.equal((await page.request.get(origin+'/api/admin/personnel')).status(),status);
+      await go('/tasks?tab=department');
+      await page.locator('main').getByRole('link',{name:'우리 부서 업무 등록',exact:true}).waitFor();
+      assert.equal(await aside.getByRole('link',{name:'우리 부서 업무 등록',exact:true}).count(),0);
       await go('/approvals/todo');
       if(status===200) await pane('화면 작업').getByRole('link',{name:'결재 경로',exact:true}).waitFor();
       else assert.equal(await pane('화면 작업').getByRole('link',{name:'결재 경로',exact:true}).count(),0);

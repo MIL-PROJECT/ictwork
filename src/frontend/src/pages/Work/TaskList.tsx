@@ -23,7 +23,7 @@ import { formatDateTime, formatPeriod, useCountText, useWorkError } from "@/comp
 import { useOrgData } from "@/hooks/useOrgData";
 import { usePaging } from "@/hooks/usePaging";
 import { withListReturn } from "@/layout/navigationSections";
-import { TaskIcon } from "@/icons";
+import { PlusIcon, TaskIcon } from "@/icons";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
@@ -120,7 +120,17 @@ export default function TaskList() {
   return (
     <div>
       <PageMeta titleKey={tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus"} />
-      <PageBreadcrumb pageTitle={tc(tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus")} description={tw("tasks.desc")} />
+      <PageBreadcrumb
+        pageTitle={tc(tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus")}
+        description={tw("tasks.desc")}
+        actions={tab === "department" ? (
+          <Link to={withListReturn("/approvals/new", "/tasks?" + params.toString())}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+            <PlusIcon className="size-4" aria-hidden="true" />
+            {tc("sidebar.items.ownDepartmentRegister")}
+          </Link>
+        ) : undefined}
+      />
       {drill && (
         <ConditionBanner
           departmentIds={drill.departmentIds}

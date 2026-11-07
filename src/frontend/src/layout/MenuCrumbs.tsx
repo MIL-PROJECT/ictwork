@@ -19,7 +19,7 @@ export function MenuCrumbs() {
     trail.sub ? t(`sidebar.items.${trail.sub}`) : "",
   ].filter(Boolean);
   const target = menuItemPath(trail);
-  const exact = !!target && !listPathOf(pathname, search) && matchesTarget(pathname, search, target);
+  const exact = !!target && matchesTarget(pathname, search, target);
   return (
     <nav
       aria-label={t("sidebar.crumbs")}
@@ -47,6 +47,8 @@ export function MenuCrumbs() {
             >
               {p}
             </Link>
+          ) : i === parts.length - 2 && trail.sub === "ownDepartmentRegister" && listPath ? (
+            <Link to={listPath} className="rounded-md px-1 hover:bg-brand-50 hover:text-brand-500">{p}</Link>
           ) : i === parts.length - 1 && !exact && listPath ? (
             <Link
               to={listPath}
