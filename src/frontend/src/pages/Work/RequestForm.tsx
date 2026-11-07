@@ -144,7 +144,8 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { safeDepartmentListReturn, safeListReturn, withListReturn } from "@/layout/navigationSections";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 // 초점을 받을 수 있는 칸 (올리기 실패 때 첫 오류 칸으로 옮김, REQ-101)
 const FOCUSABLE =
@@ -209,6 +210,9 @@ export default function RequestForm({
   const { t: tw } = useTranslation("workform");
   const { t: ts } = useTranslation("scope");
   const { id } = useParams();
+  const location = useLocation();
+  const returnList = safeListReturn(new URLSearchParams(location.search).get("returnTo"));
+  const registrationList = safeDepartmentListReturn(returnList) ?? "/tasks?tab=department";
   // 고쳐 다시 올리기(/work/requests/:id/edit): 번호가 잘못되면 서버를 부르지 않고 "찾을 수 없음"
   const editing = id !== undefined;
   const editId = editing ? idParam(id) : null;
@@ -837,14 +841,15 @@ export default function RequestForm({
       attachmentIds: attachmentIds(attachments),
     };
     try {
-      // 올린 사람은 요청자 쪽이므로 요청한 업무에서 연 것처럼 연다(받는 부서를 겸해도 전체 상태가 보이게)
+      // from=mine preserves the creator's full server view; returnTo controls navigation separately.
       if (editId !== null) {
         await resubmitRequest(editId, input);
         // 고치기 화면을 기록에서 바꿔 넣어 요청 화면의 [이전으로]가 고치기 화면으로 돌아가지 않게
-        navigate(`/work/requests/${editId}?from=mine`, { replace: true });
+        navigate(withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine"), { replace: true });
       } else {
         const created = await createRequest(input);
-        navigate(`/work/requests/${created.id}?from=mine`);
+        const target = `/work/requests/${created.id}?from=mine`;
+        navigate(register ? withListReturn(target, registrationList) : target, { replace: register });
       }
     } catch (err) {
       // 그사이 유형의 일정 방식이 바뀌었을 수 있다: 고르기 목록을 다시 읽어 칸을 맞춘다
@@ -1911,9 +1916,13 @@ export default function RequestForm({
         description={t(
           register ? "register.descRegister" : "register.descRequest",
         )}
-        // 고쳐 다시 올리기 화면만 [이전으로] (업무 등록·업무 요청은 메뉴 화면)
+        actions={register && !editing ? (
+          <Link to={registrationList} className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3">
+            {t("back")}
+          </Link>
+        ) : undefined}
         back={
-          editId !== null ? `/work/requests/${editId}?from=mine` : undefined
+          editId !== null ? withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine") : undefined
         }
       />
       {loadedEdit && (

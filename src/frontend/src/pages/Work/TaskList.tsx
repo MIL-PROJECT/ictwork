@@ -18,11 +18,12 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import ConditionBanner from "@/components/status/ConditionBanner";
 import TaskFilterPanel from "@/components/work/TaskFilterPanel";
-import { PanelTable, PriorityBadge, RequestStatusBadge, Tabs, WorkStatusBadge } from "@/components/work/common";
+import { PanelTable, PriorityBadge, RequestStatusBadge, WorkStatusBadge } from "@/components/work/common";
 import { formatDateTime, formatPeriod, useCountText, useWorkError } from "@/components/work/format";
 import { useOrgData } from "@/hooks/useOrgData";
 import { usePaging } from "@/hooks/usePaging";
-import { TaskIcon } from "@/icons";
+import { withListReturn } from "@/layout/navigationSections";
+import { PlusIcon, TaskIcon } from "@/icons";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
@@ -118,9 +119,18 @@ export default function TaskList() {
 
   return (
     <div>
-      <PageMeta titleKey="sidebar.items.registeredTasks" />
-      <PageBreadcrumb pageTitle={tc("sidebar.items.registeredTasks")} description={tw("tasks.desc")} />
-      <Tabs tabs={TABS.map((value) => ({ value, label: t(`tasks.tabs.${value}`) }))} value={tab} onChange={(value) => setParams({ tab: value })} />
+      <PageMeta titleKey={tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus"} />
+      <PageBreadcrumb
+        pageTitle={tc(tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus")}
+        description={tw("tasks.desc")}
+        actions={tab === "department" ? (
+          <Link to={withListReturn("/approvals/new", "/tasks?" + params.toString())}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+            <PlusIcon className="size-4" aria-hidden="true" />
+            {tc("sidebar.items.ownDepartmentRegister")}
+          </Link>
+        ) : undefined}
+      />
       {drill && (
         <ConditionBanner
           departmentIds={drill.departmentIds}
@@ -155,7 +165,7 @@ export default function TaskList() {
                 cells: [
                   <span key="title" className="flex flex-wrap items-center gap-2">
                     <PriorityBadge priority={item.priority} />
-                    <Link to={`/work/items/${item.id}?from=department`} className="min-w-0 wrap-break-word font-medium text-brand-600 hover:underline dark:text-brand-400">
+                    <Link to={withListReturn(`/work/items/${item.id}?from=department`, "/tasks?" + params.toString())} className="min-w-0 wrap-break-word font-medium text-brand-600 hover:underline dark:text-brand-400">
                       {item.title}
                     </Link>
                   </span>,
@@ -178,7 +188,7 @@ export default function TaskList() {
                 key: r.id,
                 cells: [
                   t(`requestKinds.${r.kind}`),
-                  <Link key="title" to={`/work/requests/${r.id}?from=${tab}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                  <Link key="title" to={withListReturn(`/work/requests/${r.id}?from=${tab}`, "/tasks?" + params.toString())} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                     {r.title}
                   </Link>,
                   r.types.map((type) => type.name).join(", "),

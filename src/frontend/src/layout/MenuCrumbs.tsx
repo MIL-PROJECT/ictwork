@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
-import { listPathOf, menuItemPath, menuTrail } from "./AppSidebar";
+import { listPathOf, matchesTarget, menuItemPath, menuTrail } from "./navigationSections";
 
 // 상단바 왼쪽 경로 (OMNIS .crumbs): 묶음 이름 › 지금 화면(굵은 남색). 메뉴에 없는 화면(상세 등)은 묶음만
 export function MenuCrumbs() {
@@ -18,7 +18,8 @@ export function MenuCrumbs() {
     t(`sidebar.items.${trail.item}`),
     trail.sub ? t(`sidebar.items.${trail.sub}`) : "",
   ].filter(Boolean);
-  const exact = menuItemPath(trail) === pathname;
+  const target = menuItemPath(trail);
+  const exact = !!target && matchesTarget(pathname, search, target);
   return (
     <nav
       aria-label={t("sidebar.crumbs")}
@@ -46,6 +47,8 @@ export function MenuCrumbs() {
             >
               {p}
             </Link>
+          ) : i === parts.length - 2 && trail.sub === "ownDepartmentRegister" && listPath ? (
+            <Link to={listPath} className="rounded-md px-1 hover:bg-brand-50 hover:text-brand-500">{p}</Link>
           ) : i === parts.length - 1 && !exact && listPath ? (
             <Link
               to={listPath}

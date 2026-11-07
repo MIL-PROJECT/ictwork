@@ -21,11 +21,16 @@
       "support": "Support",
       "others": "Others",
       "work": "Work",
-      "department": "Department",
+      "department": "Management",
       "settings": "Settings",
       "admin": "Admin",
       "ai": "AI",
-      "home": ""
+      "home": "",
+      "overview": "Overview",
+      "requests": "Requests",
+      "processing": "Work Processing",
+      "schedule": "Schedule",
+      "departmentInfo": "Management"
     },
     "badges": {
       "new": "new",
@@ -59,7 +64,7 @@
       "transactions": "Transactions",
       "singleTransaction": "Single Transaction",
       "calendar": "Calendar",
-      "workStatus": "Work Status",
+      "workStatus": "Work Statistics",
       "board": "Control Board",
       "directives": "Directives",
       "duty": "Duty status",
@@ -67,8 +72,8 @@
       "registeredTasks": "Registered Tasks",
       "approvalBox": "Approvals",
       "taskRegister": "Task Register",
-      "taskApproval": "Approve Tasks",
-      "approvalInProgress": "In Progress",
+      "taskApproval": "Approvals",
+      "approvalInProgress": "In-progress Approvals",
       "orgChart": "Org chart",
       "people": "People",
       "equipment": "Equipment",
@@ -153,17 +158,41 @@
       "inbox": "Inbox",
       "inboxDetails": "Details",
       "equipmentManage": "Equipment",
-      "taskReceipt": "Task Receipt",
+      "taskReceipt": "Awaiting Receipt",
       "workTypes": "Work Types",
       "approvalRoutes": "Approval Routes",
-      "taskRequest": "Task Request"
+      "taskRequest": "Task Request",
+      "dutyDirectives": "Duty & Directives",
+      "organizationPeople": "Organization & People",
+      "equipmentDiagrams": "Equipment & Diagrams",
+      "departmentWork": "Department Work",
+      "departmentService": "Work Guidance",
+      "overview": "Overview",
+      "overviewPanels": "Overview",
+      "situation": "Situation Board",
+      "requests": "Requests",
+      "newRequest": "New Request",
+      "otherDepartmentRequest": "Request Another Department",
+      "ownDepartmentRegister": "Register Department Work",
+      "requestStatus": "Request Status",
+      "requestedTasks": "My Requests",
+      "sharedTasks": "Shared Requests",
+      "processing": "Work Processing",
+      "approvals": "Approvals",
+      "myTurn": "My Turn",
+      "handledApprovals": "Handled Approvals",
+      "schedule": "Schedule",
+      "departmentTasks": "Department Work",
+      "departmentInfo": "Management",
+      "personnelAttributes": "Personnel Attributes",
+      "equipmentAttributes": "Equipment Attributes"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",
       "description": "Leading Tailwind CSS Admin Template with 500+ UI Component and Pages.",
       "purchasePlan": "Purchase Plan"
     },
-    "brandSub": "Integrated ICT work management",
+    "brandSub": "Integrated ICT Operations & Maintenance",
     "foot": {
       "aiOn": "AI Q&A on",
       "aiOff": "AI Q&A off"
@@ -254,5 +283,17 @@
     "lastLabel": "Last page",
     "pageLabel": "Page {page}",
     "rowsPerPage": "Rows per page:"
-  }
+  },
+  "workGuidance": {
+    "description": "Review department work types and descriptions before requesting work.",
+    "search": "Search work types, departments and descriptions",
+    "empty": "No matching work types.",
+    "failed": "Could not load work guidance.",
+    "retry": "Retry"
+},
+  "workflow": {
+  "actions": "Page Actions",
+  "mainNav": "Main Navigation",
+  "toggle": "Expand or collapse {{name}} menu"
+}
 }
