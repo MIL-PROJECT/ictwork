@@ -26,7 +26,7 @@ function openLink(hit: DocSearchHit) {
 /** 이름 찾기 결과 (REQ-A03): 이름, 있는 곳(문서함 > 폴더), 공유받은 것 표시, 여는 링크·내려받기. 최대 200건(서버) */
 export default function SearchResults({ hits, query }: { hits: DocSearchHit[]; query: string }) {
   const { t } = useTranslation("docbox", { keyPrefix: "search" });
-  // 미리보기 창: PDF·그림·txt·한글·워드는 새 탭 대신 체계 안에서 본다
+  // 미리보기 창: PDF·그림·txt·한글·워드·엑셀·파워포인트는 새 탭 대신 체계 안에서 본다
   const [previewing, setPreviewing] = useState<{ id: number; name: string } | null>(null);
   return (
     // 문서함 내용 카드(Panel) 안에 꽉 차게 둔다: 상자 테두리·모서리 없음

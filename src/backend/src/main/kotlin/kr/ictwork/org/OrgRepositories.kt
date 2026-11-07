@@ -6,9 +6,6 @@ import org.springframework.data.jpa.repository.Query
 import javax.persistence.LockModeType
 
 interface DepartmentRepository : JpaRepository<Department, Long> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select d from Department d where d.id = :id")
-    fun lockForServiceProfile(id: Long): Department?
     fun existsByParentIdAndActiveTrue(parentId: Long): Boolean
 }
 

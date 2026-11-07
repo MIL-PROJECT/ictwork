@@ -39,7 +39,7 @@ export function DirectiveImages({ directiveId, images }: { directiveId: number; 
             alt={t("images.alt", { n: i + 1 })}
             loading="lazy"
             onError={() => setFailedOf((prev) => ({ images, ids: new Set(prev?.images === images ? prev.ids : []).add(image.id) }))}
-            className="block h-auto max-h-[80vh] w-full rounded-lg border border-gray-200 object-contain dark:border-gray-800"
+            className="block h-auto max-h-[calc(80vh/var(--app-zoom))] w-full rounded-lg border border-gray-200 object-contain dark:border-gray-800"
           />
         ),
       )}

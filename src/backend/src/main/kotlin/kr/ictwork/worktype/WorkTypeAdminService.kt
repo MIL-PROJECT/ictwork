@@ -31,15 +31,24 @@ data class WorkTypeAdminRow(
     val version: Long,
     val formVersionId: Long?,
     val definition: FormDefinition?, // 지금 판 정의 (양식 편집기의 처음 값). 없으면 null
-    val scheduleMode: String, // 요청할 때 일정 입력 방식: OPTIONAL(희망일 선택)·EXACT_REQUIRED(정확한 일정 필수)
+    val description: String, // 추천 근거. 비어 있으면 추천에 나오지 않는다("기타", 설명 전에 만든 유형)
+    val scheduleMode: String, // 요청할 때 일정 입력 방식 (ScheduleModes)
+    val preferredCount: Int, // PREFERRED일 때 받는 희망 일자 개수 1~3
 )
 
 /** 내가 유형을 고칠 수 있는 부서 (역할의 대상 부서) */
 data class WorkTypeDepartment(val id: Long, val path: String)
 
-data class WorkTypeCreateInput(val departmentId: Long, val name: String)
+data class WorkTypeCreateInput(val departmentId: Long, val name: String, val description: String? = null)
 
-data class WorkTypeUpdateInput(val name: String? = null, val active: Boolean? = null, val version: Long? = null, val scheduleMode: String? = null)
+data class WorkTypeUpdateInput(
+    val name: String? = null,
+    val active: Boolean? = null,
+    val version: Long? = null,
+    val description: String? = null,
+    val scheduleMode: String? = null,
+    val preferredCount: Int? = null,
+)
 
 data class WorkTypeOrderInput(val departmentId: Long, val ids: List<Long>)
 
@@ -113,8 +122,9 @@ class WorkTypeAdminService(
         requireAdminOf(accessPolicy.actor(loginId), input.departmentId)
         val name = validName(input.name)
         if (repository.existsByDepartmentIdAndName(input.departmentId, name)) throw duplicate()
+        val description = validDescription(input.description)
         val last = repository.findByDepartmentIdOrderBySortOrderAscIdAsc(input.departmentId).filter { !it.isOther }.maxOfOrNull { it.sortOrder } ?: 0
-        return row(repository.saveAndFlush(WorkType(input.departmentId, name, false, last + 1)))
+        return row(repository.saveAndFlush(WorkType(input.departmentId, name, false, last + 1).also { it.description = description }))
     }
 
     @Transactional
@@ -131,10 +141,22 @@ class WorkTypeAdminService(
             if (repository.existsByDepartmentIdAndName(type.departmentId, name)) throw duplicate()
             type.name = name
         }
-        input.scheduleMode?.let { mode ->
-            if (mode !in SCHEDULE_MODES) throw badRequest("WORK_TYPE_SCHEDULE_MODE_INVALID", "일정 방식을 올바르게 고르세요.")
-            if (type.isOther && mode != type.scheduleMode) throw badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"는 일정 방식을 바꿀 수 없습니다.")
+        // "기타"는 설명·일정 방식을 두지 않는다(희망 일자 하나, 추천에 나오지 않음)
+        input.description?.let { text ->
+            if (type.isOther) throw badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"는 설명을 넣을 수 없습니다.")
+            type.description = validDescription(text)
+        }
+        if (input.scheduleMode != null || input.preferredCount != null) {
+            val mode = input.scheduleMode ?: type.scheduleMode
+            val count = input.preferredCount ?: type.preferredCount
+            if (mode !in ScheduleModes.ALL || count !in 1..ScheduleModes.MAX_PREFERRED) {
+                throw badRequest("WORK_TYPE_SCHEDULE_MODE_INVALID", "일정 방식을 올바르게 고르세요.")
+            }
+            if (type.isOther && (mode != type.scheduleMode || count != type.preferredCount)) {
+                throw badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"는 일정 방식을 바꿀 수 없습니다.")
+            }
             type.scheduleMode = mode
+            type.preferredCount = count
         }
         input.active?.let { type.active = it }
         return row(repository.saveAndFlush(type))
@@ -201,8 +223,11 @@ class WorkTypeAdminService(
         return FormImage(file.extension, fileService.body(fileId) ?: throw notFound())
     }
 
-    private companion object {
-        val SCHEDULE_MODES = setOf("OPTIONAL", "EXACT_REQUIRED")
+    /** 설명: 앞뒤 빈칸을 빼고 1~500자 */
+    private fun validDescription(text: String?): String {
+        val value = text?.trim().orEmpty()
+        if (value.isEmpty() || value.codePointCount(0, value.length) > 500) throw badRequest("WORK_TYPE_DESCRIPTION_INVALID", "업무 설명을 1~500자로 입력하세요.")
+        return value
     }
 
     private fun otherFixed() = badRequest("WORK_TYPE_OTHER_FIXED", "\"기타\"에는 양식을 넣을 수 없습니다.")
@@ -224,7 +249,7 @@ class WorkTypeAdminService(
         val definitions = forms.definitions(types.map { it.currentFormVersionId })
         return types.map {
             WorkTypeAdminRow(checkNotNull(it.id), it.name, it.isOther, it.active, it.sortOrder, it.version, it.currentFormVersionId,
-                it.currentFormVersionId?.let(definitions::get), it.scheduleMode)
+                it.currentFormVersionId?.let(definitions::get), it.description, it.scheduleMode, it.preferredCount)
         }
     }
 }

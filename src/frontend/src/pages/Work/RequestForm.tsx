@@ -1,7 +1,7 @@
 import PreferredScheduleFields from "@/components/work/PreferredScheduleFields";
 import { exactRequestScheduleValid } from "@/components/work/requestSchedule";
-import { emptyPreference, preferenceValid, preferenceInputs, type PreferredDraft } from "@/components/work/preferredSchedule";
-import DepartmentRecommendations from "@/components/work/DepartmentRecommendations";
+import { emptyPreference, preferencesValid, preferenceInputs, preferredMax, type PreferredDraft } from "@/components/work/preferredSchedule";
+import TypeRecommendations from "@/components/work/TypeRecommendations";
 import { ApiError } from "@/api/client";
 import { deleteTempFile, uploadFile } from "@/api/files";
 import { fetchProfile, type Profile } from "@/api/me";
@@ -194,7 +194,7 @@ export default function RequestForm({
   const [showRequired, setShowRequired] = useState(false);
   const [flowStep, setFlowStep] = useState(0);
   const [departmentIntake, setDepartmentIntake] = useState(!editing);
-  const [preference, setPreference] = useState<PreferredDraft>(emptyPreference());
+  const [preferences, setPreferences] = useState<PreferredDraft[]>([emptyPreference()]);
   const [typeErrors, setTypeErrors] = useState<Record<number, boolean>>({});
   const [title, setTitle] = useState("");
   const [place, setPlace] = useState("");
@@ -273,8 +273,8 @@ export default function RequestForm({
         }
         setKind(r.kind);
         setDepartmentIntake(r.departmentIntake ?? false);
-        const preferred = r.schedule.preferences?.[0];
-        setPreference(preferred ? { date: preferred.date, time: preferred.time?.slice(0, 5) ?? "" } : emptyPreference());
+        const preferred = (r.schedule.preferences ?? []).map((slot) => ({ date: slot.date, time: slot.time?.slice(0, 5) ?? "" }));
+        setPreferences(preferred.length > 0 ? preferred : [emptyPreference()]);
         setChosenTypes(
           Object.fromEntries(
             r.targets.map((x) => [
@@ -400,9 +400,14 @@ export default function RequestForm({
             .map((a) => a.departmentId).filter((id): id is number => id !== null),
         )
       : null;
-  const exactRequired = intake && typeTargets.some((d) => typeOptions[d]?.some((type) => (chosenTypes[d] ?? []).includes(type.typeId) && type.scheduleMode === "EXACT_REQUIRED"));
-  const hasPreferences = !!preference.date || !!preference.time;
-  const scheduleReady = intake ? (exactRequired ? exactRequestScheduleValid(schedule) : !hasPreferences || preferenceValid(preference)) : periodOk(
+  // 간편 부서 요청의 일정: 고른 유형 중 정확한 일정 필수가 있으면 정확한 일정, 아니면 희망 일자를 받는 유형의 가장 큰 개수까지(서버 scheduleRule과 같음)
+  const chosenOptions = intake ? typeTargets.flatMap((d) => (typeOptions[d] ?? []).filter((type) => (chosenTypes[d] ?? []).includes(type.typeId))) : [];
+  const exactRequired = chosenOptions.some((type) => type.scheduleMode === "EXACT_REQUIRED");
+  const maxPreferences = preferredMax(chosenOptions);
+  // 받는 개수가 줄면 넘치는 칸은 보이지 않고 보내지도 않는다
+  const shownPreferences = preferences.slice(0, Math.max(1, maxPreferences));
+  const hasPreferences = maxPreferences > 0 && shownPreferences.some((value) => value.date !== "" || value.time !== "");
+  const scheduleReady = intake ? (exactRequired ? exactRequestScheduleValid(schedule) : maxPreferences === 0 || preferencesValid(shownPreferences)) : periodOk(
     schedule.startDate,
     schedule.startTime,
     schedule.endDate,
@@ -737,7 +742,7 @@ export default function RequestForm({
       // 발송 결재는 고르지 않는다: 부서 접수 요청도 결재 경로(처음엔 본인 결재)를 거친다
       approvalRequested: intake,
       requestedSchedule: exactRequired ? { ...schedule, endDate: schedule.endDate || null } : null,
-      preferredSlots: intake && !exactRequired ? preferenceInputs(preference) : [],
+      preferredSlots: intake && !exactRequired && maxPreferences > 0 ? preferenceInputs(shownPreferences) : [],
       title: intake ? "" : title,
       place,
       content,
@@ -789,7 +794,8 @@ export default function RequestForm({
         navigate(`/work/requests/${created.id}?from=mine`);
       }
     } catch (err) {
-      if (err instanceof ApiError && err.code === "REQUEST_SCHEDULE_REQUIRED") await Promise.all(typeTargets.map(loadTypeOptions));
+      // 그사이 유형의 일정 방식이 바뀌었을 수 있다: 고르기 목록을 다시 읽어 칸을 맞춘다
+      if (err instanceof ApiError && (err.code === "REQUEST_SCHEDULE_REQUIRED" || err.code === "PREFERRED_SCHEDULE_INVALID")) await Promise.all(typeTargets.map(loadTypeOptions));
       if (err instanceof ApiError && err.code === "FORM_CHANGED") {
         await reloadForms();
         setError(tw("request.formChanged"));
@@ -920,7 +926,8 @@ export default function RequestForm({
           icon={<GroupIcon />}
           title={t("register.targets")}
         >
-          <DepartmentRecommendations departments={departments} paths={paths} receivers={receivers} selected={targets} onSelect={(departmentId, issue) => { addTarget(departmentId); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
+          {/* 추천 유형을 고르면 그 유형을 만든 부서가 받는 부서로 들어가고 그 유형이 함께 골라진다 */}
+          <TypeRecommendations receivers={receivers} chosen={chosenTypes} onSelect={(departmentId, typeId, issue) => { addTarget(departmentId); setChosenTypes((prev) => ((prev[departmentId] ?? []).includes(typeId) ? prev : { ...prev, [departmentId]: [...(prev[departmentId] ?? []), typeId] })); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
           <RequestDisclosure title={t("recommend.manual")} open={manualOpen} onOpenChange={setManualOpen}>
           <div id="request-manual-departments" tabIndex={-1}>
           <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
@@ -1166,8 +1173,8 @@ export default function RequestForm({
               <h3 className="font-semibold text-gray-900 dark:text-white">{t("guidance.exactTitle")}</h3>
               <p className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
               <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} />
-            </div> : <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
-              <PreferredScheduleFields value={preference} onChange={setPreference} invalid={tried && !scheduleReady} />
+            </div> : maxPreferences > 0 && <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
+              <PreferredScheduleFields values={shownPreferences} max={maxPreferences} onChange={setPreferences} invalid={tried && !scheduleReady} />
             </RequestDisclosure>}
           </div>}
         </Section>
@@ -1217,7 +1224,7 @@ export default function RequestForm({
       ) : intake ? (
         // 업무 요청(부서 접수): 열람 범위는 선택이라 처음엔 접어 둔다
         <div id="request-viewers">
-          <RequestDisclosure title={`${t("intake.viewersOptional")}${viewerCount > 0 ? ` · ${viewerCount}` : ""}`} initiallyOpen={viewerCount > 0}>
+          <RequestDisclosure title={`${t("intake.viewersOptional")} · ${viewerCount > 0 ? viewerCount : t("requestDetail.noViewers")}`} initiallyOpen={viewerCount > 0}>
             <p className="text-sm text-gray-500 dark:text-gray-400">{t("intake.viewersHelp")}</p>
             <OrgPicker
               label={t("register.viewers")}
@@ -1237,7 +1244,7 @@ export default function RequestForm({
                   onRemove: () => setViewerPeople(viewerPeople.filter((x) => x !== p)),
                 })),
               ]}
-              emptyText={t("intake.viewersNone")}
+              emptyText={t("requestDetail.noViewers")}
             />
           </RequestDisclosure>
         </div>
@@ -1448,23 +1455,6 @@ export default function RequestForm({
     </>
   );
 
-  const destinationSummary = targets.length ? (
-    <ul className="space-y-3">
-      {targets.map((d) => (
-        <li key={d} className="text-sm">
-          <p className="font-semibold text-gray-800 dark:text-gray-200">
-            {paths.get(d)}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-gray-500">
-            {(chosenTypes[d] ?? []).map((id) => typeName(d, id)).join(" · ") ||
-              t("flow.typePending")}
-          </p>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-sm text-gray-400">{t("flow.destinationEmpty")}</p>
-  );
   const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><ul className="mt-2 space-y-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => <li key={d}>{paths.get(d)}</li>)}</ul></Section>;
   const reviewSection = (
     <Section
@@ -1490,7 +1480,7 @@ export default function RequestForm({
         <InfoRow label={t(intake ? "intake.deliveryTitle" : "register.assignees")} wide={intake}>
           {intake ? targets.map((d) => paths.get(d)).join("\n") : assigneeItems.map((item) => item.label).join(", ")}
         </InfoRow>
-        {intake ? <InfoRow label={t("intake.scheduleTitle")} wide>{exactRequired ? formatSchedule(schedule) : hasPreferences ? formatSchedule({ startDate: null, startTime: null, endDate: null, endTime: null, preferences: preferenceInputs(preference) }) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
+        {intake ? <InfoRow label={t("intake.scheduleTitle")} wide>{exactRequired ? formatSchedule(schedule) : hasPreferences ? formatSchedule({ startDate: null, startTime: null, endDate: null, endTime: null, preferences: preferenceInputs(shownPreferences) }) : t("guidance.noSchedule")}</InfoRow> : <>        <InfoRow label={t("schedule.title")}>
           {[schedule.startDate, schedule.startTime].filter(Boolean).join(" ")}
           {schedule.endDate || schedule.endTime
             ? ` → ${schedule.endDate || schedule.startDate} ${schedule.endTime}`
@@ -1521,7 +1511,12 @@ export default function RequestForm({
       <button
         type="button"
         className="mt-4 text-sm font-semibold text-brand-600"
-        onClick={() => goToStep(intake ? 0 : 2)}
+        // 간편 부서 요청은 한 단계가 길어 첨부파일 칸으로 바로 간다
+        onClick={() => {
+          if (!intake) return goToStep(2);
+          setError(null);
+          focusField("request-attachments");
+        }}
       >
         {t(intake ? "guidance.editDelivery" : "flow.editSchedule")}
       </button>
@@ -1616,32 +1611,10 @@ export default function RequestForm({
                     </p>
                   </>,
                 ]}
-                complete={flowProblems().map((problem) => problem === null)}
+                // 간편 부서 요청의 확인·발송 단계는 보내기 단계라 ✓를 붙이지 않는다(열람 범위가 선택이라 들르기 전부터 문제 없음으로 나옴)
+                complete={flowProblems().map((problem, index) => problem === null && !(intake && index === 1))}
                 onStep={goToStep}
                 onNext={() => goToStep(flowStep + 1)}
-                applicant={
-                  <>
-                    <p className="font-semibold">
-                      {profile
-                        ? profile.rankCode
-                          ? rankName({
-                              rankCode: profile.rankCode,
-                              name: profile.displayName,
-                            })
-                          : profile.displayName
-                        : myName}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {profile?.department}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {profile?.contact ||
-                        applicantContact ||
-                        t("flow.contactLater")}
-                    </p>
-                  </>
-                }
-                summary={destinationSummary}
                 error={error}
                 busy={submitting}
                 uploading={uploading}

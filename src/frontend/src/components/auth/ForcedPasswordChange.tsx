@@ -15,7 +15,7 @@ export default function ForcedPasswordChange() {
   const [signOutFailed, setSignOutFailed] = useState(false);
 
   return (
-    <Modal isOpen onClose={() => undefined} showCloseButton={false} labelledBy="forced-change-title" className="custom-scrollbar max-h-[90vh] max-w-xl overflow-y-auto">
+    <Modal isOpen onClose={() => undefined} showCloseButton={false} labelledBy="forced-change-title" className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-xl overflow-y-auto">
       {/* OMNIS 대화상자: 제목·설명 → 내용(여백 22) → 바닥 띠(로그아웃) */}
       <div className="flex items-start gap-3 px-[22px] pt-6">
         <span aria-hidden className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-500 [&_svg]:size-5 dark:bg-white/10 dark:text-brand-300">

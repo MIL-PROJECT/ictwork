@@ -13,7 +13,7 @@ import EquipmentManage from "./pages/Admin/EquipmentManage";
 import OrganizationManage from "./pages/Admin/OrganizationManage";
 import PersonnelManage from "./pages/Admin/PersonnelManage";
 import QaAccountPicker from "./pages/Qa/QaAccountPicker";
-import DepartmentServiceManage from "./pages/Admin/DepartmentServiceManage";
+import WorkTypeManage from "./pages/Admin/WorkTypeManage";
 import AttributeManage from "./pages/Admin/AttributeManage";
 import AiChat from "./pages/Ai/AiChat";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -90,8 +90,6 @@ export default function App() {
             <Route path="/approvals/in-progress" element={<MyDrafts />} />
             <Route path="/approvals/docs/:id" element={<ApprovalDoc />} />
             <Route path="/department/org-chart" element={<OrgChart />} />
-            {/* 부서관리 ▸ 부서 업무 안내는 관리 ▸ 부서 업무 안내로 합쳤다 */}
-            <Route path="/department/services" element={<Navigate to="/admin/department-services" replace />} />
             <Route path="/department/people" element={<PeopleList />} />
             <Route path="/department/equipment" element={<EquipmentList />} />
             {/* 등록과 상세가 같은 화면이라 key를 달리해 등록 뒤 상세로 갈 때 상태를 새로 시작한다 */}
@@ -109,9 +107,7 @@ export default function App() {
             <Route path="/admin/personnel" element={<RequireFeature feature="ADMIN_PERSONNEL"><PersonnelManage /></RequireFeature>} />
             <Route path="/admin/equipment" element={<RequireFeature feature="ADMIN_EQUIPMENT"><EquipmentManage /></RequireFeature>} />
             {/* 업무 유형: 부서 관리자(역할 대상 부서, REQ-808). 요청 유형(REQ-805)은 없앰 (G-32) */}
-            <Route path="/admin/department-services" element={<RequireFeature feature="ADMIN_WORK_TYPE"><DepartmentServiceManage /></RequireFeature>} />
-            {/* 옛 주소(업무 유형)는 부서 업무 안내로 옮겼다 */}
-            <Route path="/admin/work-types" element={<Navigate to="/admin/department-services" replace />} />
+            <Route path="/admin/work-types" element={<RequireFeature feature="ADMIN_WORK_TYPE"><WorkTypeManage /></RequireFeature>} />
             {/* 특성 대상은 장비·인원 둘뿐이라 경로를 따로 둔다. 그 밖의 대상(/admin/attributes/xyz)은 없는 주소(NotFound) */}
             <Route path="/admin/attributes/equipment" element={<RequireFeature feature="ADMIN_ATTRIBUTE"><AttributeManage target="equipment" /></RequireFeature>} />
             <Route path="/admin/attributes/personnel" element={<RequireFeature feature="ADMIN_ATTRIBUTE"><AttributeManage target="personnel" /></RequireFeature>} />

@@ -130,6 +130,7 @@ export default function RosterList({ department, selectedId, onSelect, onCreate,
           title={t("deleteTitle", { name: selected.name })}
           description={t("deleteMessage")}
           submitLabel={t("deleteConfirm")}
+          danger
           describeError={describeError}
           onSubmit={onDelete}
           onClose={() => setDialog(null)}

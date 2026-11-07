@@ -418,10 +418,10 @@ class AiQaTest(
         json(mockMvc.perform(post("/api/ai/conversations").with(signedIn(loginId, accountRepository)).with(csrf()))
             .andExpect(status().isCreated).andReturn().response.getContentAsString(Charsets.UTF_8)).path("id").asLong()
 
-    private fun startAsk(loginId: String, conversationId: Long, question: String, options: Map<String, Any> = emptyMap()): MvcResult =
+    private fun startAsk(loginId: String, conversationId: Long, question: String): MvcResult =
         mockMvc.perform(
             post("/api/ai/conversations/$conversationId/ask").with(signedIn(loginId, accountRepository)).with(csrf())
-                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(mapOf("question" to question) + options)),
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(mapOf("question" to question))),
         ).andExpect(request().asyncStarted()).andReturn()
 
     /** 답 흐름 이벤트 (이름, 값) */
@@ -453,98 +453,6 @@ class AiQaTest(
     private fun JsonNode.texts(field: String) = path(field).map { if (it.isTextual) it.asText() else it.path("label").asText() }
 
     // ───────── REQ-B01 ─────────
-
-    @Test
-    fun `assistance summary uses the existing scope and metrics and persists grounded results`() {
-        val id = newConversation("ai-s1a")
-        FakeOllama.reply("""{"advice":["미완료 업무의 담당 부서와 작업 계획을 확인해 주세요."],"questions":[]}""")
-        val reply = events(startAsk("ai-s1a", id, "우리 부서 현황 요약", mapOf("task" to AiTasks.SUMMARY, "dateFrom" to "2026-10-01", "dateTo" to "2026-10-31")))
-        assertThat(reply.done().path("status").asText()).isEqualTo("DONE")
-        assertThat(reply.text()).contains("완료 건수: 2건", "미완료(지금)", "2026-10-01 ~ 2026-10-31", "AI 검토 의견")
-        assertThat(reply.meta().texts("conditions")).anyMatch { it.contains("1반") }.anyMatch { it.contains("AI 검토 의견") }
-        assertThat(FakeOllama.chatRequests.single().has("tools")).isFalse()
-        val detail = chatService.detail("ai-s1a", id)
-        assertThat(detail.messages.last().content).isEqualTo(reply.text())
-        assertThat(detail.messages.last().links).isNotEmpty()
-    }
-
-    @Test
-    fun `assistance retains real results when the model is down and invents no case sources`() {
-        FakeOllama.down = true
-        val reply = events(startAsk("ai-s1a", newConversation("ai-s1a"), "ZXQ-완전히다른장비 오류", mapOf("task" to AiTasks.SYMPTOM)))
-        assertThat(reply.done().path("status").asText()).isEqualTo("DONE")
-        assertThat(reply.text()).contains("완료 사례를 찾지 못했습니다", "추가로 확인할 내용", "AI 검토 의견을 받지 못해")
-        assertThat(reply.meta().path("sources")).isEmpty()
-        assertThat(reply.meta().texts("conditions")).anyMatch { it.contains("기본 안내") }
-    }
-
-    @Test
-    fun `assistance rejects quantities invented by the model`() {
-        FakeOllama.reply("""{"advice":["긴급 업무는 99999건입니다."],"questions":[]}""")
-        val reply = events(startAsk("ai-s1a", newConversation("ai-s1a"), "현황 요약", mapOf("task" to AiTasks.SUMMARY)))
-        assertThat(reply.text()).contains("완료 건수: 2건", "기본 안내").doesNotContain("99999")
-        assertThat(reply.done().path("status").asText()).isEqualTo("DONE")
-    }
-
-    @Test
-    fun `summary cannot add unsupported performance or staffing judgments`() {
-        FakeOllama.reply("""{"advice":["긴급 완료가 적어 대응 능력이 부족합니다."],"questions":[]}""")
-        val reply = events(startAsk("ai-s1a", newConversation("ai-s1a"), "현황 요약", mapOf("task" to AiTasks.SUMMARY)))
-        assertThat(reply.text()).contains("기본 안내").doesNotContain("대응 능력이 부족")
-        val schema = FakeOllama.chatRequests.single().path("format")
-        assertThat(schema.path("properties").path("advice").path("items").path("enum")).isNotEmpty()
-        assertThat(schema.path("properties").path("questions").path("maxItems").asInt()).isZero()
-    }
-
-    @Test
-    fun `empty department summary shows an unavailable rate rather than null or a fabricated percentage`() {
-        FakeOllama.reply("""{"advice":[],"questions":[]}""")
-        val reply = events(startAsk("ai-s2a", newConversation("ai-s2a"), "현황 요약", mapOf("task" to AiTasks.SUMMARY)))
-        assertThat(reply.text()).contains("완료 건수: 0건", "집계 대상 없음").doesNotContain("null", "완료율(%): 0%")
-    }
-
-    @Test
-    fun `similar cases are at most three actual completed accessible work items`() {
-        val requestIds = mutableListOf<Long>()
-        val itemIds = mutableListOf<Long>()
-        val allowedIds = mutableSetOf<Long>()
-        try {
-            tx.executeWithoutResult {
-                repeat(5) { index ->
-                    val dept = if (index == 4) s2 else s1
-                    val request = requestRepository.save(WorkRequest("프린터 인쇄 오류 사례 $index", "프린터에서 인쇄되지 않음", accountId("ai-s1a"), dept.id, RequestPhases.SENT).also { it.targetDepartmentIds = mutableSetOf(dept.id!!) })
-                    requestIds += request.id!!
-                    val item = itemRepository.save(WorkItem(request.id!!, dept.id!!, WorkStatuses.DONE).also { it.completedAt = clock.now; it.closedAt = clock.now })
-                    itemIds += item.id!!
-                    if (index != 4) allowedIds += item.id!!
-                }
-            }
-            FakeOllama.reply("""{"advice":["전화기 교체 업무는 정상적으로 처리되었습니다."],"questions":[]}""")
-            val reply = events(startAsk("ai-s1a", newConversation("ai-s1a"), "프린터가 인쇄되지 않아요", mapOf("task" to AiTasks.SIMILAR)))
-            val sources = reply.meta().path("sources").map { it.path("id").asLong() }
-            assertThat(sources).hasSize(3).allMatch { it in allowedIds }
-            assertThat(reply.text()).contains("완료", "등록된 기록 없음").doesNotContain("프린터 인쇄 오류 사례 4")
-            assertThat(reply.text()).doesNotContain("정상적으로 처리되었습니다").contains("기본 안내")
-            FakeOllama.reply("""{"advice":[],"questions":["언제부터 발생했나요?"]}""")
-            val analysis = events(startAsk("ai-s1a", newConversation("ai-s1a"), "프린터 인쇄 오류", mapOf("task" to AiTasks.SYMPTOM)))
-            assertThat(analysis.text()).contains("언제부터 발생했나요?")
-            val modelInput = json(FakeOllama.chatRequests.last().path("messages")[1].path("content").asText())
-            assertThat(modelInput.path("확인된 사실").asText()).isEmpty()
-            assertThat(modelInput.path("입력").asText()).isEqualTo("프린터 인쇄 오류")
-            assertThat(modelInput.toString()).doesNotContain("프린터 인쇄 오류 사례")
-        } finally {
-            tx.executeWithoutResult { itemRepository.deleteAllById(itemIds); requestRepository.deleteAllById(requestIds) }
-        }
-    }
-
-    @Test
-    fun `invalid assistance options are rejected before a question is saved`() {
-        val id = newConversation("ai-s1a")
-        mockMvc.perform(post("/api/ai/conversations/$id/ask").with(signedIn("ai-s1a", accountRepository)).with(csrf())
-            .contentType(MediaType.APPLICATION_JSON).content("""{"question":"요약","task":"WORK_SUMMARY","dateFrom":"2026-11-07","dateTo":"2026-11-01"}"""))
-            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("AI_PERIOD_INVALID"))
-        assertThat(chatService.detail("ai-s1a", id).messages).isEmpty()
-    }
 
     @Test
     fun `B01 질문하면 답이 이어 나오고 대화 이름은 첫 질문 앞 30자다`() {

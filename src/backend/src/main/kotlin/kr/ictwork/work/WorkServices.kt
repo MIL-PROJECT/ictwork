@@ -152,6 +152,10 @@ class WorkRequestService(
         if (place.isEmpty() || FormRules.length(place) > 100) throw badRequest("PLACE_INVALID", "장소는 1~100자로 입력하세요.")
         request.place = place
         if (input.departmentIntake && request.kind != RequestKinds.REQUEST) throw badRequest("REQUEST_KIND_INVALID", "부서 접수는 업무 요청에서만 사용합니다.")
+        // 다시 올릴 때 요청 방식(간편 부서 요청인지)은 처음 그대로다 (REQ-101, G-152)
+        if (request.id != null && request.departmentIntake != input.departmentIntake) {
+            throw badRequest("REQUEST_MODE_FIXED", "다시 올릴 때 요청 방식(간편 부서 요청 여부)은 바꿀 수 없습니다.")
+        }
         request.departmentIntake = input.departmentIntake
         request.approvalRequested = input.departmentIntake && input.approvalRequested
         request.assigneePersonnelIds = if (input.departmentIntake) mutableSetOf() else validAssignees(input.assigneePersonnelIds).toMutableSet()
@@ -191,15 +195,15 @@ class WorkRequestService(
 
     /** 작업 일자 (DEC-062): 시작일 필수, 시작 시각·종료예정일·종료예정 시각 선택, 1년 이하 */
     private fun applySchedule(request: WorkRequest, input: RequestInput) {
-        request.preferredDate = null
-        request.preferredTime = null
+        applyPreferredSlots(request, emptyList())
         request.requestedStartDate = null
         request.requestedStartTime = null
         request.requestedEndDate = null
         request.requestedEndTime = null
         if (input.departmentIntake) {
             val exact = input.requestedSchedule
-            if (requestTargetTypes.requiresExactSchedule(input.targets) && exact == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "선택한 지원 업무의 희망 날짜와 시작·종료 시간을 입력하세요.")
+            val rule = requestTargetTypes.scheduleRule(input.targets)
+            if (rule.exactRequired && exact == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "선택한 지원 업무의 희망 날짜와 시작·종료 시간을 입력하세요.")
             if (exact != null) {
                 val end = exact.endDate ?: exact.startDate
                 if (exact.startTime == null || exact.endTime == null) throw badRequest("REQUEST_SCHEDULE_REQUIRED", "희망 시작·종료 시간을 입력하세요.")
@@ -210,10 +214,8 @@ class WorkRequestService(
                 request.requestedEndDate = end
                 request.requestedEndTime = exact.endTime
             }
-            if (input.preferredSlots.isNotEmpty()) validatePreferredSlots(input.preferredSlots)
-            val preferred = input.preferredSlots.firstOrNull()
-            request.preferredDate = preferred?.date
-            request.preferredTime = preferred?.time
+            validatePreferredSlots(input.preferredSlots, if (rule.exactRequired) 0 else rule.preferredMax)
+            applyPreferredSlots(request, input.preferredSlots)
             // 접수자가 확정하기 전에는 희망 일정을 작업 계획으로 복사하지 않는다.
             request.workStartDate = null
             request.workStartTime = null
@@ -294,7 +296,7 @@ class WorkRequestService(
         approvalService.docsOfRequest(id).forEach(approvalService::cancel)
     }
 
-    /** 열람 범위는 보낸 뒤에도 요청자가 바꾼다 (DEC-060). 보내기 전에는 고쳐 다시 올릴 때 함께 정한다(REQ-101) */
+    /** 열람 범위는 보낸 뒤에도 요청자나 요청한 부서 소속이 바꾼다 (DEC-060, G-161). 보내기 전에는 고쳐 다시 올릴 때 함께 정한다(REQ-101) */
     fun updateViewers(loginId: String, id: Long, input: ViewerInput) {
         val actor = accessPolicy.actor(loginId)
         val request = ownRequest(actor, id)
@@ -303,11 +305,11 @@ class WorkRequestService(
         workRequestRepository.saveAndFlush(request)
     }
 
-    /** 요청자만 하는 일(열람 범위 바꾸기). 볼 수 없는 요청은 없는 것처럼 404 */
+    /** 요청자나 요청한 부서 소속이 하는 일(열람 범위 바꾸기, G-161). 볼 수 없는 요청은 없는 것처럼 404 */
     private fun ownRequest(actor: Actor, id: Long): WorkRequest {
         val request = workRequestRepository.findById(id).orElse(null) ?: throw notFound()
         if (!workAccess.canViewRequest(actor, request)) throw notFound()
-        if (request.requesterAccountId != actor.account.id) throw denied()
+        if (request.requesterAccountId != actor.account.id && !workAccess.isRequestingDepartmentMember(actor, request)) throw denied()
         return request
     }
 

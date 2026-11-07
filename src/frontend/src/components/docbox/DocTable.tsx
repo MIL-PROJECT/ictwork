@@ -2,6 +2,7 @@ import { docDownloadUrl, docViewUrl, type DocNodeView } from "@/api/docbox";
 import { formatSize } from "@/components/file/attachments";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
+import { useAppZoom } from "@/context/AuthContext";
 import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, FileIcon, FolderIcon, HorizontaLDots } from "@/icons";
 import { cn } from "@/utils";
 import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -51,7 +52,7 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
   caption: string;
 }) {
   const { t } = useTranslation("docbox");
-  // 미리보기 창: PDF·그림·txt·한글·워드는 새 탭 대신 체계 안에서 본다
+  // 미리보기 창: PDF·그림·txt·한글·워드·엑셀·파워포인트는 새 탭 대신 체계 안에서 본다
   const [previewing, setPreviewing] = useState<{ id: number; name: string } | null>(null);
   const showShared = items.some((i) => i.shared !== null);
   const showIndex = items.some((i) => i.indexStatus !== null);
@@ -217,6 +218,7 @@ function RowMenu({ name, entries }: { name: string; entries: MenuEntry[] }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const open = position !== null;
   const close = useCallback(() => setPosition(null), []);
+  const zoom = useAppZoom();
 
   useEffect(() => {
     if (!open) return;
@@ -242,11 +244,13 @@ function RowMenu({ name, entries }: { name: string; entries: MenuEntry[] }) {
     const { clientWidth: width, clientHeight: height } = document.documentElement;
     const up = rect.top + rect.height / 2 > height / 2;
     const rtl = getComputedStyle(button).direction === "rtl";
-    // 값은 CSS 변수로 넘기고 Tailwind 클래스(top-(--menu-top) 등)가 쓴다
+    // 값은 CSS 변수로 넘기고 Tailwind 클래스(top-(--menu-top) 등)가 쓴다.
+    // 글자 크기 "크게"(REQ-008)면 화면 좌표(보이는 픽셀)를 배율로 나눠 CSS 픽셀로 바꾼다
+    const css = (v: number) => `${v / zoom}px`;
     setPosition({
-      "--menu-top": up ? "auto" : `${rect.bottom + 4}px`,
-      "--menu-bottom": up ? `${height - rect.top + 4}px` : "auto",
-      "--menu-end": `${rtl ? rect.left : width - rect.right}px`,
+      "--menu-top": up ? "auto" : css(rect.bottom + 4),
+      "--menu-bottom": up ? css(height - rect.top + 4) : "auto",
+      "--menu-end": css(rtl ? rect.left : width - rect.right),
     } as CSSProperties);
   };
 

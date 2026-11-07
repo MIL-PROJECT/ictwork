@@ -62,7 +62,7 @@ export default function PersonnelAttributeDialog({
   };
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy="person-attr-title" className="custom-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto p-5 sm:p-8">
+    <Modal isOpen onClose={onClose} labelledBy="person-attr-title" className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-2xl overflow-y-auto p-5 sm:p-8">
       <form onSubmit={submit} noValidate className="space-y-5">
         <h2 id="person-attr-title" className="text-lg font-semibold text-gray-800 dark:text-white/90">
           {t("person.editTitle", { name: person.name })}

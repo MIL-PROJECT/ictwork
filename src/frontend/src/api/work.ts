@@ -199,9 +199,13 @@ export interface TargetTypes {
   types: TypeView[];
 }
 
+// 요청할 때 일정 입력 방식: 받지 않음 · 희망 일자(preferredCount개까지, 선택) · 정확한 날짜와 시작·종료 시각 필수
+export type ScheduleMode = "NONE" | "PREFERRED" | "EXACT_REQUIRED";
+
 // 고르기 목록의 한 줄 (REQ-118, G-51·G-64): label은 같은 순위 동점일 때만 부서를 붙인 이름("전화(1반)")
 export interface TypeOption {
-  scheduleMode?: "OPTIONAL" | "EXACT_REQUIRED";
+  scheduleMode?: ScheduleMode;
+  preferredCount?: number; // PREFERRED일 때 받는 희망 일자 개수 1~3
   typeId: number;
   label: string;
   name: string;
@@ -417,6 +421,7 @@ export interface FilterTypeOption {
   isOther: boolean;
   active: boolean; // 유형 사용 여부
   departmentActive: boolean; // 만든 부서 사용 여부(false면 삭제된 부서)
+  description: string; // 업무 요청의 유형 추천 근거. 비어 있으면 추천하지 않는다
 }
 export const fetchFilterTypeOptions = () => apiFetch<FilterTypeOption[]>("/api/work/types/all");
 const withQuery = (path: string, query?: URLSearchParams) => (query && query.toString() !== "" ? `${path}?${query}` : path);
@@ -599,13 +604,20 @@ export interface WorkTypeAdminRow {
   version: number;
   formVersionId: number | null;
   definition: FormDefinition | null; // 지금 판 정의 (양식 편집기의 처음 값)
-  scheduleMode: "OPTIONAL" | "EXACT_REQUIRED"; // 요청할 때 일정 입력 방식
+  description: string; // 추천 근거 (만들 때 필수, "기타"·설명 전에 만든 유형은 비어 있음)
+  scheduleMode: ScheduleMode; // 요청할 때 일정 입력 방식
+  preferredCount: number; // PREFERRED일 때 받는 희망 일자 개수 1~3
 }
 
 export const fetchWorkTypeDepartments = () => apiFetch<{ id: number; path: string }[]>("/api/admin/work-types/departments");
 export const fetchAdminWorkTypes = (departmentId: number) => apiFetch<WorkTypeAdminRow[]>(`/api/admin/work-types?departmentId=${departmentId}`);
-export const createWorkType = (departmentId: number, name: string) => apiFetch<WorkTypeAdminRow>("/api/admin/work-types", json("POST", { departmentId, name }));
-export const updateWorkType = (id: number, version: number, change: { name?: string; active?: boolean; scheduleMode?: "OPTIONAL" | "EXACT_REQUIRED" }) =>
+export const createWorkType = (departmentId: number, name: string, description: string) =>
+  apiFetch<WorkTypeAdminRow>("/api/admin/work-types", json("POST", { departmentId, name, description }));
+export const updateWorkType = (
+  id: number,
+  version: number,
+  change: { name?: string; description?: string; active?: boolean; scheduleMode?: ScheduleMode; preferredCount?: number },
+) =>
   apiFetch<WorkTypeAdminRow>(`/api/admin/work-types/${id}`, json("PATCH", { ...change, version }));
 export const reorderWorkTypes = (departmentId: number, ids: number[]) =>
   apiFetch<WorkTypeAdminRow[]>("/api/admin/work-types/order", json("PUT", { departmentId, ids }));

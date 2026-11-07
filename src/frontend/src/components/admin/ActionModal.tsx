@@ -60,7 +60,7 @@ export default function ActionModal({
   };
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy="action-modal-title" describedBy={describedBy} className={cn(wide ? "max-w-3xl" : "max-w-lg", "custom-scrollbar max-h-[90vh] overflow-y-auto")}>
+    <Modal isOpen onClose={onClose} labelledBy="action-modal-title" describedBy={describedBy} className={cn(wide ? "max-w-3xl" : "max-w-lg", "custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto")}>
       {/* OMNIS 대화상자: 제목 줄 → 내용(여백 22) → 바닥 띠(옅은 바탕·위 경계선, 오른쪽 정렬 단추) */}
       <form onSubmit={handleSubmit} noValidate>
         <h2 id="action-modal-title" className="px-[22px] pt-6 pe-16 text-[17px] leading-snug font-bold tracking-[-0.3px] text-gray-900 sm:pe-20 dark:text-white/90">

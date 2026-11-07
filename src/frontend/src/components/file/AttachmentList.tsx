@@ -6,7 +6,7 @@ import FilePreviewDialog from "./preview/FilePreviewDialog";
 import { previewKind } from "./preview/previewKind";
 
 /**
- * 첨부 목록 (REQ-115·116·210): 이름(내려받기 링크)·크기·올린 사람·시각. PDF·그림·txt·한글·워드는 [미리보기]로 체계 안에서 본다. 지우기는 onRemove를 준 화면만(처리 건 부서원).
+ * 첨부 목록 (REQ-115·116·210): 이름(내려받기 링크)·크기·올린 사람·시각. PDF·그림·txt·한글·워드·엑셀·파워포인트는 [미리보기]로 체계 안에서 본다. 지우기는 onRemove를 준 화면만(처리 건 부서원).
  * removeVerb: 단추 문구 "빼기"(처음 값) 또는 "지우기"(장비 관련자료: 올리기 실패 줄의 "빼기"와 헷갈리지 않게, REQ-521)
  */
 export default function AttachmentList({

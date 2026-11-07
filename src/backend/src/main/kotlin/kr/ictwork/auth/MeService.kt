@@ -8,9 +8,17 @@ import kr.ictwork.status.StatusScopes
 import kr.ictwork.org.DepartmentRepository
 import kr.ictwork.org.PersonnelRepository
 import kr.ictwork.org.RoleAssignmentRepository
+import kr.ictwork.common.error.ApiException
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+
+/** 개인설정 글자 크기 값 (REQ-008, V35의 CHECK와 같다) */
+private val FONT_SIZES = setOf("NORMAL", "LARGE")
+
+/** PUT /api/me/font-size 본문. 빈 값·다른 값은 서비스가 FONT_SIZE_INVALID로 거부한다 */
+data class FontSizeRequest(val fontSize: String? = null)
 
 @Service
 class MeService(
@@ -45,7 +53,17 @@ class MeService(
             equipmentEditDepartmentIds = actor.equipmentScope().sorted(),
             accountId = account.id,
             departmentId = actor.personnelDepartmentId,
+            fontSize = account.fontSize,
         )
+    }
+
+    /** 개인설정 글자 크기 (REQ-008): 보통·크게만 받는다 */
+    @Transactional
+    fun changeFontSize(loginId: String, fontSize: String?) {
+        if (fontSize !in FONT_SIZES) {
+            throw ApiException(HttpStatus.BAD_REQUEST, "FONT_SIZE_INVALID", "글자 크기는 보통(NORMAL)·크게(LARGE) 중에서 고르세요.")
+        }
+        accountRepository.updateFontSize(loginId, checkNotNull(fontSize))
     }
 
     /** QA 마스터(DEC-067): DB 계정이 아니므로 고정 값. 관리 기능·소속은 없다 */

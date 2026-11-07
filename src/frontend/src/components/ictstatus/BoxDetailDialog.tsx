@@ -88,7 +88,7 @@ export default function BoxDetailDialog({ boxId, tab, onTab, tick, onClose, onCh
       isOpen
       onClose={onClose}
       labelledBy="box-detail-title"
-      className="custom-scrollbar max-h-screen max-w-4xl overflow-y-auto p-5 max-sm:min-h-screen max-sm:rounded-none sm:max-h-[90vh] sm:p-8"
+      className="custom-scrollbar max-h-[calc(100vh/var(--app-zoom))] max-w-4xl overflow-y-auto p-5 max-sm:min-h-[calc(100vh/var(--app-zoom))] max-sm:rounded-none sm:max-h-[calc(90vh/var(--app-zoom))] sm:p-8"
     >
       {missing ? (
         <p id="box-detail-title" role="alert" className="pe-10 text-sm text-gray-700 dark:text-gray-300">

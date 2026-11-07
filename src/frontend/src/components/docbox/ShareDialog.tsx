@@ -63,7 +63,7 @@ export default function ShareDialog({ node, onClose }: { node: DocNodeView; onCl
     );
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy={titleId} className="m-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <Modal isOpen onClose={onClose} labelledBy={titleId} className="m-4 max-h-[calc(90vh/var(--app-zoom))] w-full max-w-2xl overflow-y-auto p-6">
       <h2 id={titleId} className="mb-2 pe-12 text-theme-xl font-bold break-all text-gray-800 dark:text-white/90">
         {t("title", { name: node.name })}
       </h2>

@@ -549,7 +549,7 @@ function DiagramScreen({ id }: { id: number }) {
         )}
       </div>
 
-      <div className="flex h-[calc(100vh-240px)] min-h-120 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
+      <div className="flex h-[calc(100vh/var(--app-zoom)_-_240px)] min-h-120 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
         <div className="min-w-0 flex-1">
           {scene && (
             <Suspense fallback={<p className="p-4 text-sm text-gray-500">{td("loading")}</p>}>

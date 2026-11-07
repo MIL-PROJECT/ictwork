@@ -2,8 +2,6 @@ import {
   type AiConversationSummary,
   type AiMessage,
   type AiStatus,
-  type AiTask,
-  type AiQuestionOptions,
   createConversation,
   deleteConversation,
   fetchAiStatus,
@@ -14,7 +12,6 @@ import { ApiError } from "@/api/client";
 import ChatMessages from "@/components/ai/ChatMessages";
 import ConversationList from "@/components/ai/ConversationList";
 import QuestionInput from "@/components/ai/QuestionInput";
-import TaskLauncher from "@/components/ai/TaskLauncher";
 import { nextLocalId, useAiAsk } from "@/components/ai/useAiAsk";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
@@ -32,7 +29,6 @@ interface Thread {
 
 const NEW_THREAD: Thread = { id: null, messages: [], loading: false, error: null };
 const DISCARD_TRIES = 5; // 빈 대화 지우기를 1초 간격으로 몇 번까지
-const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 /**
  * AI 질의응답 (REQ-B01·B05~B09, slices/12 6.3·11.5): 왼쪽 대화 목록, 오른쪽 대화.
@@ -50,9 +46,6 @@ export default function AiChat() {
   const [listError, setListError] = useState(false);
   const [thread, setThread] = useState<Thread>(NEW_THREAD);
   const [input, setInput] = useState("");
-  const [task, setTask] = useState<AiTask>("QA");
-  const [dateFrom, setDateFrom] = useState(() => localDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
-  const [dateTo, setDateTo] = useState(() => localDay(new Date()));
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [live, setLive] = useState({ text: "", n: 0 });
@@ -96,7 +89,6 @@ export default function AiChat() {
   const unreachable = reachable === false || (reachable === null && status?.reachable === false);
 
   const select = (id: number) => {
-    setTask("QA");
     setNotice(null);
     // 좁은 화면: 목록을 접고 초점을 목록 펴기 단추로
     if (listOpen) toggleRef.current?.focus();
@@ -109,8 +101,6 @@ export default function AiChat() {
   };
 
   const startNew = () => {
-    setTask("QA");
-    setInput("");
     setNotice(null);
     setListOpen(false);
     setThread(NEW_THREAD);
@@ -154,17 +144,16 @@ export default function AiChat() {
   // 질문 보내기: 새 대화면 먼저 만들고, 보낸 질문을 바로 보인 뒤 답을 이어 받는다
   const send = async (raw: string, fromInput: boolean) => {
     const question = raw.trim();
-    if (!question || busy || sending.current || (task === "WORK_SUMMARY" && periodError)) return;
+    if (!question || busy || sending.current) return;
     sending.current = true;
     try {
-      const options: AiQuestionOptions = task === "WORK_SUMMARY" ? { task, dateFrom, dateTo } : { task };
-      await sendQuestion(raw, question, fromInput, options);
+      await sendQuestion(raw, question, fromInput);
     } finally {
       sending.current = false;
     }
   };
 
-  const sendQuestion = async (raw: string, question: string, fromInput: boolean, options: AiQuestionOptions) => {
+  const sendQuestion = async (raw: string, question: string, fromInput: boolean) => {
     setNotice(null);
     if (fromInput) setInput("");
     inputRef.current?.focus();
@@ -190,7 +179,7 @@ export default function AiChat() {
     const sent: AiMessage = { id: localId, role: "USER", content: question, status: null, createdAt: new Date().toISOString(), sources: [], conditions: [], links: [] };
     patchThread(conversationId, (messages) => [...messages, sent]);
 
-    const result = await ask(conversationId, question, options);
+    const result = await ask(conversationId, question);
     if (result.rejected || result.cancelled) {
       // 서버가 질문을 받지 않았거나 차례를 기다리다 취소함(서버도 질문을 지움): 보인 질문을 거두고 입력 칸에 되돌린다
       patchThread(conversationId, (messages) => messages.filter((m) => m.id !== localId));
@@ -198,8 +187,7 @@ export default function AiChat() {
     } else {
       const answer = result.answer;
       if (answer) patchThread(conversationId, (messages) => [...messages, answer]);
-      if (answer?.status === "DONE") setTask("QA");
-      if ((options.task === "QA" && (answer || !result.error)) || answer?.conditions.some((value) => value.includes("+ AI 검토 의견"))) setReachable(true);
+      if (answer || !result.error) setReachable(true);
     }
     if (result.error?.code === "AI_UNAVAILABLE") setReachable(false);
     if (result.error) setNotice({ error: true, text: describe(result.error) });
@@ -214,16 +202,6 @@ export default function AiChat() {
   const currentTitle = thread.id === null ? t("untitled") : conversations?.find((c) => c.id === thread.id)?.title || t("untitled");
 
   const questionCount = thread.messages.filter((m) => m.role === "USER").length;
-  const limit = new Date(`${dateFrom}T00:00:00Z`);
-  limit.setUTCFullYear(limit.getUTCFullYear() + 1);
-  limit.setUTCDate(limit.getUTCDate() - 1);
-  const periodError = !dateFrom || !dateTo || dateTo < dateFrom || new Date(`${dateTo}T00:00:00Z`) > limit;
-  const chooseTask = (next: AiTask) => {
-    setTask(next);
-    if (next === "WORK_SUMMARY" && !input.trim()) setInput(t("tasks.WORK_SUMMARY.example"));
-    else if (task === "WORK_SUMMARY" && input === t("tasks.WORK_SUMMARY.example")) setInput("");
-    inputRef.current?.focus();
-  };
 
   return (
     <div>
@@ -245,7 +223,6 @@ export default function AiChat() {
           {t(statusError === "off" ? "off" : "statusError")}
         </p>
       )}
-      <TaskLauncher task={task} onSelect={chooseTask} from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo} disabled={!!busy || statusError === "off"} periodError={periodError} />
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
         <ConversationList
           conversations={conversations}
@@ -277,7 +254,7 @@ export default function AiChat() {
             draft={busyHere ? busy : null}
             loading={thread.loading}
             error={thread.error}
-            examples={task === "QA" ? status?.examples ?? [] : [t(`tasks.${task}.example`)]}
+            examples={status?.examples ?? []}
             canAsk={!busy}
             onExample={(q) => void send(q, false)}
           />
@@ -294,9 +271,6 @@ export default function AiChat() {
             busyHere={busyHere}
             onStop={stop}
             inputRef={inputRef}
-            placeholder={task === "QA" ? undefined : t(`tasks.${task}.placeholder`)}
-            sendLabel={task === "QA" ? undefined : t(`tasks.${task}.action`)}
-            disabled={statusError === "off" || (task === "WORK_SUMMARY" && periodError)}
           />
         </section>
       </div>

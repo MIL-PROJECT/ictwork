@@ -335,7 +335,7 @@ function RequestDetailPage() {
         <ActionModal
           wide
           title={t("requestDetail.editViewers")}
-          description={t("register.viewersHelp")}
+          description={t(request.departmentIntake ? "intake.viewersHelp" : "register.viewersHelp")}
           submitLabel={t("save")}
           canSubmit={request.departmentIntake || viewerDepartments.length + viewerPeople.length > 0}
           describeError={describeError}
@@ -357,7 +357,7 @@ function RequestDetailPage() {
               ...viewerDepartments.map((d) => ({ key: `d-${d}`, label: paths.get(d) ?? String(d), onRemove: () => setViewerDepartments(viewerDepartments.filter((x) => x !== d)) })),
               ...viewerPeople.map((p) => ({ key: `p-${p}`, label: personName.get(p) ?? String(p), onRemove: () => setViewerPeople(viewerPeople.filter((x) => x !== p)) })),
             ]}
-            emptyText={t("register.pickRequired")}
+            emptyText={t(request.departmentIntake ? "requestDetail.noViewers" : "register.pickRequired")}
           />
         </ActionModal>
       )}

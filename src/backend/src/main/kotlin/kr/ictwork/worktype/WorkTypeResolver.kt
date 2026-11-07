@@ -18,7 +18,8 @@ data class TypeOption(
     val isOther: Boolean,
     val formVersionId: Long?,
     val definition: FormDefinition? = null, // 지금 판 정의 (고르기 목록 API에서만 채움)
-    val scheduleMode: String = "OPTIONAL",
+    val scheduleMode: String = ScheduleModes.PREFERRED,
+    val preferredCount: Int = 1,
 )
 
 /** 걸러 보기의 유형 한 줄 (REQ-117 ③): active는 유형, departmentActive는 만든 부서의 사용 여부(화면이 "(사용 중지)"·"(삭제된 부서)"를 붙임) */
@@ -30,6 +31,7 @@ data class FilterTypeOption(
     val isOther: Boolean,
     val active: Boolean,
     val departmentActive: Boolean,
+    val description: String, // 업무 요청의 유형 추천 근거
 )
 
 /**
@@ -78,11 +80,11 @@ class WorkTypeResolver(private val workTypeRepository: WorkTypeRepository, priva
     fun all(tree: DepartmentTree, types: List<WorkType> = workTypeRepository.findAll()): List<FilterTypeOption> {
         val order = statusScopes.order(tree, types.map { it.departmentId }.toSet()).withIndex().associate { it.value to it.index }
         return types.sortedWith(compareBy<WorkType> { order[it.departmentId] ?: Int.MAX_VALUE }.thenBy { it.isOther }.thenBy { it.sortOrder }.thenBy { it.id })
-            .map { FilterTypeOption(checkNotNull(it.id), it.name, it.departmentId, path(tree, it.departmentId), it.isOther, it.active, tree.find(it.departmentId)?.active == true) }
+            .map { FilterTypeOption(checkNotNull(it.id), it.name, it.departmentId, path(tree, it.departmentId), it.isOther, it.active, tree.find(it.departmentId)?.active == true, it.description) }
     }
 
     fun option(tree: DepartmentTree, type: WorkType, label: String = type.name) =
-        TypeOption(checkNotNull(type.id), label, type.name, type.departmentId, path(tree, type.departmentId), type.isOther, type.currentFormVersionId, scheduleMode = type.scheduleMode)
+        TypeOption(checkNotNull(type.id), label, type.name, type.departmentId, path(tree, type.departmentId), type.isOther, type.currentFormVersionId, scheduleMode = type.scheduleMode, preferredCount = type.preferredCount)
 
     /** 상위 부서부터 이어 붙인 전체 경로 ("1대대 1중대 1반") */
     fun path(tree: DepartmentTree, departmentId: Long): String =

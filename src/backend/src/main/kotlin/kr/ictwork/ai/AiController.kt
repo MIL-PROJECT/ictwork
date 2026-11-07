@@ -69,7 +69,7 @@ class AiController(private val service: AiChatService, private val objectMapper:
      */
     @PostMapping("/conversations/{id}/ask")
     fun ask(principal: Principal, @PathVariable id: Long, @RequestBody input: AskInput): SseEmitter {
-        val job = service.accept(principal.name, id, input.question, input)
+        val job = service.accept(principal.name, id, input.question)
         val emitter = SseEmitter(0L)
         emitter.onTimeout(job::cancel)
         emitter.onError { job.cancel() }

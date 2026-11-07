@@ -7,8 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import DutyDayDialog from "../DutyDayDialog";
-import { addMonths, errorText, iconTile, localToday, localYm, mineOnly, monthRange, outlineButton, panelClass, panelHead, panelTitle, validYm } from "../dutyUtil";
-import MonthGrid from "./MonthGrid";
+import { useDutyToday } from "../dutyTodayStore";
+import { addMonths, errorText, iconTile, localToday, mineOnly, monthRange, outlineButton, panelClass, panelHead, panelTitle, ROSTER_COLORS, validYm } from "../dutyUtil";
+import MonthGrid, { RosterDot } from "./MonthGrid";
 import YearGrid from "./YearGrid";
 
 const validYear = (value: string | null) => value !== null && /^\d{4}$/.test(value) && Number(value) >= 2000 && Number(value) <= 2099;
@@ -16,18 +17,20 @@ const validYear = (value: string | null) => value !== null && /^\d{4}$/.test(val
 /**
  * 근무자 현황 아래 달력 (REQ-404, slices/14 7.5·14.8.3, 옛 DutyCalendar 화면의 몸). [월]·[연]은 두 단추 묶음(aria-pressed), 주소 view=month&ym= 또는 view=year&y=.
  * 처음은 [월] 이번 달, [연]은 올해에서 앞뒤로 넘긴다. 볼 근무표(rosterIds, 모두면 null)·[내 근무만](mine)은 화면이 정한 것을 같이 쓴다.
- * tick이 바뀌면 다시 부른다. [월]은 [인쇄]·[엑셀], [연]은 날짜를 눌러 그날 상세
+ * tick이 바뀌면 다시 부른다. [월]은 [인쇄]·[엑셀]·근무표 색 범례(A4 가로 인쇄), [연]은 날짜를 눌러 그날 상세([이 달 보기]).
+ * 오늘·처음 달·해는 서버 날짜(today 응답, 받기 전에는 브라우저 날짜, slices/19 V4)
  */
 export default function DutyCalendarSection({ tick, rosterIds, mine }: { tick: number; rosterIds: number[] | null; mine: boolean }) {
   const { t } = useTranslation("duty", { keyPrefix: "calendar" });
   const { t: tr } = useTranslation("duty");
   const { language } = useLanguage();
   const [params, setParams] = useSearchParams();
+  const today = useDutyToday().data?.today ?? localToday();
   const view = params.get("view") === "year" ? "year" : "month";
   const ymParam = params.get("ym");
-  const ym = validYm(ymParam) ? ymParam : localYm();
+  const ym = validYm(ymParam) ? ymParam : today.slice(0, 7);
   const yParam = params.get("y");
-  const year = validYear(yParam) ? Number(yParam) : Number(localToday().slice(0, 4));
+  const year = validYear(yParam) ? Number(yParam) : Number(today.slice(0, 4));
   const { from, to } = view === "month" ? monthRange(ym) : { from: `${year}-01-01`, to: `${year}-12-31` };
   const [data, setData] = useState<{ key: string; view: DutyCalendarView } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -70,6 +73,10 @@ export default function DutyCalendarSection({ tick, rosterIds, mine }: { tick: n
   const shown = (id: number) => rosterIds === null || rosterIds.includes(id);
   const rosters = useMemo(() => new Map((current?.rosters ?? []).map((r) => [r.id, r])), [current]);
   const holidays = useMemo(() => new Map((current?.holidays ?? []).map((h) => [h.date, h.name])), [current]);
+  // 근무표 색(볼 수 있는 근무표 순서대로 8색 되풀이)과 함께 보이는 같은 이름 (slices/19 V5)
+  const colors = useMemo(() => new Map((current?.rosters ?? []).map((r, i) => [r.id, ROSTER_COLORS[i % ROSTER_COLORS.length]])), [current]);
+  const visibleRosters = (current?.rosters ?? []).filter((r) => rosterIds === null || rosterIds.includes(r.id));
+  const dupNames = new Set(visibleRosters.map((r) => r.name).filter((name, i, all) => all.indexOf(name) !== i));
 
   // 보기 조건(근무표 고르기·내 근무만)을 거친 날짜별 근무
   const itemsByDate = new Map<string, DutyCalendarItem[]>();
@@ -112,7 +119,8 @@ export default function DutyCalendarSection({ tick, rosterIds, mine }: { tick: n
   const noneSelected = rosterIds !== null && rosterIds.length === 0;
 
   return (
-    <section aria-labelledby="duty-calendar-title" className={cn(panelClass, "print:overflow-visible print:rounded-none print:shadow-none")}>
+    // [월] 인쇄는 A4 가로: index.css의 이름 붙은 쪽(print-page-landscape)을 쓴다 (slices/19 G1)
+    <section aria-labelledby="duty-calendar-title" className={cn(panelClass, "print:overflow-visible print:rounded-none print:shadow-none", view === "month" && "print-page-landscape")}>
       {/* OMNIS 카드 머리(아이콘 + 제목), 오른쪽에 [인쇄]·[엑셀]. 인쇄 때는 아래 인쇄 머리를 쓴다 */}
       <div className={cn(panelHead, "print:hidden")}>
         <div className="flex min-w-0 items-center gap-3">
@@ -125,7 +133,7 @@ export default function DutyCalendarSection({ tick, rosterIds, mine }: { tick: n
         </div>
         {view === "month" && (
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => window.print()} className={outlineButton}>
+            <button type="button" disabled={noneSelected} onClick={() => window.print()} className={outlineButton}>
               <PageIcon className="size-4" aria-hidden />
               {t("print")}
             </button>
@@ -183,15 +191,38 @@ export default function DutyCalendarSection({ tick, rosterIds, mine }: { tick: n
           </p>
         )}
         {!current && !failedCode && <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>}
+        {current && view === "month" && visibleRosters.length > 0 && (
+          // 근무표 색 범례 (인쇄에도)
+          <ul aria-label={t("legendLabel")} className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+            {visibleRosters.map((r) => (
+              <li key={r.id} className="inline-flex items-center gap-1.5 break-keep">
+                <RosterDot color={colors.get(r.id) ?? ""} />
+                {r.departmentLabel} · {r.name}
+              </li>
+            ))}
+          </ul>
+        )}
         {current &&
           (view === "month" ? (
-            <MonthGrid ym={ym} itemsByDate={itemsByDate} rosters={rosters} holidays={holidays} today={localToday()} />
+            <MonthGrid ym={ym} itemsByDate={itemsByDate} rosters={rosters} holidays={holidays} today={today} colors={colors} dupNames={dupNames} />
           ) : (
-            <YearGrid year={year} dutyDates={new Set(itemsByDate.keys())} mineDates={mineDates} holidays={holidays} today={localToday()} onPick={setPicked} />
+            <YearGrid year={year} dutyDates={new Set(itemsByDate.keys())} mineDates={mineDates} holidays={holidays} today={today} onPick={setPicked} />
           ))}
       </div>
 
-      {picked && <DutyDayDialog date={picked} holidayName={holidays.get(picked) ?? null} items={itemsByDate.get(picked) ?? []} rosters={rosters} onClose={() => setPicked(null)} />}
+      {picked && (
+        <DutyDayDialog
+          date={picked}
+          holidayName={holidays.get(picked) ?? null}
+          items={itemsByDate.get(picked) ?? []}
+          rosters={rosters}
+          onMonth={() => {
+            setPicked(null);
+            update({ view: "month", ym: picked.slice(0, 7), y: null });
+          }}
+          onClose={() => setPicked(null)}
+        />
+      )}
     </section>
   );
 }

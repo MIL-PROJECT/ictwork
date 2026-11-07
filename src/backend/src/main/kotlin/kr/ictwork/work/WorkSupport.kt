@@ -48,10 +48,18 @@ class WorkAccess(
     fun isRequesterSide(actor: Actor, request: WorkRequest): Boolean =
         actor.isSysAdmin || isOwnerSide(actor, request) || isSharedSide(actor, request) || isSendParticipant(actor, request)
 
-    /** "요청한 업무" 쪽: 요청자, 보낸 업무 등록의 요청받은 부서 소속(요청자처럼 봄, DEC-061) */
+    /** "요청한 업무" 쪽: 요청자, 보낸 업무 등록의 요청받은 부서 소속(요청자처럼 봄, DEC-061), 보낸 요청의 요청한 부서 소속(G-161) */
     fun isOwnerSide(actor: Actor, request: WorkRequest): Boolean =
         request.requesterAccountId == actor.account.id ||
-            (request.phase == RequestPhases.SENT && actor.personnelDepartmentId != null && actor.personnelDepartmentId in request.originDepartmentIds)
+            (request.phase == RequestPhases.SENT && actor.personnelDepartmentId != null && actor.personnelDepartmentId in request.originDepartmentIds) ||
+            isRequestingDepartmentMember(actor, request)
+
+    /**
+     * 보낸 요청의 요청한 부서 소속인가 (G-161): 요청에 저장된 요청할 때(다시 올렸으면 다시 올린 때) 요청자 소속 부서의 지금 부서원.
+     * 요청자처럼 보고 열람 범위를 바꾼다. 보내기 전 요청은 해당 없음(회수·다시 올리기는 isSendParticipant·기안자 규칙)
+     */
+    fun isRequestingDepartmentMember(actor: Actor, request: WorkRequest): Boolean =
+        request.phase == RequestPhases.SENT && request.requesterDepartmentId != null && actor.personnelDepartmentId == request.requesterDepartmentId
 
     /** "열람 업무" 쪽: 보낸 요청의 열람 범위(사람·부서)와 담당자. 보낸 뒤부터 본다 (DEC-063, G-3) */
     fun isSharedSide(actor: Actor, request: WorkRequest): Boolean {

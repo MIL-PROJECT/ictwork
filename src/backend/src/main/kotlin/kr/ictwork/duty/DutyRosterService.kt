@@ -30,12 +30,12 @@ import java.time.temporal.ChronoUnit
 data class DutyPersonView(val name: String, val rank: String?, val active: Boolean, val transferred: Boolean, val departmentPath: String)
 
 /** 근무 종류. short: 짧은 글자, count: 정한 인원 수, inPattern·inPlacement: 쓰여서 지울 수 없음 */
-data class DutyShiftTypeView(val id: Long, val name: String, val short: String, val count: Int, val inPattern: Boolean, val inPlacement: Boolean)
+data class DutyShiftTypeView(val id: Long, val name: String, val short: String, val count: Int, val off: Boolean, val inPattern: Boolean, val inPlacement: Boolean)
 
 data class DutyShiftMemberView(val personnelId: Long, val startCell: Int)
 
-/** 교대 규칙의 설정. pattern: [근무 종류 id 또는 null(비번)], 정하지 않았으면 빈 목록 */
-data class DutyShiftView(val types: List<DutyShiftTypeView>, val pattern: List<Long?>, val members: List<DutyShiftMemberView>)
+/** 교대 규칙의 설정. pattern: [근무 종류 id](쉬는 근무 포함), 정하지 않았으면 빈 목록 */
+data class DutyShiftView(val types: List<DutyShiftTypeView>, val pattern: List<Long>, val members: List<DutyShiftMemberView>)
 
 /** 로테이션 규칙 (14.6). members는 요일 규칙(순번대로 인원 id), shift는 교대 규칙만 */
 data class DutyRuleView(val id: Long, val kind: String, val name: String, val days: List<String>, val members: List<Long>?, val shift: DutyShiftView?)
@@ -82,9 +82,23 @@ data class DutyShareItem(val departmentId: Long, val includeSub: Boolean = false
 data class DutySharesRequest(val shares: List<DutyShareItem>?, val version: Long)
 
 /** 규칙 추가·고치기. kind는 추가 때만(바꾸지 않음). 요일 규칙은 name·days·members, 교대 규칙은 name(추가 때 days 선택, 없으면 매일) */
-data class DutyRuleRequest(val kind: String? = null, val name: String?, val days: List<String>? = null, val members: List<Long>? = null, val version: Long)
+data class DutyRuleRequest(
+    val kind: String? = null,
+    val name: String?,
+    val days: List<String>? = null,
+    val members: List<Long>? = null,
+    val version: Long,
+    /** 교대 규칙의 근무 종류·패턴·인원을 같은 동작으로 (slices/19 13.2). 없으면 이름(과 적용 날)만 */
+    val shift: DutyShiftSpec? = null,
+)
 
-data class DutyShiftTypeRequest(val name: String?, val short: String?, val count: Int?, val version: Long)
+/** 교대 규칙 근무 종류 하나: id가 있으면 고침, 없으면 더함 */
+data class DutyShiftTypeSpec(val id: Long? = null, val name: String?, val short: String?, val count: Int?, val off: Boolean? = null)
+
+/** 교대 규칙 설정 전체: 근무 종류 목록(이 목록으로 맞춤, off는 쉬는 근무), 패턴은 types의 순번(0부터), 인원과 시작 칸 */
+data class DutyShiftSpec(val types: List<DutyShiftTypeSpec>? = null, val pattern: List<Int?>? = null, val members: List<DutyShiftMemberView>? = null)
+
+data class DutyShiftTypeRequest(val name: String?, val short: String?, val count: Int?, val version: Long, val off: Boolean? = null)
 
 data class DutyShiftSettingsRequest(val pattern: List<Long?>?, val days: List<String>?, val members: List<DutyShiftMemberView>?, val version: Long)
 
@@ -229,6 +243,7 @@ class DutyRosterService(
     fun addRule(loginId: String, id: Long, request: DutyRuleRequest): DutyRosterDetail {
         val (actor, roster) = begin(loginId, id, request.version)
         val kind = request.kind?.takeIf { it in DutyKinds.ALL } ?: throw badRequest("DUTY_KIND_INVALID", "규칙 종류를 요일 규칙·교대 규칙 가운데 고르세요.")
+        if (kind == DutyKinds.WEEKDAY && request.shift != null) throw badRequest("DUTY_KIND_MISMATCH", "이 규칙의 종류에서 쓰지 않는 기능입니다.")
         val name = ruleName(id, request.name, null)
         if (kind == DutyKinds.WEEKDAY) {
             val days = DutyCalendarRules.fromList(request.days)
@@ -238,7 +253,8 @@ class DutyRosterService(
             ruleMemberRepository.flush()
         } else {
             val days = request.days?.let(DutyCalendarRules::fromList) ?: DutyCalendarRules.ALL_DAYS
-            ruleRepository.saveAndFlush(DutyRule(id, kind, name, DutyCalendarRules.key(name), days, now()))
+            val rule = ruleRepository.saveAndFlush(DutyRule(id, kind, name, DutyCalendarRules.key(name), days, now()))
+            request.shift?.let { applyShift(rule, it, days) }
         }
         return detail(actor, roster)
     }
@@ -249,6 +265,10 @@ class DutyRosterService(
         val (actor, roster) = begin(loginId, id, request.version)
         val rule = liveRule(id, ruleId)
         val name = ruleName(id, request.name, rule)
+        if (rule.kind == DutyKinds.WEEKDAY && request.shift != null) throw badRequest("DUTY_KIND_MISMATCH", "이 규칙의 종류에서 쓰지 않는 기능입니다.")
+        if (rule.kind == DutyKinds.SHIFT && request.shift != null) {
+            applyShift(rule, request.shift, DutyCalendarRules.fromList(request.days))
+        }
         if (rule.kind == DutyKinds.WEEKDAY) {
             val days = DutyCalendarRules.fromList(request.days)
             val existing = ruleMemberRepository.findByRuleIdInOrderBySeqAsc(listOf(ruleId)).associateBy { it.personnelId }
@@ -286,17 +306,26 @@ class DutyRosterService(
     fun addShiftType(loginId: String, id: Long, ruleId: Long, request: DutyShiftTypeRequest): DutyRosterDetail {
         val (actor, roster) = begin(loginId, id, request.version)
         liveRule(id, ruleId, DutyKinds.SHIFT)
-        val (name, short, count) = shiftType(ruleId, request, null)
-        shiftTypeRepository.saveAndFlush(DutyShiftType(ruleId, name, DutyCalendarRules.key(name), short, DutyCalendarRules.key(short), count))
+        val off = request.off == true
+        val (name, short, count) = shiftType(ruleId, request, null, off)
+        shiftTypeRepository.saveAndFlush(DutyShiftType(ruleId, name, DutyCalendarRules.key(name), short, DutyCalendarRules.key(short), count, off))
         return detail(actor, roster)
     }
 
     @Transactional
     fun updateShiftType(loginId: String, id: Long, ruleId: Long, typeId: Long, request: DutyShiftTypeRequest): DutyRosterDetail {
         val (actor, roster) = begin(loginId, id, request.version)
-        liveRule(id, ruleId, DutyKinds.SHIFT)
+        val rule = liveRule(id, ruleId, DutyKinds.SHIFT)
         val type = shiftTypeRepository.findByIdOrNull(typeId)?.takeIf { it.ruleId == ruleId } ?: throw notFound()
-        val (name, short, count) = shiftType(ruleId, request, typeId)
+        // off를 보내지 않으면 지금 표시를 그대로 둔다
+        val off = request.off ?: type.offDuty
+        val (name, short, count) = shiftType(ruleId, request, typeId, off)
+        checkOffChange(type, off)
+        // 쉬는 근무로 바꿔 패턴의 모든 칸이 쉬는 근무가 되면 400 (패턴 규칙, G-151)
+        val offIds = shiftTypeRepository.findByRuleIdOrderByIdAsc(ruleId).filter { if (it.id == typeId) off else it.offDuty }.mapNotNull { it.id }.toSet()
+        val pattern = pattern(rule)
+        if (pattern.isNotEmpty() && pattern.all { it in offIds }) throw allOff()
+        type.offDuty = off
         type.name = name
         type.nameKey = DutyCalendarRules.key(name)
         type.shortLabel = short
@@ -325,14 +354,65 @@ class DutyRosterService(
     fun shiftSettings(loginId: String, id: Long, ruleId: Long, request: DutyShiftSettingsRequest): DutyRosterDetail {
         val (actor, roster) = begin(loginId, id, request.version)
         val rule = liveRule(id, ruleId, DutyKinds.SHIFT)
-        val pattern = request.pattern.orEmpty()
-        val types = shiftTypeRepository.findByRuleIdOrderByIdAsc(ruleId).mapNotNull { it.id }.toSet()
-        if (pattern.size !in 2..MAX_PATTERN || pattern.any { it != null && it !in types }) {
-            throw badRequest("DUTY_PATTERN_INVALID", "패턴은 근무 종류·비번으로 2~31칸을 정하세요.")
+        saveShiftSettings(rule, request.pattern.orEmpty(), DutyCalendarRules.fromList(request.days), request.members.orEmpty())
+        return detail(actor, roster)
+    }
+
+    /**
+     * 교대 규칙 설정 전체를 한 동작으로 (slices/19 13.2): 근무 종류를 목록으로 맞추고(고침·더함·지움, 배치에 쓰인 종류는 못 지움),
+     * 패턴(종류 순번 → id)·적용 날·인원·시작 칸을 저장한다. 근무표 version은 부르는 쪽이 한 번 올림
+     */
+    private fun applyShift(rule: DutyRule, spec: DutyShiftSpec, days: Int) {
+        val ruleId = checkNotNull(rule.id)
+        val specs = spec.types ?: throw badRequest("DUTY_SHIFT_TYPE_INVALID", "근무 종류 목록을 보내세요.")
+        val existing = shiftTypeRepository.findByRuleIdOrderByIdAsc(ruleId).associateBy { checkNotNull(it.id) }
+        if (specs.any { it.id != null && it.id !in existing }) throw notFound()
+        if (specs.mapNotNull { it.id }.let { ids -> ids.distinct().size != ids.size }) throw badRequest("DUTY_SHIFT_TYPE_INVALID", "같은 근무 종류를 두 번 넣었습니다.")
+        val values = specs.map { shiftTypeValues(it.name, it.short, it.count, it.off == true) }
+        if (values.map { DutyCalendarRules.key(it.first) }.distinct().size != values.size || values.map { DutyCalendarRules.key(it.second) }.distinct().size != values.size) {
+            throw conflict("DUTY_SHIFT_TYPE_DUPLICATE", "같은 이름이나 짧은 글자의 근무 종류가 있습니다.")
         }
-        val days = DutyCalendarRules.fromList(request.days)
+        // 고치기 전에 모두 검사한다: 패턴 칸 수·순번·쉬는 근무가 아닌 칸, 쉬는 근무 표시 바꾸기
+        val cells = spec.pattern.orEmpty()
+        if (cells.size !in 2..MAX_PATTERN || cells.any { it == null || it !in specs.indices }) throw patternInvalid()
+        if (cells.all { specs[checkNotNull(it)].off == true }) throw allOff()
+        specs.filter { it.id != null }.forEach { checkOffChange(existing.getValue(checkNotNull(it.id)), it.off == true) }
+        // 목록에 없는 종류는 지운다(배치에 쓰인 것은 못 지움)
+        val removed = existing.values.filter { t -> specs.none { it.id == t.id } }
+        if (removed.any { placementRepository.existsByShiftTypeId(checkNotNull(it.id)) }) {
+            throw conflict("DUTY_SHIFT_TYPE_IN_USE", "배치에 쓰인 근무 종류는 지울 수 없습니다.")
+        }
+        shiftTypeRepository.deleteAll(removed)
+        shiftTypeRepository.flush()
+        // 남는 종류끼리 이름을 맞바꿔도 유일 키가 부딪히지 않게 키를 잠시 비켜 둔다(이름에 들어가지 않는 제어 글자로)
+        val kept = specs.mapNotNull { it.id }.map { existing.getValue(it) }
+        kept.forEach {
+            it.nameKey = "\u0001${it.id}"
+            it.shortKey = "\u0001${it.id}"
+        }
+        shiftTypeRepository.saveAllAndFlush(kept)
+        val ids = specs.mapIndexed { i, s ->
+            val (name, short, count) = values[i]
+            val type = s.id?.let(existing::getValue) ?: DutyShiftType(ruleId, name, DutyCalendarRules.key(name), short, DutyCalendarRules.key(short), count)
+            type.name = name
+            type.nameKey = DutyCalendarRules.key(name)
+            type.shortLabel = short
+            type.shortKey = DutyCalendarRules.key(short)
+            type.headcount = count
+            type.offDuty = s.off == true
+            checkNotNull(shiftTypeRepository.saveAndFlush(type).id)
+        }
+        val pattern = spec.pattern.orEmpty().map { ids[checkNotNull(it)] }
+        saveShiftSettings(rule, pattern, days, spec.members.orEmpty())
+    }
+
+    /** 패턴(종류 id, 칸마다 그 규칙의 종류, 쉬는 근무가 아닌 칸 하나 이상)·적용 날·인원·시작 칸 저장. 패턴이 달라지면 pattern_rev +1 */
+    private fun saveShiftSettings(rule: DutyRule, pattern: List<Long?>, days: Int, requested: List<DutyShiftMemberView>) {
+        val ruleId = checkNotNull(rule.id)
+        val types = shiftTypeRepository.findByRuleIdOrderByIdAsc(ruleId).associateBy { checkNotNull(it.id) }
+        if (pattern.size !in 2..MAX_PATTERN || pattern.any { it == null || it !in types }) throw patternInvalid()
+        if (pattern.all { types.getValue(checkNotNull(it)).offDuty }) throw allOff()
         val existing = shiftMemberRepository.findByRuleIdOrderBySeqAsc(ruleId).associateBy { it.personnelId }
-        val requested = request.members.orEmpty()
         val members = checkMembers(requested.map { it.personnelId }, existing.keys, allowEmpty = true)
         if (requested.any { it.startCell !in 1..pattern.size }) throw badRequest("DUTY_START_CELL_RANGE", "시작 칸은 1~${pattern.size} 안에서 고르세요.")
         val json = objectMapper.writeValueAsString(pattern)
@@ -351,7 +431,6 @@ class DutyRosterService(
             }
         }
         shiftMemberRepository.flush()
-        return detail(actor, roster)
     }
 
     // ───────── 공휴일 (5.4) ─────────
@@ -411,7 +490,7 @@ class DutyRosterService(
 
     fun reload(id: Long): DutyRoster = checkNotNull(rosterRepository.findByIdOrNull(id))
 
-    fun pattern(rule: DutyRule): List<Long?> = rule.shiftPattern?.let { objectMapper.readValue<List<Long?>>(it) }.orEmpty()
+    fun pattern(rule: DutyRule): List<Long> = rule.shiftPattern?.let { objectMapper.readValue<List<Long>>(it) }.orEmpty()
 
     /** 근무표의 지우지 않은 규칙. 없거나 지웠으면 404, 종류가 다르면 400 DUTY_KIND_MISMATCH (14.4.2 4) */
     fun liveRule(rosterId: Long, ruleId: Long?, kind: String? = null): DutyRule {
@@ -445,7 +524,7 @@ class DutyRosterService(
                     DutyShiftView(
                         types[rid].orEmpty().map { t ->
                             val tid = checkNotNull(t.id)
-                            DutyShiftTypeView(tid, t.name, t.shortLabel, t.headcount, tid in pattern, placementRepository.existsByShiftTypeId(tid))
+                            DutyShiftTypeView(tid, t.name, t.shortLabel, t.headcount, t.offDuty, tid in pattern, placementRepository.existsByShiftTypeId(tid))
                         },
                         pattern, shiftMembers[rid].orEmpty().map { DutyShiftMemberView(it.personnelId, it.startCell) },
                     ),
@@ -502,13 +581,26 @@ class DutyRosterService(
         return name
     }
 
-    /** 근무 종류 값 검사: 이름 1~30자, 짧은 글자 1~2자, 인원 1~99명, "비번"·"비"는 비번 전용, 그 규칙 안 겹침 409 */
-    private fun shiftType(ruleId: Long, request: DutyShiftTypeRequest, selfId: Long?): Triple<String, String, Int> {
-        val name = DutyCalendarRules.name(request.name)
-        val short = request.short?.trim().orEmpty()
+    /** 근무 종류 값 검사: 이름 1~30자, 짧은 글자 1~2자, 인원 1~99명(쉬는 근무는 보지 않고 0) */
+    private fun shiftTypeValues(rawName: String?, rawShort: String?, rawCount: Int?, off: Boolean): Triple<String, String, Int> {
+        val name = DutyCalendarRules.name(rawName)
+        val short = rawShort?.trim().orEmpty()
         if (short.isEmpty() || FormRules.length(short) > 2) throw badRequest("DUTY_SHIFT_TYPE_INVALID", "짧은 글자는 1~2자로 입력하세요.")
-        val count = request.count?.takeIf { it in 1..MAX_HEADCOUNT } ?: throw badRequest("DUTY_SHIFT_TYPE_INVALID", "인원 수는 1~99명으로 입력하세요.")
-        if (name == OFF_NAME || short == OFF_SHORT) throw badRequest("DUTY_SHIFT_RESERVED", "\"비번\"(비)은 늘 있는 비번 전용입니다.")
+        if (off) return Triple(name, short, 0)
+        val count = rawCount?.takeIf { it in 1..MAX_HEADCOUNT } ?: throw badRequest("DUTY_SHIFT_TYPE_INVALID", "인원 수는 1~99명으로 입력하세요.")
+        return Triple(name, short, count)
+    }
+
+    /** 배치에 쓰인 종류의 쉬는 근무 표시는 바꾸지 않는다(배치가 화면에서 사라지거나 쉬는 날에 배치가 남지 않게, slices/19 14.2) */
+    private fun checkOffChange(type: DutyShiftType, off: Boolean) {
+        if (type.offDuty != off && placementRepository.existsByShiftTypeId(checkNotNull(type.id))) {
+            throw conflict("DUTY_SHIFT_TYPE_IN_USE", "배치에 쓰인 근무 종류는 쉬는 근무 표시를 바꿀 수 없습니다.")
+        }
+    }
+
+    /** 근무 종류 하나 더하기·고치기의 값 검사와 그 규칙 안 겹침 409 */
+    private fun shiftType(ruleId: Long, request: DutyShiftTypeRequest, selfId: Long?, off: Boolean): Triple<String, String, Int> {
+        val (name, short, count) = shiftTypeValues(request.name, request.short, request.count, off)
         val others = shiftTypeRepository.findByRuleIdOrderByIdAsc(ruleId).filter { it.id != selfId }
         if (others.any { it.nameKey == DutyCalendarRules.key(name) || it.shortKey == DutyCalendarRules.key(short) }) {
             throw conflict("DUTY_SHIFT_TYPE_DUPLICATE", "같은 이름이나 짧은 글자의 근무 종류가 있습니다.")
@@ -518,13 +610,15 @@ class DutyRosterService(
 
     private fun nameDuplicate() = conflict("DUTY_NAME_DUPLICATE", "같은 부서에 같은 이름의 근무표가 있습니다.")
 
+    private fun allOff() = badRequest("DUTY_PATTERN_INVALID", "패턴에 쉬는 근무가 아닌 근무를 하나 이상 넣으세요.")
+
+    private fun patternInvalid() = badRequest("DUTY_PATTERN_INVALID", "패턴은 그 규칙의 근무 종류로 2~31칸을 정하세요.")
+
     private fun holidayInvalid() = badRequest("DUTY_HOLIDAY_INVALID", "날짜는 2000~2099년, 보는 요일은 공휴일·토요일·일요일 가운데 고르세요.")
 
     companion object {
         const val MAX_PATTERN = 31
         const val MAX_HEADCOUNT = 99
-        const val OFF_NAME = "비번"
-        const val OFF_SHORT = "비"
     }
 }
 

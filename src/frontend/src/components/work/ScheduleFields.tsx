@@ -1,6 +1,7 @@
 import { CalenderIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
 import { INPUT_CLASS, LABEL_CLASS } from "./format";
+import QuickTimeButtons from "./QuickTimeButtons";
 
 export interface ScheduleValue {
   startDate: string;
@@ -13,6 +14,7 @@ export interface ScheduleValue {
  * 작업 일자 입력 (DEC-062): 시작일(필수), 시작 시각·종료예정일·종료예정 시각(선택).
  * 종료예정일을 비우면 시작일 하루. 종료예정 시각은 "기간이 끝나면 자동 완료"의 완료 시각
  * 날짜는 직접 치거나 칸 안의 달력 단추로 고른다. 범위는 달력 일정과 같은 2000~2099년(범위가 없으면 연도 칸이 6자리까지 받음)
+ * 시각은 10분 단위 고르기 창과 자주 쓰는 시각 단추(G-160). 칸을 누르면 창이 열리는 것은 앱 전체 처리(utils/openDatePicker.ts)
  */
 const MIN_DATE = "2000-01-01";
 const MAX_DATE = "2099-12-31";
@@ -48,6 +50,7 @@ export default function ScheduleFields({
             value={value[key]}
             min={date ? (extra.min ?? MIN_DATE) : extra.min}
             max={date ? MAX_DATE : undefined}
+            step={date ? undefined : 600}
             aria-invalid={(invalid && key === "startDate") || undefined}
             onChange={(e) => onChange({ [key]: e.target.value })}
             className={date ? `${INPUT_CLASS} pe-11` : INPUT_CLASS}
@@ -56,13 +59,14 @@ export default function ScheduleFields({
             <button
               type="button"
               aria-label={t("schedule.pickDate", { label })}
-              onClick={() => (document.getElementById(id) as HTMLInputElement | null)?.showPicker()}
+              onClick={() => (document.getElementById(id) as HTMLInputElement | null)?.showPicker?.()}
               className="absolute inset-e-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-500 hover:text-gray-700 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:text-gray-400 dark:hover:text-gray-200"
             >
               <CalenderIcon className="size-5" />
             </button>
           )}
         </div>
+        {!date && <QuickTimeButtons label={label} value={value[key]} onPick={(time) => onChange({ [key]: time })} />}
       </div>
     );
   };

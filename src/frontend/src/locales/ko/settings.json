@@ -43,10 +43,14 @@
   },
   "display": {
     "title": "화면 설정",
-    "desc": "이 브라우저에만 저장됩니다.",
+    "desc": "언어·화면 테마는 이 브라우저에, 글자 크기는 내 계정에 저장됩니다.",
     "language": "언어",
     "theme": "화면 테마",
     "light": "밝게",
-    "dark": "어둡게"
+    "dark": "어둡게",
+    "fontSize": "글자 크기",
+    "fontNormal": "보통",
+    "fontLarge": "크게",
+    "fontSaveFailed": "글자 크기를 저장하지 못했습니다. 잠시 뒤 다시 고르세요."
   }
 }

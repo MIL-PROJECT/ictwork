@@ -42,8 +42,6 @@ export default function RequestFlow({
   complete,
   onStep,
   onNext,
-  applicant,
-  summary,
   error,
   busy,
   uploading,
@@ -55,8 +53,6 @@ export default function RequestFlow({
   complete: boolean[];
   onStep: (step: number) => void;
   onNext: () => void;
-  applicant: ReactNode;
-  summary: ReactNode;
   error: string | null;
   busy: boolean;
   uploading: boolean;
@@ -71,7 +67,7 @@ export default function RequestFlow({
         aria-label={t("flow.navigation")}
         className="rounded-2xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900"
       >
-        <ol className={cn("grid gap-1", panels.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
+        <ol className={cn("grid gap-1", panels.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
           {panels.map((_, index) => (
             <li key={index}>
               <button
@@ -114,51 +110,27 @@ export default function RequestFlow({
           ))}
         </ol>
       </nav>
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="min-w-0 space-y-5">
-          <div className="px-1">
-            <p className="mb-1 text-xs font-semibold tracking-wide text-brand-600 dark:text-brand-400">
-              {t("flow.stepOf", { step: step + 1, total: panels.length })}
-            </p>
-            <h2
-              id="request-flow-heading"
-              tabIndex={-1}
-              className="text-xl font-bold tracking-tight text-gray-900 outline-none dark:text-white"
-            >
-              {t(`${copy}.headings.${step}`)}
-            </h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-              {t(`${copy}.descriptions.${step}`)}
-            </p>
-          </div>
-          {panels.map((panel, index) => (
-            <div key={index} hidden={step !== index} className="space-y-5">
-              {panel}
-            </div>
-          ))}
-        </div>
-        <aside
-          aria-label={t("flow.summary")}
-          className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 xl:sticky xl:top-24 dark:border-gray-800 dark:bg-gray-900"
-        >
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-              {t("applicant.title")}
-            </h3>
-            <div className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-              {applicant}
-            </div>
-          </div>
-          <div className="border-t border-gray-100 pt-4 dark:border-gray-800">
-            <h3 className="mb-3 text-xs font-semibold text-gray-500 dark:text-gray-400">
-              {t("flow.destination")}
-            </h3>
-            {summary}
-          </div>
-          <p className="rounded-lg bg-gray-50 p-3 text-xs leading-relaxed text-gray-500 dark:bg-white/5 dark:text-gray-400">
-            {t("flow.help")}
+      <div className="min-w-0 space-y-5">
+        <div className="px-1">
+          <p className="mb-1 text-xs font-semibold tracking-wide text-brand-600 dark:text-brand-400">
+            {t("flow.stepOf", { step: step + 1, total: panels.length })}
           </p>
-        </aside>
+          <h2
+            id="request-flow-heading"
+            tabIndex={-1}
+            className="text-xl font-bold tracking-tight text-gray-900 outline-none dark:text-white"
+          >
+            {t(`${copy}.headings.${step}`)}
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+            {t(`${copy}.descriptions.${step}`)}
+          </p>
+        </div>
+        {panels.map((panel, index) => (
+          <div key={index} hidden={step !== index} className="space-y-5">
+            {panel}
+          </div>
+        ))}
       </div>
       <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white/95 px-5 py-3 shadow-lg backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95">
         <div className="min-w-0 flex-1">

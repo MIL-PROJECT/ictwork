@@ -47,7 +47,7 @@ data class MessageView(
 /** busy: 이 대화에서 기다리거나 답을 받는 질문이 있음 */
 data class ConversationDetail(val id: Long, val title: String?, val createdAt: LocalDateTime, val lastAskedAt: LocalDateTime?, val busy: Boolean, val messages: List<MessageView>)
 
-data class AskInput(val question: String? = null, val task: String = AiTasks.QA, val dateFrom: String? = null, val dateTo: String? = null)
+data class AskInput(val question: String? = null)
 
 /** 답 흐름 이벤트를 보낸다. 거짓이면 연결이 끊긴 것(멈춤·창 닫기) */
 fun interface AiEvents {
@@ -66,7 +66,6 @@ class AiAskJob(
     val questionId: Long,
     val titleBefore: String?,
     val askedBefore: LocalDateTime?,
-    val options: AiTaskOptions = AiTaskOptions(),
 ) {
     val call = AiCall()
 
@@ -94,7 +93,6 @@ class AiChatService(
     private val access: AiSourceAccess,
     private val retriever: AiRetriever,
     private val tools: AiTools,
-    private val assistance: AiAssistance,
     private val queue: AiQueue,
     private val docBoxFiles: AiDocBoxFiles,
     private val ictBoxRepository: IctBoxRepository,
@@ -166,14 +164,12 @@ class AiChatService(
      * 질문 받기 (요청 스레드): 길이·대화 주인·실행기 연결·차례(한 계정 하나)를 보고 질문을 저장한다.
      * 실행기에 닿지 않으면 503 AI_UNAVAILABLE
      */
-    fun accept(loginId: String, conversationId: Long, question: String?, input: AskInput = AskInput()): AiAskJob {
+    fun accept(loginId: String, conversationId: Long, question: String?): AiAskJob {
         settings.requireActive()
         val text = question?.trim().orEmpty()
         if (FormRules.length(text) !in 1..MAX_QUESTION) throw badRequest("AI_QUESTION_LENGTH", "질문은 1~1,000자로 적어 주세요.")
-        val options = assistance.options(input)
         val accountId = checkNotNull(readTx.execute { checkNotNull(own(loginId, conversationId).accountId) })
-        // The three assistance tasks can show permission-checked facts even when inference is unavailable.
-        if (options.task == AiTasks.QA && !ollama.reachable()) throw unavailable()
+        if (!ollama.reachable()) throw unavailable()
         val ticket = queue.enter(accountId, conversationId)
         try {
             return checkNotNull(tx.execute {
@@ -184,7 +180,7 @@ class AiChatService(
                 if (c.title == null) c.title = takeCodePoints(text, TITLE_LENGTH)
                 c.lastAskedAt = now
                 val saved = messageRepository.save(AiMessage(conversationId, AiRoles.USER, text, AiMessageStatuses.DONE, now))
-                AiAskJob(loginId, conversationId, text, ticket, checkNotNull(saved.id), titleBefore, askedBefore, options)
+                AiAskJob(loginId, conversationId, text, ticket, checkNotNull(saved.id), titleBefore, askedBefore)
             })
         } catch (e: Exception) {
             queue.leave(ticket)
@@ -277,8 +273,6 @@ class AiChatService(
         var done = false
         /** 찾은 글 중 정보통신 현황 기록 파일 (파일 id → 기준 시각·박스, slices/15 14.2) */
         var recordNotes: Map<Long, RecordNote> = emptyMap()
-        var assistance: AiAssistanceContext? = null
-        var reviewAvailable = false
     }
 
     /** 기록 파일 근거: 파일 시각, 박스(지운 박스면 제목 없음), 지금 그 박스를 볼 수 있는지 */
@@ -287,10 +281,6 @@ class AiChatService(
     private class Prepared(val system: String, val history: List<Pair<String, String>>)
 
     private fun answer(job: AiAskJob, events: AiEvents, progress: Progress) {
-        if (job.options.task != AiTasks.QA) {
-            answerAssistance(job, events, progress)
-            return
-        }
         // 질문 벡터도 이 질문의 손잡이에 묶어 멈춤·2분 넘김이 바로 끊는다 (12.5)
         val vector = ollama.embed(listOf(job.question), job.call).single()
         if (job.call.cancelled) throw AiCancelledException()
@@ -428,82 +418,7 @@ class AiChatService(
      * 답에 보일 조회 조건·확인할 곳·출처를 정한다. 모델이 도구를 부르고도 그 결과를 쓰지 않고 답하기도 해(실제 모델 평가: 문서 질문에 장비를 셈)
      * 답이 쓴 도구 결과만 넣는다 (AiAnswerRules.usedToolResult). 출처는 다 받은 답에만
      */
-    private fun answerAssistance(job: AiAskJob, events: AiEvents, progress: Progress) {
-        if (!events.send("progress", mapOf("label" to "체계 자료를 확인하는 중…"))) throw AiCancelledException()
-        val context = checkNotNull(readTx.execute {
-            assistance.prepare(accessPolicy.actor(job.loginId), job.loginId, job.question, job.options)
-        })
-        progress.assistance = context
-        if (job.call.cancelled) throw AiCancelledException()
-        emit(job, events, progress, context.text)
-        try {
-            if (!events.send("progress", mapOf("label" to "AI 검토 의견을 정리하는 중…"))) throw AiCancelledException()
-            val body = objectMapper.createObjectNode().put("model", settings.chatModel).put("stream", true).put("think", false)
-            val format = objectMapper.readTree(AiAssistance.FORMAT) as com.fasterxml.jackson.databind.node.ObjectNode
-            context.adviceOptions?.let { allowed ->
-                (format.path("properties").path("advice").path("items") as com.fasterxml.jackson.databind.node.ObjectNode).putArray("enum").also { values -> allowed.forEach(values::add) }
-            }
-            if (!context.allowQuestions) (format.path("properties").path("questions") as com.fasterxml.jackson.databind.node.ObjectNode).put("maxItems", 0)
-            body.set<JsonNode>("format", format)
-            body.putObject("options").put("num_ctx", NUM_CTX).put("temperature", 0).put("num_predict", 600)
-            val messages = body.putArray("messages")
-            messages.addObject().put("role", "system").put("content", AiAssistance.SYSTEM)
-            messages.addObject().put("role", "user").put("content", objectMapper.writeValueAsString(mapOf(
-                "기능" to job.options.task, "입력" to job.question,
-                // Historical cases are shown as references, not facts about the current fault.
-                "확인된 사실" to if (job.options.task == AiTasks.SYMPTOM) "" else AiAnswerRules.redactInstructions(context.facts),
-                "현재 입력에서 확인할 항목" to context.questions,
-                "검토 의견 선택지" to context.adviceOptions,
-                "검토 지시" to if (context.adviceOptions != null) "advice에는 검토 의견 선택지에서만 원문 그대로 골라 넣는다. 사실·수치 평가는 추가하지 않는다. " + if (context.allowQuestions) "questions에는 입력에서 빠진 정보만 질문한다." else "questions는 빈 배열이다." else null,
-            )))
-            val buffer = StringBuilder()
-            ollama.chat(body, job.call) { part ->
-                if (part.has("error")) throw AiUnavailableException("assistance model error")
-                buffer.append(part.path("message").path("content").asText(""))
-            }
-            val parsed = objectMapper.readTree(buffer.toString())
-            require(parsed.isObject && parsed.fieldNames().asSequence().toSet() == setOf("advice", "questions"))
-            fun lines(key: String): List<String> {
-                val values = parsed.path(key)
-                require(values.isArray && values.size() <= 3)
-                return values.map { value ->
-                    require(value.isTextual && value.asText().length in 1..400)
-                    value.asText().trim()
-                }.filter { it.isNotEmpty() }.distinct()
-            }
-            val advice = lines("advice")
-            val questions = lines("questions")
-            // The model cannot introduce new quantities into a report.
-            val numbers = Regex("\\d+(?:\\.\\d+)?")
-            val allowed = numbers.findAll((if (job.options.task == AiTasks.SYMPTOM) "" else context.facts) + job.question).map { it.value }.toSet()
-            require((advice + questions).all { line -> numbers.findAll(line).all { it.value in allowed } })
-            if (job.options.task == AiTasks.SUMMARY) require((advice + questions).none { numbers.containsMatchIn(it) })
-            context.adviceOptions?.let { allowed -> require(advice.all { it in allowed }) }
-            if (!context.allowQuestions) require(questions.isEmpty())
-            if (context.facts.isEmpty() && context.adviceOptions == null) require(advice.isEmpty())
-            if (advice.isNotEmpty()) emit(job, events, progress, "\n\nAI 검토 의견\n" + advice.joinToString("\n") { "• $it" })
-            val followups = if (questions.isNotEmpty()) questions else context.questions
-            if (followups.isNotEmpty()) emit(job, events, progress, "\n\n추가로 확인할 내용\n" + followups.joinToString("\n") { "• $it" })
-            progress.reviewAvailable = true
-        } catch (e: AiCancelledException) {
-            throw e
-        } catch (e: Exception) {
-            if (job.call.cancelled) throw AiCancelledException()
-            // Keep real query results, clearly separated from an unavailable or invalid model review.
-            if (context.questions.isNotEmpty()) emit(job, events, progress, "\n\n추가로 확인할 내용\n" + context.questions.joinToString("\n") { "• $it" })
-            emit(job, events, progress, "\n\nAI 검토 의견을 받지 못해 체계 조회 결과와 기본 안내를 표시했습니다.")
-        }
-        progress.done = true
-    }
-
     private fun settle(question: String, progress: Progress) {
-        progress.assistance?.let { context ->
-            progress.conditions = context.conditions + if (progress.reviewAvailable) "작성: 체계 조회 결과 + AI 검토 의견" else "작성: 체계 조회 결과 + 기본 안내"
-            progress.links = context.links
-            progress.shownSources = context.sources
-            progress.usedSources = (context.sources + context.checks).distinct()
-            return
-        }
         val answer = progress.text.toString()
         val used = progress.results.filter { AiAnswerRules.usedToolResult(answer, it.forModel, progress.found) }
         progress.usedTools = used.isNotEmpty()

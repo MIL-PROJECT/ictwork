@@ -220,7 +220,7 @@ class WorkTypeApiTest(
         // " 전화 "는 "전화"와 같은 이름 (G-64)
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to " 전화 ")).andExpect(status().isConflict)
             .andExpect(jsonPath("$.code").value("WORK_TYPE_DUPLICATE"))
-        send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to " 인터넷 ")).andExpect(status().isCreated)
+        send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to " 인터넷 ", "description" to "인터넷 회선 점검")).andExpect(status().isCreated)
             .andExpect(jsonPath("$.name").value("인터넷"))
     }
 
@@ -346,7 +346,7 @@ class WorkTypeApiTest(
 
     @Test
     fun `T10 1중대 부서 관리자는 1중대 유형만 만들고 1반 것은 403, 시스템 관리자도 403, 같은 이름 409, 관리 목록은 그 부서 관리자만`() {
-        send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화")).andExpect(status().isCreated)
+        send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화", "description" to "전화 고장 처리")).andExpect(status().isCreated)
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화")).andExpect(status().isConflict)
             .andExpect(jsonPath("$.code").value("WORK_TYPE_DUPLICATE"))
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "기타")).andExpect(status().isConflict)
@@ -389,7 +389,7 @@ class WorkTypeApiTest(
 
     @Test
     fun `T12 사용 중지하면 고르기 목록에서 빠지고 지난 요청은 그 이름, 이름을 바꿔도 지난 요청은 그때 이름, 다시 사용하면 다시 나온다`() {
-        val phone = json(send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화")).andExpect(status().isCreated))["id"].asLong()
+        val phone = json(send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화", "description" to "전화 고장 처리")).andExpect(status().isCreated))["id"].asLong()
         val id = create(body(c1 to listOf(phone)))
         patchType("t-c1admin", phone, mapOf("active" to false, "name" to "유선 전화")).andExpect(status().isOk)
         assertThat(options(c1).map { it["typeId"].asLong() }).doesNotContain(phone)

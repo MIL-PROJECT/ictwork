@@ -295,13 +295,14 @@ class WorkQueryService(
     private fun urgentFirst(list: List<ItemListItem>) =
         list.sortedBy { if (it.priority == Priorities.URGENT && it.status !in WorkStatuses.CLOSED) 0 else 1 }
 
-    /** 요청한 업무 (DEC-061): 내가 요청·등록한 것과, 업무 등록에서 우리 부서를 요청받은 부서로 정한 것 */
+    /** 요청한 업무 (DEC-061, G-161): 내가 요청·등록한 것, 업무 등록에서 우리 부서를 요청받은 부서로 정한 것, 우리 부서가 보낸 것 */
     @Transactional(readOnly = true)
     fun myRequests(loginId: String, listFilter: WorkListFilter? = null): List<RequestListItem> {
         val actor = accessPolicy.actor(loginId)
         val mine = workRequestRepository.findByRequesterAccountIdOrderByUpdatedAtDescIdDesc(checkNotNull(actor.account.id))
         val origin = actor.personnelDepartmentId?.let { workRequestRepository.findByOrigin(it) }.orEmpty().filter { it.phase == RequestPhases.SENT }
-        val all = (mine + origin).distinctBy { it.id }.sortedWith(compareByDescending<WorkRequest> { it.updatedAt }.thenByDescending { it.id })
+        val department = actor.personnelDepartmentId?.let { workRequestRepository.findSentByRequesterDepartment(it) }.orEmpty()
+        val all = (mine + origin + department).distinctBy { it.id }.sortedWith(compareByDescending<WorkRequest> { it.updatedAt }.thenByDescending { it.id })
         return requestList(filtered(actor, all, listFilter))
     }
 
@@ -350,7 +351,8 @@ class WorkQueryService(
             if (all || request.phase != RequestPhases.SENT) null else visibleItems.map { it.originDepartmentId }.toSet(),
             actor.tree.takeIf { request.phase in RequestPhases.EDITABLE },
         )
-        val mine = request.requesterAccountId == actor.account.id
+        // 요청자 보기·열람 범위 바꾸기 단추: 요청자와 보낸 요청의 요청한 부서 소속 (G-161)
+        val mine = request.requesterAccountId == actor.account.id || workAccess.isRequestingDepartmentMember(actor, request)
         val sendDocs = approvalService.docsOfRequest(id)
         // 발송 결재의 기안자(회수한 소속 부서원일 수 있음)가 고쳐 다시 올린다 (DEC-063)
         val drafter = sendDocs.lastOrNull { it.docType == DocTypes.SEND }?.drafterAccountId == actor.account.id

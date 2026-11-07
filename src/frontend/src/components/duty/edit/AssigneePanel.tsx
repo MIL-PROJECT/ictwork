@@ -4,7 +4,7 @@ import OrgPicker from "@/components/work/OrgPicker";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type DutyWrite, dangerLink, useDutyError, usePersonText } from "../dutyUtil";
-import { PersonFlags } from "./RulesPanel";
+import { PersonFlags } from "./ruleParts";
 
 /** 근무표 부서와 그 하위 부서만 (조직 트리 맨 위를 근무표 부서로) */
 const subtree = (departments: Department[], rootId: number): Department[] => {

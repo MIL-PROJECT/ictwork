@@ -129,10 +129,14 @@ class DutyController(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
     ) = placements.placements(principal.name, id, from, to)
 
-    /** 월별 채우기 처음 값 (14.4.4): month YYYY-MM */
+    /** 월별 채우기 처음 값 (14.4.4): month YYYY-MM, from 채울 첫날(없으면 처음 값, slices/19 3.3) */
     @GetMapping("/rosters/{id}/fill/defaults")
-    fun fillDefaults(principal: Principal, @PathVariable id: Long, @RequestParam(required = false) month: String?) =
-        placements.fillDefaults(principal.name, id, month)
+    fun fillDefaults(
+        principal: Principal,
+        @PathVariable id: Long,
+        @RequestParam(required = false) month: String?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+    ) = placements.fillDefaults(principal.name, id, month, from)
 
     @PostMapping("/rosters/{id}/fill/preview")
     fun fillPreview(principal: Principal, @PathVariable id: Long, @RequestBody body: DutyFillRequest) = placements.fillPreview(principal.name, id, body)

@@ -170,10 +170,18 @@ abstract class DutyTestBase {
         rule(ok(send("POST", loginId, "/api/duty/rosters/$rosterId/rules/$ruleId/shift-types", mapOf("name" to name, "short" to short, "count" to count, "version" to version(rosterId)))), ruleId)["shift"]["types"]
             .first { it["name"].asText() == name }["id"].asLong()
 
+    /** 교대 설정. 패턴의 null 칸은 그 규칙의 쉬는 근무 "비번"(비)으로 바꿔 보낸다(없으면 만든다, G-151) */
     fun shiftSettings(loginId: String, rosterId: Long, ruleId: Long, pattern: List<Long?>, members: List<Pair<String, Int>>, days: List<String> = DutyCalendarRules.DAY_KINDS): ResultActions =
         send("PUT", loginId, "/api/duty/rosters/$rosterId/rules/$ruleId/shift-settings", mapOf(
-            "pattern" to pattern, "days" to days, "members" to members.map { (k, c) -> mapOf("personnelId" to pid(k), "startCell" to c) }, "version" to version(rosterId),
+            "pattern" to (if (null in pattern) offType(loginId, rosterId, ruleId).let { off -> pattern.map { it ?: off } } else pattern), "days" to days, "members" to members.map { (k, c) -> mapOf("personnelId" to pid(k), "startCell" to c) }, "version" to version(rosterId),
         ))
+
+    /** 그 교대 규칙의 쉬는 근무 "비번"(비) id. 없으면 만든다 */
+    fun offType(loginId: String, rosterId: Long, ruleId: Long): Long {
+        rule(detail(loginId, rosterId), ruleId)["shift"]["types"].firstOrNull { it["off"].asBoolean() }?.let { return it["id"].asLong() }
+        val body = mapOf("name" to "비번", "short" to "비", "off" to true, "version" to version(rosterId))
+        return rule(ok(send("POST", loginId, "/api/duty/rosters/$rosterId/rules/$ruleId/shift-types", body)), ruleId)["shift"]["types"].first { it["off"].asBoolean() }["id"].asLong()
+    }
 
     /** 월별 채우기 요청의 규칙 하나: 요일 규칙 첫 사람 */
     fun first(ruleId: Long, key: String): Map<String, Any?> = mapOf("ruleId" to ruleId, "firstPersonnelId" to pid(key))

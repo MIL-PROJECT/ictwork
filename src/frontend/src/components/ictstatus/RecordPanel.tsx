@@ -1,6 +1,8 @@
 import { type BoxStats, downloadStatsExcel, fetchStats } from "@/api/ictStatus";
+import { zoomChartFonts } from "@/components/status/StatusCharts";
 import Button from "@/components/ui/button/Button";
 import { INPUT_CLASS, LABEL_CLASS } from "@/components/work/format";
+import { useAppZoom } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { cn } from "@/utils";
 import type { ApexOptions } from "apexcharts";
@@ -157,6 +159,7 @@ function NumberTrend({ stats }: { stats: BoxStats["numbers"][number] }) {
   const { t } = useTranslation("ictStatus");
   const { theme } = useTheme();
   const dark = theme === "dark";
+  const zoom = useAppZoom(); // 글자 크기 "크게"면 배율 밖에서 그리고 높이·글자를 키운다 (REQ-008, StatusCharts.zoomChartFonts)
   // 색은 테마 토큰에서 읽고(업무 현황 그래프 StatusCharts와 같게, theme.mode를 쓰면 다크에서 회색 판이 깔림),
   // 가로축 날짜는 숫자로만 써서 언어와 관계없이 같게 보인다(apexcharts 기본은 "01 Oct")
   const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -175,9 +178,9 @@ function NumberTrend({ stats }: { stats: BoxStats["numbers"][number] }) {
         {`${stats.title} ${t("record.trend")}`}
         {stats.deleted && <span className="ms-1 text-gray-500 dark:text-gray-400">{t("record.deletedField")}</span>}
       </h5>
-      <div aria-hidden="true">
+      <div aria-hidden="true" className="zoom-reset">
         {/* 테마가 바뀌면 다시 만든다(그대로 두면 툴팁이 옛 테마 바탕에 새 글자색으로 남음) */}
-        <Chart key={theme} type="line" height={220} options={options} series={[{ name: stats.title, data: stats.points.map((p) => ({ x: new Date(p.at).getTime(), y: p.value })) }]} />
+        <Chart key={theme} type="line" height={220 * zoom} options={zoomChartFonts(options, zoom)} series={[{ name: stats.title, data: stats.points.map((p) => ({ x: new Date(p.at).getTime(), y: p.value })) }]} />
       </div>
       <ul className="sr-only">
         {stats.points.map((p, i) => (

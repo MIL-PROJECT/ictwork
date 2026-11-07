@@ -156,9 +156,7 @@
       "taskReceipt": "업무 접수",
       "workTypes": "업무 유형",
       "approvalRoutes": "결재 경로",
-      "taskRequest": "업무 요청",
-      "departmentService": "부서 업무 안내",
-      "departmentServiceManage": "부서 업무 안내"
+      "taskRequest": "업무 요청"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",

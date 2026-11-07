@@ -1,5 +1,5 @@
 import { ApiError } from "@/api/client";
-import { type AiLink, type AiMessage, type AiQuestionOptions, type AiSource, postQuestion } from "@/api/ai";
+import { type AiLink, type AiMessage, type AiSource, postQuestion } from "@/api/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseData, readEventStream } from "./sse";
 
@@ -14,7 +14,6 @@ export interface AskState {
   phase: AskPhase;
   position: number; // 앞에 있는 질문 수: 기다리는 질문 + 답을 받는 중인 질문(서버 queue.position, 0이면 다음 차례)
   text: string;
-  progress?: string;
 }
 
 export interface AskError {
@@ -56,7 +55,7 @@ export function useAiAsk() {
   // 화면을 떠나면 받던 답을 멈춘다(서버는 받은 데까지 STOPPED로 저장)
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const ask = useCallback(async (conversationId: number, question: string, options?: AiQuestionOptions): Promise<AskResult> => {
+  const ask = useCallback(async (conversationId: number, question: string): Promise<AskResult> => {
     if (controllerRef.current) return { rejected: true, cancelled: false, answer: null, error: { code: "AI_BUSY", message: "" } };
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -79,15 +78,12 @@ export function useAiAsk() {
     });
 
     try {
-      const response = await postQuestion(conversationId, question, controller.signal, options);
+      const response = await postQuestion(conversationId, question, controller.signal);
       opened = true;
       await readEventStream(response, ({ event, data }) => {
         const payload = parseData(data);
         const obj = asObject(payload);
         switch (event) {
-          case "progress":
-            update({ progress: typeof obj.label === "string" ? obj.label : undefined });
-            break;
           case "queue":
             phase = "queued";
             update({ phase, position: Number(obj.position) || 0 });

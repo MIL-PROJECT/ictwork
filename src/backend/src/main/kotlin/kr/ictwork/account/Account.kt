@@ -30,6 +30,10 @@ class Account(
     /** 새로 만든·초기화한 계정은 초기 비밀번호로 로그인한 뒤 바꿔야 한다 (V3, DEC-056) */
     @Column(name = "password_change_required", nullable = false)
     var passwordChangeRequired: Boolean = false,
+
+    /** 개인설정 글자 크기 NORMAL·LARGE (V35, REQ-008). 바꿀 때는 AccountRepository.updateFontSize로 이 칸만 고친다 */
+    @Column(name = "font_size", nullable = false, length = 10, insertable = false, updatable = false)
+    val fontSize: String = "NORMAL",
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

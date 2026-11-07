@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import java.security.Principal
@@ -26,6 +27,13 @@ class MeController(
 
     @GetMapping("/api/me/profile")
     fun profile(principal: Principal): ProfileResponse = meService.profile(principal.name)
+
+    /** 개인설정 글자 크기 (REQ-008). QA 마스터 상태는 보안 설정이 막는다(403) */
+    @PutMapping("/api/me/font-size")
+    fun changeFontSize(principal: Principal, @RequestBody body: FontSizeRequest): ResponseEntity<Void> {
+        meService.changeFontSize(principal.name, body.fontSize)
+        return ResponseEntity.noContent().build()
+    }
 
     /**
      * 비밀번호를 바꾸면 지금 세션은 유지하되 세션 ID를 새로 만들고, 비밀번호 상태 표시를 갱신한다.

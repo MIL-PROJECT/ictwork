@@ -43,7 +43,7 @@ export default function ChatMessages({ messages, draft, loading, error, examples
         const el = e.currentTarget;
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       }}
-      className="custom-scrollbar h-[min(60vh,40rem)] min-h-72 overflow-y-auto px-[22px] py-5"
+      className="custom-scrollbar h-[min(calc(60vh/var(--app-zoom)),40rem)] min-h-72 overflow-y-auto px-[22px] py-5"
     >
       {loading && <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>}
       {error && (
@@ -101,7 +101,6 @@ export default function ChatMessages({ messages, draft, loading, error, examples
           {draft && (
             <li aria-label={t("message.answer")} aria-busy="true">
               <div className={answerBubble}>
-                {draft.progress && <p role="status" className="mb-2 text-xs font-medium text-brand-600 dark:text-brand-300">{draft.progress}</p>}
                 {draft.text ? (
                   <p className={text}>{draft.text}</p>
                 ) : (

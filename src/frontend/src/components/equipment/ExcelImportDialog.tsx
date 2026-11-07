@@ -50,7 +50,7 @@ export default function ExcelImportDialog({ onClose, onImported }: { onClose: ()
   };
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy="excel-import-title" className="custom-scrollbar max-h-[90vh] max-w-3xl overflow-y-auto p-5 sm:p-8">
+    <Modal isOpen onClose={onClose} labelledBy="excel-import-title" className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-3xl overflow-y-auto p-5 sm:p-8">
       <form onSubmit={submit} className="space-y-5" noValidate>
         <h2 id="excel-import-title" className="text-lg font-semibold text-gray-800 dark:text-white/90">
           {t("import.title")}

@@ -121,7 +121,7 @@ class DutyRuleMember(
     val addedAt: LocalDateTime,
 )
 
-/** 교대 근무 종류 (교대 규칙마다). 비번은 행이 없다 */
+/** 교대 근무 종류 (교대 규칙마다). offDuty: 쉬는 근무(예: 비번) — 패턴 칸만 채우고 배치하지 않음, 인원 0 (G-151) */
 @Entity
 @Table(name = "duty_shift_type")
 class DutyShiftType(
@@ -142,6 +142,9 @@ class DutyShiftType(
 
     @Column(nullable = false)
     var headcount: Int,
+
+    @Column(name = "off_duty", nullable = false)
+    var offDuty: Boolean = false,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -234,6 +237,10 @@ class DutyPlacement(
 
     @Column(name = "created_at", nullable = false)
     var createdAt: LocalDateTime,
+
+    /** 수동 바꾸기로 넣거나 바꾼 배치 (월별 채우기 미리 보기에 지워질 것으로 알림, slices/19 3.3) */
+    @Column(nullable = false)
+    var manual: Boolean = false,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

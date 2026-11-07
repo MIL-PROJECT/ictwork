@@ -91,7 +91,7 @@ export default function AccountPanel({
   const value = "text-[13.5px] text-gray-700 [overflow-wrap:anywhere] dark:text-white/90";
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy="account-panel-title" className="custom-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto">
+    <Modal isOpen onClose={onClose} labelledBy="account-panel-title" className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-2xl overflow-y-auto">
       {/* OMNIS 대화상자: 제목 줄 → 내용(여백 22) → 바닥 띠(닫기) */}
       <h2 id="account-panel-title" className="px-[22px] pt-6 pe-16 text-[17px] leading-snug font-bold tracking-[-0.3px] text-gray-900 sm:pe-20 dark:text-white/90">
         {t("account.title", { name: person.name })}

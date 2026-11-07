@@ -1,42 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
-import type { Department } from "@/api/org";
-import { useAuth } from "@/context/AuthContext";
-import {
-  fetchDepartmentServices,
-  type DepartmentService,
-} from "@/api/departmentServices";
-import { recommendDepartments } from "./recommendDepartments";
+import { fetchFilterTypeOptions, type FilterTypeOption } from "@/api/work";
+import { recommendTypes } from "./recommendTypes";
 import { INPUT_CLASS } from "./format";
-export default function DepartmentRecommendations({
-  departments,
-  paths,
+
+/**
+ * 업무 유형 추천 (간편 부서 요청): 문제를 적고 찾으면 유형 이름·설명이 맞는 유형을 최대 3개 보인다.
+ * 고르면 그 유형을 만든 부서가 받는 부서로 들어가고 그 유형이 함께 골라진다
+ */
+export default function TypeRecommendations({
   receivers,
-  selected,
+  chosen,
   onSelect,
   onNoResults,
 }: {
-  departments: Department[];
-  paths: Map<number, string>;
   receivers: ReadonlySet<number> | null;
-  selected: number[];
-  onSelect: (departmentId: number, issue: string) => void;
+  chosen: Record<number, number[]>;
+  onSelect: (departmentId: number, typeId: number, issue: string) => void;
   onNoResults: () => void;
 }) {
   const { t } = useTranslation("work");
-  const { user } = useAuth();
-  const canManage = user?.features.includes("ADMIN_WORK_TYPE") ?? false;
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState<string | null>(null);
-  const [profiles, setProfiles] = useState<DepartmentService[] | null>(null);
+  const [types, setTypes] = useState<FilterTypeOption[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
-    fetchDepartmentServices().then(
+    fetchFilterTypeOptions().then(
       (data) => {
-        if (active) setProfiles(data);
+        if (active) setTypes(data);
       },
       () => {
         if (active) setFailed(true);
@@ -48,12 +41,12 @@ export default function DepartmentRecommendations({
   }, [retry]);
   const candidates = useMemo(
     () =>
-      receivers && profiles && searched
-        ? recommendDepartments(searched, departments, profiles, receivers)
+      receivers && types && searched
+        ? recommendTypes(searched, types, receivers)
         : [],
-    [searched, departments, profiles, receivers],
+    [searched, types, receivers],
   );
-  const loading = profiles === null || receivers === null;
+  const loading = types === null || receivers === null;
   const changed = searched !== null && searched !== query.trim();
   const short = (text: string) =>
     text.length > 160 ? `${text.slice(0, 160)}…` : text;
@@ -62,12 +55,13 @@ export default function DepartmentRecommendations({
     setSearched(query.trim());
     if (
       receivers &&
-      profiles &&
-      recommendDepartments(query, departments, profiles, receivers).length ===
-        0
+      types &&
+      recommendTypes(query, types, receivers).length === 0
     )
       onNoResults();
   };
+  const isChosen = (row: FilterTypeOption) =>
+    (chosen[row.departmentId] ?? []).includes(row.typeId);
   return (
     <div className="mb-5 space-y-4">
       <div className="rounded-xl bg-brand-50 p-4 dark:bg-brand-500/10">
@@ -118,15 +112,6 @@ export default function DepartmentRecommendations({
             </button>
           </p>
         )}
-        {/* 안내는 부서 관리자가 관리 ▸ 부서 업무 안내에서 고친다 */}
-        {canManage && (
-          <Link
-            to="/admin/department-services"
-            className="mt-3 block text-xs text-brand-700 underline dark:text-brand-300"
-          >
-            {t("service.manageLink")}
-          </Link>
-        )}
       </div>
       {searched !== null && (
         <div aria-live="polite" className="space-y-3">
@@ -147,57 +132,52 @@ export default function DepartmentRecommendations({
                   {t("recommend.empty")}
                 </p>
               )}
-              {candidates.map(({ department, profile, matched }) => (
+              {candidates.map(({ type, matched }) => (
                 <article
-                  key={department.id}
+                  key={type.typeId}
                   className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
                 >
                   <div>
                     <h4 className="font-semibold text-gray-900 dark:text-white">
-                      {department.name}
+                      {type.name}
                     </h4>
                     <p className="mt-1 text-xs text-gray-500">
-                      {paths.get(department.id)}
+                      {type.departmentPath}
                     </p>
                   </div>
                   <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm leading-relaxed text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                     <p className="font-medium">{t("recommend.reason")}</p>
                     <p>
-                      {t("recommend.profileMatched", {
+                      {t("recommend.typeMatched", {
                         names: matched.slice(0, 3).join(" · "),
                       })}
                     </p>
                   </div>
-                  {/* 부서가 등록한 업무 정보는 원할 때만 펼쳐 본다 */}
-                  {(["systems", "responsibilities", "exclusions"] as const).some((key) => profile[key]) && (
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400">
-                        {t("recommend.details")}
-                      </summary>
-                      <dl className="mt-2 space-y-2 leading-relaxed">
-                        {(["systems", "responsibilities", "exclusions"] as const).map(
-                          (key) =>
-                            profile[key] && (
-                              <div key={key}>
-                                <dt className="font-medium text-gray-700 dark:text-gray-300">{t(`service.${key}`)}</dt>
-                                <dd className="text-gray-600 dark:text-gray-400">{short(profile[key])}</dd>
-                              </div>
-                            ),
-                        )}
-                      </dl>
-                    </details>
-                  )}
+                  {/* 업무 설명은 원할 때만 펼쳐 본다 (G-156) */}
+                  <details className="text-sm">
+                    <summary
+                      // 후보가 여럿이라 화면낭독기에서 구분되도록 유형 이름과 부서를 붙인다(같은 이름 유형이 여러 부서에 있음)
+                      aria-label={`${type.name} (${type.departmentPath}) · ${t("recommend.details")}`}
+                      className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    >
+                      {t("recommend.details")}
+                    </summary>
+                    <dl className="mt-2 leading-relaxed">
+                      <dt className="font-medium text-gray-700 dark:text-gray-300">
+                        {t("recommend.description")}
+                      </dt>
+                      <dd className="whitespace-pre-line text-gray-600 dark:text-gray-400">
+                        {short(type.description)}
+                      </dd>
+                    </dl>
+                  </details>
                   <button
                     type="button"
-                    disabled={selected.includes(department.id)}
-                    onClick={() => onSelect(department.id, searched)}
+                    disabled={isChosen(type)}
+                    onClick={() => onSelect(type.departmentId, type.typeId, searched)}
                     className="rounded-lg border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 disabled:opacity-50 dark:text-brand-300"
                   >
-                    {t(
-                      selected.includes(department.id)
-                        ? "recommend.selected"
-                        : "recommend.select",
-                    )}
+                    {t(isChosen(type) ? "recommend.selected" : "recommend.select")}
                   </button>
                 </article>
               ))}

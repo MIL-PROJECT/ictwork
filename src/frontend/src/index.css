@@ -230,6 +230,11 @@
     cursor: pointer;
   }
 
+  /* 날짜·시각 칸은 누르면 고르기 창이 열린다 (utils/openDatePicker.ts, G-160) */
+  input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]):not(:disabled):not([readonly]) {
+    cursor: pointer;
+  }
+
   body {
     @apply relative z-1 font-outfit font-normal;
     background: var(--color-app-bg);
@@ -631,6 +636,17 @@
   --color-series-8: #e34948;
 }
 
+/* 근무자 현황 [월] 인쇄 (REQ-404, slices/19 G1): 이름 붙은 쪽으로 A4 가로. 인쇄 때 첫 내용 상자가 이 클래스라 첫 쪽부터 가로 */
+@page duty-landscape {
+  size: A4 landscape;
+  margin: 10mm;
+}
+@media print {
+  .print-page-landscape {
+    page: duty-landscape;
+  }
+}
+
 /* 업무 현황 인쇄 (REQ-906, slices/9_업무현황.md 5장): A4 세로, 메뉴·상단바·패널·단추는 숨기고(print:hidden), 표 머리글은 쪽마다 되풀이 */
 @media print {
   @page {
@@ -895,6 +911,12 @@ aside .menu-item-text {
     display: none;
   }
 }
+/* 글자 크기 "크게"(REQ-008)는 같은 창에서 CSS 높이가 1/1.25이므로 조건을 배율만큼(820 × 1.25) 늦춘다 */
+@media (max-height: 1025px) {
+  html[data-font-size="large"] aside .sb-status {
+    display: none;
+  }
+}
 
 /* 밀도 (OMNIS MUI small): 입력 40px, 표 셀 위아래 8px·좌우 14px(첫 열 22px), 머리글 36px */
 main :is(input, select).h-11 {
@@ -946,5 +968,67 @@ html:not(.dark) .omnis-panel {
     box-shadow: none !important;
     animation: none !important;
     border: 1px solid #d3d8e4 !important;
+  }
+}
+
+/* 개인설정 글자 크기 (REQ-008, DEC-124, slices/18): "크게"면 화면 전체(글자·여백·아이콘)를 125%로.
+   zoom 안에서는 vh·vw도 1.25배가 되므로 화면 높이·폭은 calc(90vh/var(--app-zoom))처럼 나눠 쓴다.
+   화면 좌표(getBoundingClientRect·clientX)는 보이는 픽셀이고 CSS 길이는 배율 전 픽셀이라, 좌표를 직접 계산하는
+   외부 부품(구성도 Excalidraw·그래프 apexcharts)은 배율 밖(zoom-reset)에서 그린다. 값 1.25는 AuthContext의 LARGE_ZOOM과 같다 */
+:root {
+  --app-zoom: 1;
+}
+html[data-font-size="large"] {
+  --app-zoom: 1.25;
+  zoom: 1.25;
+}
+@utility zoom-reset {
+  zoom: calc(1 / var(--app-zoom));
+}
+/* 그래프 말풍선: 배율 밖이라 글자·여백만 따로 키운다 */
+.zoom-reset .apexcharts-tooltip.apexcharts-theme-light {
+  padding: calc(0.75rem * var(--app-zoom)) !important;
+}
+.zoom-reset .apexcharts-tooltip-title {
+  font-size: calc(10px * var(--app-zoom)) !important;
+  line-height: calc(1rem * var(--app-zoom)) !important;
+}
+.zoom-reset .apexcharts-tooltip-text {
+  font-size: calc(12px * var(--app-zoom)) !important;
+}
+/* 구성도: 캔버스는 배율 밖(마우스 좌표·캔버스 크기), 도구 막대·메뉴는 그 안에서 다시 배율만큼 키운다 */
+.diagram-canvas {
+  zoom: calc(1 / var(--app-zoom));
+}
+.diagram-canvas .layer-ui__wrapper {
+  zoom: var(--app-zoom);
+  width: calc(100% / var(--app-zoom));
+  height: calc(100% / var(--app-zoom));
+}
+/* 구성도 안의 오른쪽 클릭 메뉴와 장비 말풍선: 위치는 캔버스 좌표(배율 밖) 그대로 두고 내용만 다시 키운다.
+   상태 범례는 오른쪽 아래 구석에 붙으므로 틀째 키운다 */
+.diagram-canvas .popover > .context-menu,
+.diagram-canvas .diagram-tooltip > *,
+.diagram-canvas .diagram-legend {
+  zoom: var(--app-zoom);
+}
+/* 구성도 도구 막대에서 여는 색 고르기 등(Radix 팝업): 위치 계산이 도구 막대 배율로 나눈 값이라 팝업 틀에 배율을 준다.
+   화면 아래 끝에 닿으면 끝 맞춤 계산이 배율을 반영하지 못해 조금 넘칠 수 있다(slices/18 7장) */
+.diagram-canvas [data-radix-popper-content-wrapper] {
+  zoom: var(--app-zoom);
+}
+/* 달력 "+n개 더 보기" 팝업: FullCalendar가 화면 좌표를 그대로 top·left에 넣으므로 팝업 자체는 배율 밖(실효 1)에 두고
+   안의 내용만 다시 키운다. 폭은 Calendar.tsx의 popoverClass에서 배율만큼 */
+.calendar-popover {
+  zoom: calc(1 / var(--app-zoom));
+}
+.calendar-popover > * {
+  zoom: var(--app-zoom);
+}
+/* 인쇄는 늘 보통 크기 */
+@media print {
+  html[data-font-size="large"] {
+    --app-zoom: 1;
+    zoom: 1;
   }
 }

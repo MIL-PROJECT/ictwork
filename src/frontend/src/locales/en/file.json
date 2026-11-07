@@ -49,6 +49,19 @@
     "retry": "Open again",
     "pageAlt": "{name} page {page}",
     "docxOpening": "Showing the Word document…",
-    "docxFailed": "This Word document cannot be previewed. It may be damaged or use unsupported content. Download the original instead."
+    "docxFailed": "This Word document cannot be previewed. It may be damaged or use unsupported content. Download the original instead.",
+    "sheetOpening": "Opening the Excel workbook…",
+    "sheetFailed": "This Excel workbook cannot be previewed. It may be damaged or use an unsupported structure. Download the original.",
+    "sheets": "Sheets",
+    "sheetTruncated": "The sheet is large; only the first {rows} rows and {cols} columns are shown. Download the original to see everything.",
+    "sheetEmpty": "This sheet has no values.",
+    "sheetCaption": "{name} — sheet {sheet}",
+    "slideOpening": "Opening the PowerPoint file…",
+    "slideFailed": "This PowerPoint file cannot be previewed. It may be damaged or use an unsupported structure. Download the original.",
+    "slideNotice": "Shows the text, tables and pictures of each slide in order. Download the original for its layout and formatting.",
+    "slideLabel": "{name} slide {n} of {total}",
+    "slideEmpty": "This slide has no text or pictures to show.",
+    "slideImage": "Picture on slide {n}",
+    "slideTruncated": "Only the first {count} slides are shown. Download the original to see everything."
   }
 }

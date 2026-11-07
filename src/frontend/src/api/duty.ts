@@ -38,11 +38,18 @@ export interface DutyTodayRoster {
   days: DutyDay[]; // 어제·오늘·내일
 }
 
+/** 내 다음 근무 (slices/19 3.1): 오늘 이후 내가 배치된 가장 이른 날과 그날의 근무표들 (short: 교대 규칙 짧은 글자) */
+export interface DutyNext {
+  date: string;
+  items: { rosterId: number; departmentLabel: string; rosterName: string; short: string | null }[];
+}
+
 export interface DutyTodayView {
   serverNow: string; // 서버 서울 시각 (시간대 없음)
   today: string;
   canEdit: boolean;
   rosters: DutyTodayRoster[];
+  next: DutyNext | null;
 }
 
 export interface DutyCalendarRoster {
@@ -80,6 +87,8 @@ export interface DutyShiftTypeView {
   name: string;
   short: string;
   count: number;
+  /** 쉬는 근무(예: 비번): 패턴 칸만 채우고 배치하지 않음, count 0 (G-151) */
+  off: boolean;
   inPattern: boolean;
   inPlacement: boolean;
 }
@@ -92,7 +101,7 @@ export interface DutyShiftMember {
 /** 교대 규칙의 설정 */
 export interface DutyShiftView {
   types: DutyShiftTypeView[];
-  pattern: (number | null)[]; // 근무 종류 id 또는 null(비번)
+  pattern: number[]; // 근무 종류 id (쉬는 근무 포함)
   members: DutyShiftMember[];
 }
 
@@ -188,7 +197,10 @@ export interface DutyPlacementView {
 /** 건너뛸 사유: 사용 중인 사람 없음 · 그 달에 적용 날 없음 · 교대 패턴 없음 */
 export type DutySkip = "NO_ACTIVE_MEMBER" | "NO_APPLY_DAY" | "NO_PATTERN";
 
-/** 월별 채우기 처음 값: 규칙마다 요일 규칙은 firstPersonnelId, 교대 규칙은 cells (MEMORY: 이어짐, SET: 정해 둔 칸) */
+/**
+ * 월별 채우기 처음 값: 규칙마다 요일 규칙은 firstPersonnelId(previous: 근거가 된 앞 배치), 교대 규칙은 cells
+ * (MEMORY: 이어짐(memoryDate: 이어 간 기억의 날), SET: 정해 둔 칸). from: 채울 첫날 (slices/19 3.3)
+ */
 export interface DutyFillDefaults {
   month: string;
   from: string;
@@ -198,7 +210,8 @@ export interface DutyFillDefaults {
     kind: DutyRuleKind;
     name: string;
     firstPersonnelId?: number | null;
-    cells?: { personnelId: number; cell: number; source: "MEMORY" | "SET" }[] | null;
+    previous?: { date: string; personnelId: number } | null;
+    cells?: { personnelId: number; cell: number; source: "MEMORY" | "SET"; memoryDate?: string | null }[] | null;
     skip?: DutySkip | null;
   }[];
 }
@@ -213,6 +226,10 @@ export interface DutyFillPreview {
   emptyHolidayDays: string[];
   mismatches: { ruleId: number; date: string; shiftTypeId: number; computed: number; required: number }[];
   inactiveSlots: { ruleId: number; date: string; shiftTypeId: number; personnelId: number }[];
+  /** 채우면 지워질 수동 배치 (slices/19 3.3) */
+  manualPlacements: { ruleId: number; date: string; shiftTypeId: number | null; personnelId: number }[];
+  /** 지워질 수동 배치 사람의 표시 값 (규칙 밖 사람도) */
+  people: Record<string, DutyPersonView>;
 }
 
 /** 실행 결과: 상세와 실행 때 건너뛴 규칙 */
@@ -221,9 +238,10 @@ export interface DutyFillResult {
   skipped: { ruleId: number; reason: DutySkip }[];
 }
 
-/** 월별 채우기 본문: rules에 없는 규칙도 처음 값으로 채운다 */
+/** 월별 채우기 본문: from 채울 첫날(slices/19 3.3), rules에 없는 규칙도 처음 값으로 채운다 */
 export interface DutyFillBody {
   month: string;
+  from: string;
   rules: { ruleId: number; firstPersonnelId?: number; startCells?: { personnelId: number; cell: number }[] }[];
   version: number;
 }
@@ -234,9 +252,9 @@ export interface DutyShiftSeat {
   personnelId: number | null;
 }
 
-/** 맞바꾸기는 같은 규칙 안: 요일 규칙은 두 날, 교대 규칙은 두 자리 */
+/** 맞바꾸기: 요일 규칙은 두 날(ruleIdB가 다른 요일 규칙이면 규칙 사이, slices/19 3.4), 교대 규칙은 같은 규칙 안 두 자리 */
 export type DutySwapBody =
-  | { ruleId: number; dateA: string; dateB: string; version: number }
+  | { ruleId: number; ruleIdB?: number; dateA: string; dateB: string; version: number }
   | { ruleId: number; a: DutyShiftSeat; b: DutyShiftSeat; version: number };
 
 export type DutySetBody =
@@ -274,13 +292,23 @@ export const saveAssignees = (id: number, personnelIds: number[], version: numbe
 export const saveShares = (id: number, shares: { departmentId: number; includeSub: boolean }[], version: number) =>
   apiFetch<DutyRosterDetail>(`${roster(id)}/shares`, json("PUT", { shares, version }));
 
-/** 규칙 추가: 요일 규칙은 이름·적용 날·인원, 교대 규칙은 이름만(매일) */
+/**
+ * 교대 규칙 설정 전체 (slices/19 13.2): 근무 종류 목록(id가 있으면 고침·없으면 더함·빠진 종류는 지움),
+ * 패턴은 types의 순번(0부터), 인원과 시작 칸. off: 쉬는 근무(인원 수를 보지 않음)
+ */
+export interface DutyShiftSpec {
+  types: { id: number | null; name: string; short: string; count: number; off: boolean }[];
+  pattern: number[];
+  members: DutyShiftMember[];
+}
+
+/** 규칙 추가: 요일 규칙은 이름·적용 날·인원, 교대 규칙은 이름·적용 날과 교대 설정 전체(한 동작) */
 export type DutyRuleAddBody =
   | { kind: "WEEKDAY"; name: string; days: DayCode[]; members: number[]; version: number }
-  | { kind: "SHIFT"; name: string; version: number };
+  | { kind: "SHIFT"; name: string; days: DayCode[]; shift: DutyShiftSpec; version: number };
 
-/** 규칙 고치기: 요일 규칙은 이름·적용 날·인원, 교대 규칙은 이름 */
-export type DutyRuleUpdateBody = { name: string; days: DayCode[]; members: number[]; version: number } | { name: string; version: number };
+/** 규칙 고치기: 요일 규칙은 이름·적용 날·인원, 교대 규칙은 이름·적용 날과 교대 설정 전체 */
+export type DutyRuleUpdateBody = { name: string; days: DayCode[]; members: number[]; version: number } | { name: string; days: DayCode[]; shift: DutyShiftSpec; version: number };
 
 export const addRule = (id: number, body: DutyRuleAddBody) => apiFetch<DutyRosterDetail>(`${roster(id)}/rules`, json("POST", body));
 
@@ -289,30 +317,13 @@ export const updateRule = (id: number, ruleId: number, body: DutyRuleUpdateBody)
 export const deleteRule = (id: number, ruleId: number, version: number) =>
   apiFetch<DutyRosterDetail>(`${rule(id, ruleId)}?version=${version}`, { method: "DELETE" });
 
-export interface DutyShiftTypeBody {
-  name: string;
-  short: string;
-  count: number;
-  version: number;
-}
-
-export const addShiftType = (id: number, ruleId: number, body: DutyShiftTypeBody) =>
-  apiFetch<DutyRosterDetail>(`${rule(id, ruleId)}/shift-types`, json("POST", body));
-
-export const updateShiftType = (id: number, ruleId: number, typeId: number, body: DutyShiftTypeBody) =>
-  apiFetch<DutyRosterDetail>(`${rule(id, ruleId)}/shift-types/${typeId}`, json("PUT", body));
-
-export const deleteShiftType = (id: number, ruleId: number, typeId: number, version: number) =>
-  apiFetch<DutyRosterDetail>(`${rule(id, ruleId)}/shift-types/${typeId}?version=${version}`, { method: "DELETE" });
-
-export const saveShiftSettings = (id: number, ruleId: number, body: { pattern: (number | null)[]; days: DayCode[]; members: DutyShiftMember[]; version: number }) =>
-  apiFetch<DutyRosterDetail>(`${rule(id, ruleId)}/shift-settings`, json("PUT", body));
-
 /** 배치 화면 (62일 이하) */
 export const fetchPlacements = (id: number, from: string, to: string) =>
   apiFetch<DutyPlacementView>(`${roster(id)}/placements?${new URLSearchParams({ from, to })}`);
 
-export const fetchFillDefaults = (id: number, month: string) => apiFetch<DutyFillDefaults>(`${roster(id)}/fill/defaults?${new URLSearchParams({ month })}`);
+/** 처음 값: from(채울 첫날)이 없으면 서버 처음 값 */
+export const fetchFillDefaults = (id: number, month: string, from?: string) =>
+  apiFetch<DutyFillDefaults>(`${roster(id)}/fill/defaults?${new URLSearchParams(from ? { month, from } : { month })}`);
 
 export const previewFill = (id: number, body: DutyFillBody) => apiFetch<DutyFillPreview>(`${roster(id)}/fill/preview`, json("POST", body));
 

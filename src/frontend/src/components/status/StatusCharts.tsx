@@ -1,4 +1,5 @@
 import type { TrendBucket } from "@/api/status";
+import { useAppZoom } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import type { ApexOptions } from "apexcharts";
 import Chart from "react-apexcharts";
@@ -29,6 +30,20 @@ function baseOptions(dark: boolean): ApexOptions {
   };
 }
 
+// 글자 크기 "크게"(REQ-008): apexcharts는 마우스 좌표를 화면 픽셀로 재므로 그래프를 배율 밖(zoom-reset)에서 그리고,
+// 그 대신 높이와 축·범례 글자를 배율만큼 키운다(기본값 x축 12px·y축 11px·범례 12px). 인쇄용(light)은 배율 1
+export function zoomChartFonts(options: ApexOptions, zoom: number): ApexOptions {
+  if (zoom === 1) return options;
+  const px = (base: number) => `${base * zoom}px`;
+  const yaxis = Array.isArray(options.yaxis) ? options.yaxis : { ...options.yaxis, labels: { ...options.yaxis?.labels, style: { ...options.yaxis?.labels?.style, fontSize: px(11) } } };
+  return {
+    ...options,
+    legend: { ...options.legend, fontSize: px(12) },
+    xaxis: { ...options.xaxis, labels: { ...options.xaxis?.labels, style: { ...options.xaxis?.labels?.style, fontSize: px(12) } } },
+    yaxis,
+  };
+}
+
 function HiddenTable({ title, head, rows }: { title: string; head: string[]; rows: (string | number)[][] }) {
   const { t } = useTranslation("status");
   return (
@@ -51,6 +66,8 @@ export function TrendChart({ buckets, title, light }: { buckets: TrendBucket[]; 
   const { t } = useTranslation("status", { keyPrefix: "trend" });
   const { theme } = useTheme();
   const dark = theme === "dark" && !light;
+  const appZoom = useAppZoom();
+  const zoom = light ? 1 : appZoom;
   const [requestColor, completedColor] = seriesColors();
   const options: ApexOptions = {
     ...baseOptions(dark),
@@ -61,11 +78,11 @@ export function TrendChart({ buckets, title, light }: { buckets: TrendBucket[]; 
   };
   return (
     <div className="print-avoid-break">
-      <div aria-hidden="true">
+      <div aria-hidden="true" className="zoom-reset">
         <Chart
           type="bar"
-          height={240}
-          options={options}
+          height={240 * zoom}
+          options={zoomChartFonts(options, zoom)}
           series={[
             { name: escapeHtml(t("requests")), data: buckets.map((b) => b.requests) },
             { name: escapeHtml(t("completed")), data: buckets.map((b) => b.completed) },
@@ -102,6 +119,8 @@ export function CompareTrend({ units, title, light }: { units: { name: string; w
   const { t } = useTranslation("status", { keyPrefix: "trend" });
   const { theme } = useTheme();
   const dark = theme === "dark" && !light;
+  const appZoom = useAppZoom();
+  const zoom = light ? 1 : appZoom;
   const weeks = units[0]?.weekly ?? [];
   const table = (
     <HiddenTable
@@ -121,8 +140,8 @@ export function CompareTrend({ units, title, light }: { units: { name: string; w
     };
     return (
       <div className="print-avoid-break">
-        <div aria-hidden="true">
-          <Chart type="line" height={260} options={options} series={units.map((u) => ({ name: escapeHtml(u.name), data: u.weekly.map((w) => w.completed) }))} />
+        <div aria-hidden="true" className="zoom-reset">
+          <Chart type="line" height={260 * zoom} options={zoomChartFonts(options, zoom)} series={units.map((u) => ({ name: escapeHtml(u.name), data: u.weekly.map((w) => w.completed) }))} />
         </div>
         {table}
       </div>

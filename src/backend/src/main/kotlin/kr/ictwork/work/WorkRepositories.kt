@@ -16,6 +16,10 @@ interface WorkRequestRepository : JpaRepository<WorkRequest, Long> {
 
     fun findByRequesterAccountIdOrderByUpdatedAtDescIdDesc(requesterAccountId: Long): List<WorkRequest>
 
+    /** 이 부서가 보낸 요청: 요청할 때 요청자 소속이 이 부서인 보낸 요청 (G-161) */
+    @Query("select r from WorkRequest r where r.requesterDepartmentId = :departmentId and r.phase = 'SENT'")
+    fun findSentByRequesterDepartment(departmentId: Long): List<WorkRequest>
+
     /** 업무 등록에서 이 부서를 요청받은 부서로 정한 요청 (DEC-061) */
     @Query("select distinct r from WorkRequest r join r.originDepartmentIds o where o = :departmentId")
     fun findByOrigin(departmentId: Long): List<WorkRequest>

@@ -121,6 +121,77 @@ class WorkRequestFieldsTest(
     }
 
     @Test
+    fun `RF16 열람 범위를 비운 간편 부서 요청은 요청자·받는 부서가 보고 다른 사람은 못 봄, 다시 올릴 때도 비워도 됨, 옛 방식·업무 등록은 필수 (REQ-101·114, G-157)`() {
+        val noViewers = mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>())
+        // 보낸 요청: 요청자·받는 부서 부서원은 보고, 열람 범위에도 받는 부서에도 없는 사람은 404
+        val sent = create("rf-req", intakeBody() + mapOf("viewers" to noViewers))
+        open("rf-req", "/api/work/requests/$sent").andExpect(status().isOk)
+        open("rf-s1a", "/api/work/requests/$sent").andExpect(status().isOk)
+        open("rf-s1a", "/api/work/items/${itemOf(sent, s1)}").andExpect(status().isOk)
+        open("rf-out", "/api/work/requests/$sent").andExpect(status().isNotFound)
+        // 발송 반려 뒤 열람 범위를 비운 채 다시 올리기
+        val steps = line("rf-req", approve("rf-s3b"))
+        val intake = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps, "viewers" to noViewers))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$intake", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps, "viewers" to noViewers))
+            .andExpect(status().isNoContent)
+        // 선택이어도 없는 인원은 거부 (VIEWERS_INVALID 검사는 그대로)
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mapOf("viewers" to mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to listOf(999_999L))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_INVALID"))
+        // 결재 차례 문서가 하나만 남도록 다시 올린 요청은 취소
+        send("POST", "rf-req", "/api/work/requests/$intake/cancel").andExpect(status().isNoContent)
+        // 간편 부서 요청 전 방식 요청은 다시 올릴 때 열람 범위가 비면 거부
+        val full = create("rf-req", body("rf-req", s1, steps = steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$full", body("rf-req", s1, steps = steps) + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+        // 업무 등록: 열람 범위 없이 보내기·보낸 뒤 모두 빼기 모두 거부
+        val register = body("rf-s1a", s1, steps = line("rf-s1a", approve("rf-s1lead")), assignees = listOf("rf-s1a")) +
+            mapOf("kind" to "REGISTER", "supportPlan" to supportPlan("rf-s1b"))
+        send("POST", "rf-s1a", "/api/work/requests", register + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+        val registered = create("rf-s1a", register)
+        send("POST", "rf-s1lead", "/api/approvals/docs/${myTurnDoc("rf-s1lead")}/approve").andExpect(status().isNoContent)
+        send("PUT", "rf-s1a", "/api/work/requests/$registered/viewers", noViewers)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
+    fun `RF17 보낸 요청은 요청한 부서 부서원도 요청한 업무에서 보고 열람 범위를 바꿈, 다른 부서·보내기 전은 못 함, 요청자가 옮겨도 그대로 (REQ-101·104, G-161)`() {
+        val viewers = mapOf("personnelIds" to listOf(personnelIdOf("rf-out")))
+        // 보내기 전(발송 결재 중): 같은 부서원은 회수하려고 볼 수는 있어도(isSendParticipant) 요청한 업무에 없고 열람 범위는 못 바꿈
+        val pending = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to line("rf-req", approve("rf-s1lead"))))
+        assertThat(getAs("rf-s3b", "/api/work/requests/mine").map { it["id"].asLong() }).doesNotContain(pending)
+        send("PUT", "rf-s3b", "/api/work/requests/$pending/viewers", viewers).andExpect(status().isForbidden)
+        // 보내기 전 취소는 요청자·기안자만 (그대로)
+        send("POST", "rf-s3b", "/api/work/requests/$pending/cancel").andExpect(status().isForbidden)
+        // 보낸 요청: 같은 부서원은 요청한 업무에서 요청자처럼 보고 열람 범위를 바꿈
+        val sent = create("rf-req", intakeBody())
+        assertThat(getAs("rf-s3b", "/api/work/requests/mine").map { it["id"].asLong() }).contains(sent)
+        assertThat(detail("rf-s3b", sent, "mine")["mine"].asBoolean()).isTrue()
+        open("rf-s3b", "/api/work/items/${itemOf(sent, s1)}").andExpect(status().isOk)
+        send("PUT", "rf-s3b", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        assertThat(workRequestRepository.findById(sent).get().viewers.mapNotNull { it.personnelId }).containsExactly(personnelIdOf("rf-out"))
+        // 다른 부서 사람은 요청한 업무에 없고 바꿀 수 없음(열람 범위에 들어 볼 수는 있어도 403)
+        assertThat(getAs("rf-s1b", "/api/work/requests/mine").map { it["id"].asLong() }).doesNotContain(sent)
+        send("PUT", "rf-out", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isForbidden)
+        open("rf-c3a", "/api/work/requests/$sent").andExpect(status().isNotFound)
+        // 요청자가 다른 부서로 옮겨도: 요청자 본인과 요청할 때 부서(3반) 부서원은 그대로 바꿈, 옮긴 부서는 상관없음
+        people.saveAndFlush(person("rf-req").also { it.departmentId = checkNotNull(s2.id) })
+        send("PUT", "rf-req", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        send("PUT", "rf-s3b", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        // 업무 등록: 등록한 부서(1반) 부서원도 요청한 업무에서 보고 열람 범위를 바꿈(빈 열람 범위는 여전히 거부)
+        val register = body("rf-s1a", s1, steps = line("rf-s1a", approve("rf-s1lead")), assignees = listOf("rf-s1a")) +
+            mapOf("kind" to "REGISTER", "supportPlan" to supportPlan("rf-s1b"))
+        val registered = create("rf-s1a", register)
+        send("POST", "rf-s1lead", "/api/approvals/docs/${myTurnDoc("rf-s1lead")}/approve").andExpect(status().isNoContent)
+        assertThat(getAs("rf-s1b", "/api/work/requests/mine").map { it["id"].asLong() }).contains(registered)
+        send("PUT", "rf-s1b", "/api/work/requests/$registered/viewers", viewers).andExpect(status().isNoContent)
+        send("PUT", "rf-s1b", "/api/work/requests/$registered/viewers", mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>()))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
     fun `department intake sends without assignees or chosen approvers and preserves the preferred date and time`() {
         val id = create("rf-req", intakeBody())
         val request = detail("rf-req", id)
@@ -145,10 +216,10 @@ class WorkRequestFieldsTest(
     }
 
     @Test
-    fun `department intake allows an absent preference or time but rejects more than one date or an out of range date`() {
+    fun `department intake accepts preferred dates up to the largest count of the chosen types in order`() {
         val dateOnly = mapOf("date" to "2026-11-10")
-        val invalid = listOf(listOf(dateOnly, mapOf("date" to "2026-11-11")), listOf(mapOf("date" to "2100-01-01")))
-        invalid.forEach { slots ->
+        // "기타"는 희망 일자 하나: 둘 이상이나 범위 밖 날짜는 거부, 시각·희망 일자는 비워도 된다
+        listOf(listOf(dateOnly, mapOf("date" to "2026-11-11")), listOf(mapOf("date" to "2100-01-01"))).forEach { slots ->
             send("POST", "rf-req", "/api/work/requests", intakeBody() + ("preferredSlots" to slots))
                 .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
         }
@@ -156,72 +227,81 @@ class WorkRequestFieldsTest(
         assertThat(detail("rf-req", id)["schedule"]["preferences"].single()["time"].isNull).isTrue()
         val without = create("rf-req", intakeBody() - "preferredSlots")
         assertThat(detail("rf-req", without)["schedule"]["preferences"].size()).isZero()
+
+        // 3개까지 받는 유형과 받지 않는 유형을 함께 고르면 큰 쪽(3개)까지, 지망 순서대로 남는다
+        val three = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "회의 지원", sortOrder = 1).also { it.description = "회의 지원"; it.preferredCount = 3 })
+        val none = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "상시 점검", sortOrder = 2).also { it.description = "상시 점검"; it.scheduleMode = "NONE" })
+        val slots = listOf(mapOf("date" to "2026-11-12", "time" to "09:00"), mapOf("date" to "2026-11-10"), mapOf("date" to "2026-11-11", "time" to "13:30"))
+        val both = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to three.id), mapOf("workTypeId" to none.id)))))
+        val ordered = create("rf-req", intakeBody() + both + ("preferredSlots" to slots))
+        val preferences = detail("rf-req", ordered)["schedule"]["preferences"]
+        assertThat(preferences.map { it["date"].asText() }).containsExactly("2026-11-12", "2026-11-10", "2026-11-11")
+        assertThat(preferences[2]["time"].asText()).startsWith("13:30")
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + both + ("preferredSlots" to slots + listOf(dateOnly)))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        // 받지 않는 유형만 고르면 희망 일자를 보낼 수 없다
+        val onlyNone = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to none.id)))))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + onlyNone)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        assertThat(detail("rf-req", create("rf-req", (intakeBody() - "preferredSlots") + onlyNone))["schedule"]["preferences"].size()).isZero()
+        // 정확한 일정 필수 유형이 하나라도 있으면 희망 일자 대신 정확한 일정을 받는다
+        val exact = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "통역", sortOrder = 3).also { it.description = "통역"; it.scheduleMode = "EXACT_REQUIRED" })
+        val mixed = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to three.id), mapOf("workTypeId" to exact.id)))))
+        val schedule = mapOf("startDate" to "2026-11-10", "startTime" to "09:00", "endTime" to "11:00")
+        send("POST", "rf-req", "/api/work/requests", (intakeBody() - "preferredSlots") + mixed)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mixed + ("requestedSchedule" to schedule))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_INVALID"))
+        assertThat(detail("rf-req", create("rf-req", (intakeBody() - "preferredSlots") + mixed + ("requestedSchedule" to schedule)))["schedule"]["preferences"].size()).isZero()
     }
 
     @Test
-    fun `only department admins edit service information and everyone reads it for recommendations`() {
+    fun `department admins create work types with a required description and set the preferred date count`() {
         user("rf-s1admin", s1, "MEMBER", "DEPT_ADMIN" to s1)
-        user("rf-c3admin", c3, "MEMBER", "DEPT_ADMIN" to c3)
-        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "화상회의 지원", sortOrder = 1))
-        val admin = "/api/admin/department-services/${s1.id}"
-        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체")
-        // 부서원이 고치던 화면(부서관리 ▸ 부서 업무 안내)과 그 API는 없앴다
-        send("PUT", "rf-s1a", "/api/work/department-services/own", input).andExpect(status().is4xxClientError)
-        send("PUT", "rf-s1admin", admin, input + mapOf("systems" to "x".repeat(2001))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_INVALID"))
-        send("PUT", "rf-s1admin", admin, input).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
-        // 본문에 일정 방식을 실어 보내도 무시된다(업무 유형 관리에서 바꿈)
-        send("PUT", "rf-s1admin", admin, input + mapOf("version" to 1, "types" to listOf(mapOf("typeId" to type.id, "scheduleMode" to "EXACT_REQUIRED")))).andExpect(status().isOk)
-        assertThat(getAs("rf-s1admin", admin)["types"].first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("OPTIONAL")
-        val list = getAs("rf-req", "/api/work/department-services")
-        assertThat(list.map { it["departmentId"].asLong() }).contains(s1.id)
-        assertThat(list.first { it["departmentId"].asLong() == s1.id }["systems"].asText()).isEqualTo("화상회의 체계")
-        send("PUT", "rf-c3admin", "/api/admin/department-services/${c3.id}", mapOf("version" to 0, "systems" to "상위 부서 체계")).andExpect(status().isOk)
-        // 상위 부서도 안내를 올리면 추천 목록에 나온다(받는 부서를 말단으로 한정하지 않음)
-        assertThat(getAs("rf-req", "/api/work/department-services").map { it["departmentId"].asLong() }).contains(c3.id)
-    }
+        val create = { body: Map<String, Any?> -> send("POST", "rf-s1admin", "/api/admin/work-types", body) }
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원")).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to "  ")).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to "가".repeat(501))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        val created = json(create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to " 회의실 영상·음향 점검 ")).andExpect(status().isCreated))
+        assertThat(created["description"].asText()).isEqualTo("회의실 영상·음향 점검")
+        assertThat(created["scheduleMode"].asText()).isEqualTo("PREFERRED")
+        assertThat(created["preferredCount"].asInt()).isEqualTo(1)
+        val id = created["id"].asLong()
 
-    @Test
-    fun `department admins edit service information and schedule modes of their role departments`() {
-        user("rf-s1admin", s1, "MEMBER", "DEPT_ADMIN" to s1)
-        user("rf-c3admin", c3, "MEMBER", "DEPT_ADMIN" to c3)
-        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "화상회의 지원", sortOrder = 1))
-        val admin = "/api/admin/department-services/${s1.id}"
-        val input = mapOf("version" to 0, "systems" to "화상회의 체계", "responsibilities" to "회의 연결 지원", "symptoms" to "소리 안 들림", "exclusions" to "PC 교체")
-
-        assertThat(getAs("rf-s1admin", admin)["version"].asLong()).isZero()
-        send("PUT", "rf-s1admin", admin, input).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
-        // 두 관리자가 같은 판을 본다: 옛 판으로 저장하면 409
-        user("rf-s1admin2", s1, "MEMBER", "DEPT_ADMIN" to s1)
-        send("PUT", "rf-s1admin2", admin, input).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("DEPARTMENT_SERVICE_CONFLICT"))
-        send("PUT", "rf-s1admin2", admin, input + mapOf("version" to 1, "symptoms" to "화면 안 나옴")).andExpect(status().isOk)
-        send("PUT", "rf-s1admin", admin, input + mapOf("version" to 1)).andExpect(status().isConflict)
-        assertThat(getAs("rf-s1admin", admin)["symptoms"].asText()).isEqualTo("화면 안 나옴")
-
-        // 역할 대상 부서가 아니면 거부: 다른 부서 관리자·일반 부서원
-        mockMvc.perform(get(admin).with(kr.ictwork.signedIn("rf-c3admin", accounts))).andExpect(status().isForbidden)
-        send("PUT", "rf-c3admin", admin, input + mapOf("version" to 2)).andExpect(status().isForbidden)
-        mockMvc.perform(get(admin).with(kr.ictwork.signedIn("rf-s1a", accounts))).andExpect(status().isForbidden)
-        send("PUT", "rf-s1a", admin, input + mapOf("version" to 2)).andExpect(status().isForbidden)
-
-        // 일정 방식은 업무 유형 관리에서 바꾼다
         val patchType = { login: String, body: Map<String, Any?> ->
-            mockMvc.perform(patch("/api/admin/work-types/${type.id}").with(kr.ictwork.signedIn(login, accounts)).with(csrf())
+            mockMvc.perform(patch("/api/admin/work-types/$id").with(kr.ictwork.signedIn(login, accounts)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
         }
-        val version = intakeTypes.findById(type.id!!).get().version
-        patchType("rf-s1a", mapOf("version" to version, "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isForbidden)
-        patchType("rf-s1admin", mapOf("version" to version, "scheduleMode" to "SOMETIMES")).andExpect(status().isBadRequest)
+        val version = { intakeTypes.findById(id).get().version }
+        patchType("rf-s1a", mapOf("version" to version(), "preferredCount" to 3)).andExpect(status().isForbidden)
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "SOMETIMES")).andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("WORK_TYPE_SCHEDULE_MODE_INVALID"))
-        patchType("rf-s1admin", mapOf("version" to version, "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isOk)
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "PREFERRED", "preferredCount" to 4)).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_SCHEDULE_MODE_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version(), "description" to "")).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version(), "description" to "화상회의 연결 지원", "scheduleMode" to "PREFERRED", "preferredCount" to 3)).andExpect(status().isOk)
+            .andExpect(jsonPath("$.description").value("화상회의 연결 지원")).andExpect(jsonPath("$.preferredCount").value(3))
+        // 요청 화면의 고르기 목록과 추천에 쓰는 전체 목록에 설정과 설명이 보인다
+        val option = getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == id }
+        assertThat(option["scheduleMode"].asText()).isEqualTo("PREFERRED")
+        assertThat(option["preferredCount"].asInt()).isEqualTo(3)
+        assertThat(getAs("rf-req", "/api/work/types/all").first { it["typeId"].asLong() == id }["description"].asText()).isEqualTo("화상회의 연결 지원")
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isOk)
             .andExpect(jsonPath("$.scheduleMode").value("EXACT_REQUIRED"))
-        assertThat(getAs("rf-s1admin", "/api/admin/work-types?departmentId=${s1.id}").first { it["id"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
-        assertThat(getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
-        assertThat(getAs("rf-s1admin", admin)["types"].first { it["typeId"].asLong() == type.id }["scheduleMode"].asText()).isEqualTo("EXACT_REQUIRED")
+
+        // "기타"는 설명·일정 방식을 바꾸지 않는다(지금 값을 그대로 보내는 것은 된다)
         val other = intakeTypes.findAll().firstOrNull { it.departmentId == s1.id && it.isOther }
             ?: intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "기타", true, 99))
         mockMvc.perform(patch("/api/admin/work-types/${other.id}").with(kr.ictwork.signedIn("rf-s1admin", accounts)).with(csrf())
-            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf("version" to other.version, "scheduleMode" to "EXACT_REQUIRED"))))
-            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_OTHER_FIXED"))
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf("version" to other.version, "scheduleMode" to "PREFERRED", "preferredCount" to 1))))
+            .andExpect(status().isOk)
+        val otherVersion = intakeTypes.findById(other.id!!).get().version
+        listOf(mapOf("scheduleMode" to "EXACT_REQUIRED"), mapOf("preferredCount" to 2), mapOf("description" to "그 밖의 요청")).forEach { change ->
+            mockMvc.perform(patch("/api/admin/work-types/${other.id}").with(kr.ictwork.signedIn("rf-s1admin", accounts)).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(change + ("version" to otherVersion))))
+                .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_OTHER_FIXED"))
+        }
     }
 
     @Test
@@ -259,6 +339,20 @@ class WorkRequestFieldsTest(
         val direct = create("rf-req", base)
         assertThat(detail("rf-req", direct)["phase"].asText()).isEqualTo("SENT")
         assertThat(detail("rf-req", direct)["approvalRequested"].asBoolean()).isFalse()
+    }
+
+    @Test
+    fun `resubmitting keeps the request mode fixed`() {
+        val steps = line("rf-req", approve("rf-s3b"))
+        val intake = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$intake", body("rf-req", s1, steps = steps))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_MODE_FIXED"))
+        send("PUT", "rf-req", "/api/work/requests/$intake", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps)).andExpect(status().isNoContent)
+        val full = create("rf-req", body("rf-req", s1, steps = steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$full", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_MODE_FIXED"))
     }
 
     @Test
