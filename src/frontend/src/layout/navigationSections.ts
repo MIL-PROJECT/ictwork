@@ -10,11 +10,11 @@ export const screens: Screen[] = [
   { key: "ictStatus", owner: "overview", tabs: [{ key: "ictStatus", path: "/ict-status" }] },
   { key: "newRequest", owner: "requests", tabs: [
     { key: "otherDepartmentRequest", path: "/approvals/request" },
-    { key: "ownDepartmentRegister", path: "/approvals/new" },
   ], actions: [
     { key: "departmentService", path: "/department/services" },
     { key: "workTypes", path: "/admin/work-types", feature: "ADMIN_WORK_TYPE" },
   ] },
+  { key: "ownDepartmentRegister", owner: "processing", tabs: [{ key: "ownDepartmentRegister", path: "/approvals/new" }] },
   { key: "requestStatus", owner: "requests", tabs: [
     { key: "requestedTasks", path: "/tasks?tab=mine" },
     { key: "sharedTasks", path: "/tasks?tab=viewable" },
@@ -25,30 +25,33 @@ export const screens: Screen[] = [
     { key: "approvalInProgress", path: "/approvals/in-progress" },
     { key: "handledApprovals", path: "/approvals/todo?tab=handled" },
   ], actions: [{ key: "approvalRoutes", path: "/admin/approval-routes", feature: "ADMIN_SYSTEM" }] },
-  { key: "departmentTasks", owner: "schedule", tabs: [{ key: "departmentTasks", path: "/tasks?tab=department" }] },
+  { key: "departmentTasks", owner: "processing", tabs: [{ key: "departmentTasks", path: "/tasks?tab=department" }] },
   { key: "calendar", owner: "schedule", tabs: [{ key: "calendar", path: "/calendar" }] },
-  { key: "departmentInfo", owner: "departmentInfo", tabs: [
+  { key: "organizationPeople", owner: "departmentInfo", tabs: [
     { key: "orgChart", path: "/department/org-chart" },
     { key: "people", path: "/department/people" },
-    { key: "equipment", path: "/department/equipment" },
-    { key: "diagrams", path: "/department/diagrams" },
-    { key: "docs", path: "/department/docs" },
   ], actions: [
     { key: "orgManage", path: "/admin/organization", feature: "ADMIN_ORG", tabKey: "orgChart" },
     { key: "personnelManage", path: "/admin/personnel", feature: "ADMIN_PERSONNEL", tabKey: "people" },
-    { key: "equipmentManage", path: "/admin/equipment", feature: "ADMIN_EQUIPMENT", tabKey: "equipment" },
     { key: "personnelAttributes", path: "/admin/attributes/personnel", feature: "ADMIN_ATTRIBUTE", tabKey: "people" },
+  ] },
+  { key: "equipmentDiagrams", owner: "departmentInfo", tabs: [
+    { key: "equipment", path: "/department/equipment" },
+    { key: "diagrams", path: "/department/diagrams" },
+  ], actions: [
+    { key: "equipmentManage", path: "/admin/equipment", feature: "ADMIN_EQUIPMENT", tabKey: "equipment" },
     { key: "equipmentAttributes", path: "/admin/attributes/equipment", feature: "ADMIN_ATTRIBUTE", tabKey: "equipment" },
   ] },
+  { key: "docs", owner: "departmentInfo", tabs: [{ key: "docs", path: "/department/docs" }] },
   { key: "aiChat", owner: "aiChat", tabs: [{ key: "aiChat", path: "/ai" }] },
 ];
 
 export const topMenus = [
   { key: "overview", screen: "overviewPanels", children: ["directives", "duty", "ictStatus"] },
   { key: "requests", screen: "newRequest", children: ["newRequest", "requestStatus"] },
-  { key: "processing", screen: "taskReceipt", children: ["taskReceipt", "approvals"] },
-  { key: "schedule", screen: "departmentTasks", children: ["departmentTasks", "calendar"] },
-  { key: "departmentInfo", screen: "departmentInfo", children: [] },
+  { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "ownDepartmentRegister", "approvals"] },
+  { key: "schedule", screen: "calendar", children: [] },
+  { key: "departmentInfo", screen: "organizationPeople", children: ["organizationPeople", "equipmentDiagrams", "docs"] },
   { key: "aiChat", screen: "aiChat", children: [] },
 ];
 
@@ -148,7 +151,7 @@ export function menuItemPath(trail: MenuTrail) {
     : screen.tabs[0]?.path;
 }
 
-// Show management actions next to the corresponding department information tab.
+// Show management actions next to the corresponding organization or equipment tab.
 export function contextualActions(screen: Screen, activeKey: string) {
   const associations: Record<string, string[]> = {
     orgChart: ["orgManage"],
@@ -156,7 +159,7 @@ export function contextualActions(screen: Screen, activeKey: string) {
     equipment: ["equipmentManage"],
   };
   const actions = screen.actions ?? [];
-  return screen.key === "departmentInfo"
+  return screen.owner === "departmentInfo"
     ? actions.filter(({ key }) => associations[activeKey]?.includes(key))
     : actions.filter(({ key }) => key !== activeKey);
 }

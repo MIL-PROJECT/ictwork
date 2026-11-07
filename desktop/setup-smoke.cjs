@@ -63,7 +63,7 @@ async function csrfHeaders(context, origin) {
         page.locator('[name=password]').press('Enter'),
       ]);
       assert.equal(login.status(), 200);
-      await page.locator('aside').first().getByRole('link', { name: '부서 정보', exact: true }).waitFor();
+      await page.locator('aside').first().getByRole('link', { name: '관리', exact: true }).waitFor();
       await page.getByText('현황 전체', { exact: true }).waitFor({ timeout: 30000 });
       const metrics = await page.locator('.board-metric-value').allTextContents();
       assert.equal(metrics.length, 4);

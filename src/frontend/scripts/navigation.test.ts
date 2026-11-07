@@ -11,8 +11,8 @@ test("query-only changes select the correct owner and tab", () => {
   for (const [path, query, owner, active] of [
     ["/tasks","?tab=mine&page=2","requests","requestedTasks"],
     ["/tasks","?tab=viewable","requests","sharedTasks"],
-    ["/tasks","?tab=department&fb=all","schedule","departmentTasks"],
-    ["/tasks","?tab=invalid","schedule","departmentTasks"],
+    ["/tasks","?tab=department&fb=all","processing","departmentTasks"],
+    ["/tasks","?tab=invalid","processing","departmentTasks"],
     ["/approvals/todo","?tab=handled","processing","handledApprovals"],
     ["/approvals/todo","","processing","myTurn"],
     ["/approvals/in-progress","","processing","approvalInProgress"],
@@ -51,11 +51,11 @@ test("return URLs reject external, malformed and unrelated destinations", () => 
 });
 
 test("management actions require each feature independently", () => {
-  const screen = screens.find(screen=>screen.key==="departmentInfo")!;
+  const screen = screens.find(screen=>screen.key==="organizationPeople")!;
   assert.equal(visibleLinks(screen.actions!,[]).length,0);
   assert.deepEqual(visibleLinks(screen.actions!,["ADMIN_ORG"]).map(link=>link.key),["orgManage"]);
   assert.deepEqual(visibleLinks(screen.actions!,["ADMIN_PERSONNEL"]).map(link=>link.key),["personnelManage"]);
-  assert.equal(visibleLinks(screen.tabs,[]).length,5);
+  assert.equal(visibleLinks(screen.tabs,[]).length,2);
 });
 
 test("query-aware tab matching ignores unrelated filters without matching neighboring routes", () => {
@@ -66,7 +66,7 @@ test("query-aware tab matching ignores unrelated filters without matching neighb
 
 
 test("contextual management links do not duplicate the current management screen", () => {
-  const department = screens.find(screen=>screen.key==="departmentInfo")!;
+  const department = screens.find(screen=>screen.key==="equipmentDiagrams")!;
   assert.deepEqual(contextualActions(department,"equipment").map(link=>link.key),["equipmentManage"]);
   assert.deepEqual(contextualActions(department,"equipmentManage"),[]);
   assert.equal(navigationContext("/admin/equipment")?.active.tabKey,"equipment");
@@ -79,4 +79,25 @@ test("request edit retains a safe filtered request list", () => {
   const url=new URL(target,"http://omnis.local");
   assert.equal(listPathOf(url.pathname,url.search),"/tasks?tab=mine&fq=demo&page=2");
   assert.equal(url.searchParams.get("from"),"mine");
+});
+
+test("registration is a processing command and calendar is a direct destination", () => {
+  assert.equal(navigationContext("/approvals/new")?.screen.key,"ownDepartmentRegister");
+  assert.equal(navigationContext("/approvals/new")?.screen.owner,"processing");
+  assert.equal(screens.find(screen=>screen.key==="newRequest")!.tabs.length,1);
+  assert.equal(topMenus.find(menu=>menu.key==="schedule")!.screen,"calendar");
+  assert.equal(topMenus.find(menu=>menu.key==="schedule")!.children.length,0);
+});
+
+test("organization, equipment and documents have distinct workspaces under management", () => {
+  for (const [path,key] of [
+    ["/department/people","organizationPeople"],
+    ["/admin/organization","organizationPeople"],
+    ["/department/diagrams","equipmentDiagrams"],
+    ["/admin/equipment","equipmentDiagrams"],
+    ["/department/docs","docs"],
+  ]) {
+    assert.equal(navigationContext(path)?.screen.key,key);
+    assert.equal(navigationContext(path)?.screen.owner,"departmentInfo");
+  }
 });

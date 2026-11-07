@@ -5,8 +5,12 @@ const { execFileSync } = require('node:child_process');
 
 module.exports = async function verifyNavigation(page, origin, installed, profile, evidence) {
   page.setDefaultTimeout(15000);
-  const go = route => page.goto(origin + route);
   const aside = page.locator('aside').first();
+  const go = async route => {
+    await page.goto(origin + route);
+    // load can finish before React mounts the authenticated layout.
+    await (route === '/signin' ? page.locator('[name=loginId]') : aside.locator('nav > ul > li > div > a').first()).waitFor();
+  };
   const top = name => aside.getByRole('link',{name,exact:true}).first();
   const pane = name => page.getByRole('navigation',{name,exact:true});
   async function owner(name) { await top(name).locator('xpath=self::*[@aria-current="location"]').waitFor(); }
@@ -15,12 +19,17 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
     await page.waitForURL(origin + path);
     await pane(group).getByRole('link',{name,exact:true}).locator('xpath=self::*[@aria-current="page"]').waitFor();
   }
+  async function snapshot(name) {
+    // Let CSS transitions and the Electron compositor settle before visual evidence.
+    await page.waitForTimeout(300);
+    await page.screenshot({animations:'disabled',path:path.join(evidence,name)});
+  }
   await go('/board');
-  const expected = ['통합상황판','업무요청','업무 처리','일정','부서 정보','AI 질의응답'];
+  const expected = ['통합상황판','업무요청','업무 처리','일정','관리','AI 질의응답'];
   const labels = await aside.locator('nav > ul > li > div > a').allTextContents();
   assert.deepEqual(labels,expected);
   assert.equal(await aside.locator('a[href="/settings/me"]').count(),0);
-  await page.screenshot({path:path.join(evidence,'workflow-dashboard.png')});
+  await snapshot('workflow-dashboard.png');
 
   await tab('통합상황판','업무 통계','/status');
   await owner('통합상황판');
@@ -29,7 +38,7 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   const drill = await drillLink.getAttribute('href');
   await drillLink.click();
   await page.waitForURL(origin + drill);
-  await owner('일정');
+  await owner('업무 처리');
   await page.goBack();
   await page.waitForURL(origin+'/status');
   for(const [label, route] of [['지시사항','/directives'],['근무자 현황','/duty'],['정보통신 현황','/ict-status']]) {
@@ -38,9 +47,14 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
     await owner('통합상황판');
   }
 
+  await top('업무 처리').click();
+  await top('우리 부서 업무 등록').click();
+  await page.waitForURL(origin+'/approvals/new');
+  await owner('업무 처리');
+  assert.equal(await pane('새 요청').count(),0);
+  await snapshot('processing-registration.png');
   await top('업무요청').click();
-  await tab('새 요청','우리 부서 업무 등록','/approvals/new');
-  await tab('새 요청','다른 부서에 요청','/approvals/request');
+  await page.waitForURL(origin+'/approvals/request');
   await page.getByRole('button',{name:'다음',exact:true}).click();
   assert.equal(await page.getByRole('navigation',{name:'업무 요청 작성 단계'}).locator('[aria-current=step]').count(),1);
   await pane('화면 작업').getByRole('link',{name:'업무 안내',exact:true}).click();
@@ -125,15 +139,16 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   const registeredDetail=await (await page.request.get(origin+'/api/work/requests/'+registered.id+'?from=mine')).json();
   assert.equal(registeredDetail.kind,'REGISTER');
   await go('/tasks?tab=department&fq='+encodeURIComponent(marker)+'&page=1');
-  await owner('일정');
+  await owner('업무 처리');
   await page.locator('main a[href^="/work/items/'+registeredDetail.items[0].id+'?"]').first().waitFor();
   await top('일정').click();
-  await go('/calendar');
+  await page.waitForURL(origin+'/calendar');
+  assert.equal(await aside.getByRole('button',{name:'일정 메뉴 펼치기·접기',exact:true}).count(),0);
   await owner('일정');
 
   await go('/approvals/todo?tab=myTurn');
   await owner('업무 처리');
-  await tab('결재','내가 올린·진행 중 결재','/approvals/in-progress');
+  await tab('결재','진행 중 결재','/approvals/in-progress');
   await tab('결재','처리한 결재','/approvals/todo?tab=handled');
   const handled=await (await page.request.get(origin+'/api/approvals/handled')).json();
   assert.ok(handled.some(doc=>doc.title.includes(marker)));
@@ -144,27 +159,47 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   await page.locator('header nav a').filter({hasText:'처리한 결재'}).first().click();
   await page.waitForURL(origin+'/approvals/todo?tab=handled');
 
-  await top('부서 정보').click();
-  for(const [name,route] of [['인원','/department/people'],['장비','/department/equipment'],['구성도','/department/diagrams'],['문서함','/department/docs'],['조직도','/department/org-chart']]) {
-    await tab('부서 정보',name,route);
-  }
+  await top('관리').click();
+  await pane('조직·인원').getByRole('link',{name:'조직도',exact:true}).waitFor();
+  assert.equal(await pane('조직·인원').getByRole('link').count(),2);
+  await snapshot('management-organization.png');
   await pane('화면 작업').getByRole('link',{name:'조직관리',exact:true}).click();
-  await owner('부서 정보');
-  await tab('부서 정보','인원','/department/people');
+  await owner('관리');
+  await tab('조직·인원','인원','/department/people');
   await pane('화면 작업').getByRole('link',{name:'인원관리',exact:true}).click();
   await page.waitForURL(origin+'/admin/personnel');
-  await tab('부서 정보','장비','/department/equipment');
+  await page.locator('main a[href="/admin/attributes/personnel"]').click();
+  await page.waitForURL(origin+'/admin/attributes/personnel');
+  await owner('관리');
+  await pane('조직·인원').getByRole('link',{name:'인원',exact:true}).locator('xpath=self::*[@aria-current="location"]').waitFor();
+  await top('장비·구성도').click();
+  await page.waitForURL(origin+'/department/equipment');
+  await pane('장비·구성도').getByRole('link',{name:'장비',exact:true}).waitFor();
+  assert.equal(await pane('장비·구성도').getByRole('link').count(),2);
+  await tab('장비·구성도','구성도','/department/diagrams');
+  await tab('장비·구성도','장비','/department/equipment');
   await pane('화면 작업').getByRole('link',{name:'장비관리',exact:true}).click();
   await page.waitForURL(origin+'/admin/equipment');
-  await page.screenshot({path:path.join(evidence,'department-equipment.png')});
+  await snapshot('department-equipment.png');
+  await page.locator('main a[href="/admin/attributes/equipment"]').click();
+  await page.waitForURL(origin+'/admin/attributes/equipment');
+  await owner('관리');
+  await pane('장비·구성도').getByRole('link',{name:'장비',exact:true}).locator('xpath=self::*[@aria-current="location"]').waitFor();
+  await top('문서함').click();
+  await page.waitForURL(origin+'/department/docs');
+  await page.getByRole('heading',{name:'문서함',level:1,exact:true}).waitFor();
+  await owner('관리');
+  assert.equal(await pane('조직·인원').count(),0);
+  assert.equal(await pane('장비·구성도').count(),0);
+  await snapshot('management-documents.png');
 
   const api=origin+'/api/me';
   const flags=['ADMIN_ORG','ADMIN_PERSONNEL','ADMIN_EQUIPMENT','ADMIN_WORK_TYPE','ADMIN_SYSTEM','ADMIN_ATTRIBUTE'];
   for(const extra of [[],['ADMIN_ORG'],['ADMIN_PERSONNEL'],['ADMIN_SYSTEM']]) {
     await page.route(api,r=>r.fulfill({json:{...me,features:[...me.features.filter(f=>!flags.includes(f)),...extra]}}));
     await go('/department/org-chart');
-    await pane('부서 정보').getByRole('link',{name:'조직도',exact:true}).waitFor();
-    assert.equal(await pane('부서 정보').getByRole('link').count(),5);
+    await pane('조직·인원').getByRole('link',{name:'조직도',exact:true}).waitFor();
+    assert.equal(await pane('조직·인원').getByRole('link').count(),2);
     assert.equal(await pane('화면 작업').getByRole('link',{name:'조직관리',exact:true}).count(),extra.includes('ADMIN_ORG')?1:0);
     await go('/admin/equipment');
     await page.locator('main h1').filter({hasText:/권한/}).waitFor();
@@ -191,13 +226,13 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   assert.equal(save.status(),204);
   await page.reload();
   await page.locator('html[data-font-size=large]').waitFor({state:'attached'});
-  await page.screenshot({path:path.join(evidence,'large-font.png')});
+  await snapshot('large-font.png');
   await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/me/font-size')&&r.request().method()==='PUT'),group.getByRole('button').first().click()]);
   await page.evaluate(()=>{localStorage.setItem('language','en');localStorage.setItem('i18nextLng','en');localStorage.setItem('theme','dark');});
   await go('/tasks?tab=viewable');
   await page.locator('html[lang=en].dark').waitFor({state:'attached'});
   await page.getByRole('navigation',{name:'Request Status',exact:true}).getByRole('link',{name:'Shared Requests',exact:true}).waitFor();
-  await page.screenshot({path:path.join(evidence,'english-dark.png')});
+  await snapshot('english-dark.png');
   await page.evaluate(()=>{localStorage.setItem('language','ko');localStorage.setItem('i18nextLng','ko');localStorage.setItem('theme','light');});
 
   const saved=sql("SELECT login_id,password_hash,password_change_required FROM account WHERE login_id IN ('sysadmin','bn1-co1-s2-m3');").split(/\r?\n/).map(row=>row.split('\t'));

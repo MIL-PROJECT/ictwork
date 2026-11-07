@@ -30,7 +30,7 @@
       "requests": "업무요청",
       "processing": "업무 처리",
       "schedule": "일정",
-      "departmentInfo": "부서 정보"
+      "departmentInfo": "관리"
     },
     "badges": {
       "new": "신규",
@@ -147,7 +147,7 @@
       "approvalBox": "결재함",
       "taskRegister": "업무 등록",
       "taskApproval": "결재",
-      "approvalInProgress": "내가 올린·진행 중 결재",
+      "approvalInProgress": "진행 중 결재",
       "orgChart": "조직도",
       "people": "인원",
       "equipment": "장비",
@@ -183,7 +183,7 @@
       "handledApprovals": "처리한 결재",
       "schedule": "일정",
       "departmentTasks": "우리 부서 업무",
-      "departmentInfo": "부서 정보",
+      "departmentInfo": "관리",
       "personnelAttributes": "인원 추가 특성",
       "equipmentAttributes": "장비 추가 특성"
     },

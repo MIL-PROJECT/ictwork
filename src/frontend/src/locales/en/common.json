@@ -30,7 +30,7 @@
       "requests": "Requests",
       "processing": "Work Processing",
       "schedule": "Schedule",
-      "departmentInfo": "Department Information"
+      "departmentInfo": "Management"
     },
     "badges": {
       "new": "new",
@@ -73,7 +73,7 @@
       "approvalBox": "Approvals",
       "taskRegister": "Task Register",
       "taskApproval": "Approvals",
-      "approvalInProgress": "Submitted & In Progress",
+      "approvalInProgress": "In-progress Approvals",
       "orgChart": "Org chart",
       "people": "People",
       "equipment": "Equipment",
@@ -183,7 +183,7 @@
       "handledApprovals": "Handled Approvals",
       "schedule": "Schedule",
       "departmentTasks": "Department Work",
-      "departmentInfo": "Department Information",
+      "departmentInfo": "Management",
       "personnelAttributes": "Personnel Attributes",
       "equipmentAttributes": "Equipment Attributes"
     },
