@@ -52,7 +52,7 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export const fetchDirectives = () => apiFetch<DirectiveList>("/api/directives");
+export const fetchDirectives = (signal?: AbortSignal) => apiFetch<DirectiveList>("/api/directives", { signal });
 
 // 한 건 (알림·AI 출처로 열 때 권한을 다시 본다, 볼 수 없으면 404)
 export const fetchDirective = (id: number) => apiFetch<DirectiveItem>(`/api/directives/${id}`);

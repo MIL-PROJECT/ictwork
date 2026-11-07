@@ -66,6 +66,12 @@ async function csrfHeaders(context, origin) {
       assert.equal(login.status(), 200);
       await page.locator('aside').first().getByRole('link', { name: '관리', exact: true }).waitFor();
       await page.getByText('현황 전체', { exact: true }).waitFor({ timeout: 30000 });
+      // The board now paints source-specific loading states immediately; wait for
+      // actual values rather than treating the initial skeleton as loaded data.
+      await page.waitForFunction(() => {
+        const values = [...document.querySelectorAll('.board-metric-value')];
+        return values.length === 4 && values.every(value => !value.textContent.includes('—'));
+      }, null, { timeout: 30000 });
       const metrics = await page.locator('.board-metric-value').allTextContents();
       assert.equal(metrics.length, 4);
       assert.ok(metrics.every(value => !value.includes('—')), 'Dashboard metrics must load from the bundled backend');

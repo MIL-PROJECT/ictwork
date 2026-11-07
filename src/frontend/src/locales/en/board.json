@@ -82,5 +82,43 @@
     "priority": "Priority",
     "status": "Status",
     "wanted": "Wanted"
+  },
+  "risk": {
+    "eyebrow": "Operations control",
+    "core": "Critical operating status",
+    "coreHelp": "Current CPCON and crisis alert values · severity follows the configured colour",
+    "cpcon": "CPCON",
+    "crisis": "Crisis alert level",
+    "unset": "Summary not set",
+    "unverified": "Current status unverified",
+    "noIndicator": "No indicator to display",
+    "visibleOnly": "Access permissions and personal hidden-box settings apply.",
+    "sourceUpdated": "Source modified",
+    "attentionHelp": "ICT attention items · red → orange → yellow",
+    "needCheck": "Need review",
+    "visibleScope": "Displayed scope: {count} ICT boxes · hidden boxes excluded",
+    "none": "No red, orange or yellow items in the displayed scope.",
+    "previousNone": "The previous check had no attention items. The current status needs verification.",
+    "showRemaining": "Show {count} more · {total} total",
+    "collapse": "Show top 3 only",
+    "checking": "Checking sources…",
+    "partial": "Some sources failed · check each section",
+    "perSource": "Check times are shown per source",
+    "ictOverview": "Expand all ICT status",
+    "work": "Work overview",
+    "statistics": "Work statistics",
+    "workScope": "Work scope: {scope} · received/planned: current; done/rejected/transferred: {from} to {to}",
+    "receiptScope": "My receipt permission scope · {count} items",
+    "support": "Operations support",
+    "supportHelp": "Directives and today’s duty · open details to review",
+    "dutyHelp": "Unique personnel across today’s duty rosters. Open the duty board for details."
+  },
+  "health": {
+    "loading": "Checking source…",
+    "ready": "Checked {time}",
+    "empty": "Checked {time} · no displayable data",
+    "error": "Source failed · current value unverified",
+    "stale": "Refresh failed · previous value ({time})",
+    "unavailable": "No readable data · check permissions and scope."
   }
 }
