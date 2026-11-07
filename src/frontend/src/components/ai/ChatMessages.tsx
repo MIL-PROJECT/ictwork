@@ -101,6 +101,7 @@ export default function ChatMessages({ messages, draft, loading, error, examples
           {draft && (
             <li aria-label={t("message.answer")} aria-busy="true">
               <div className={answerBubble}>
+                {draft.progress && <p role="status" className="mb-2 text-xs font-medium text-brand-600 dark:text-brand-300">{draft.progress}</p>}
                 {draft.text ? (
                   <p className={text}>{draft.text}</p>
                 ) : (

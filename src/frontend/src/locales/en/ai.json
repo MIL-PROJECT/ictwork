@@ -1,6 +1,6 @@
 {
   "loading": "Loading…",
-  "unreachable": "Cannot connect to the AI server. You can still view past conversations.",
+  "unreachable": "The AI server is unavailable. You can still view past conversations and query results from work support.",
   "statusError": "Could not read the AI status.",
   "off": "AI Q&A is turned off and cannot be used.",
   "untitled": "New conversation",
@@ -84,6 +84,38 @@
     "AI_TIMEOUT": "Stopped because it did not finish within 2 minutes. Please ask again.",
     "AI_FAILED": "Could not write an answer. Please ask again.",
     "NOT_FOUND": "Conversation not found. It may have been deleted or the AI feature is off.",
-    "default": "The request could not be processed. Please try again later."
+    "default": "The request could not be processed. Please try again later.",
+    "AI_TASK_INVALID": "Unsupported AI task.",
+    "AI_PERIOD_INVALID": "Choose a valid period of up to one year."
+  },
+  "tasks": {
+    "title": "Choose support for your work",
+    "free": "Switch to a free question",
+    "from": "Period start",
+    "to": "Period end",
+    "WORK_SUMMARY": {
+      "title": "Work summary",
+      "description": "Department performance and open work",
+      "help": "Uses your existing department access. Performance uses the selected period; open and overdue counts describe the current state.",
+      "example": "Summarize our department work status",
+      "placeholder": "Summarize our department performance and open work",
+      "action": "Summarize"
+    },
+    "SIMILAR_CASES": {
+      "title": "Similar fault cases",
+      "description": "Up to 3 actual completed cases",
+      "help": "Enter the system or equipment and symptoms. Searches completed department work and its recorded details.",
+      "example": "Find completed cases similar to a printer printing error",
+      "placeholder": "For example: Our office printer does not print submitted jobs",
+      "action": "Find cases"
+    },
+    "SYMPTOM_ANALYSIS": {
+      "title": "Symptom analysis",
+      "description": "Related records and follow-up questions",
+      "help": "Describe the equipment, symptoms, onset, impact and actions already taken to review relevant evidence and missing information.",
+      "example": "My work PC will not turn on. I checked the power cable; only my PC is affected since this morning.",
+      "placeholder": "Describe the equipment, symptoms, onset, impact and actions already taken",
+      "action": "Analyze"
+    }
   }
 }

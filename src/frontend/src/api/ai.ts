@@ -7,6 +7,13 @@ export interface AiStatus {
   examples: string[];
 }
 
+export type AiTask = "QA" | "WORK_SUMMARY" | "SIMILAR_CASES" | "SYMPTOM_ANALYSIS";
+export interface AiQuestionOptions {
+  task: AiTask;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 // 서버 ConversationView: 제목은 첫 질문 때 정해져 그 전에는 null
 export interface AiConversationSummary {
   id: number;
@@ -102,7 +109,7 @@ function csrfHeaders(): Headers {
  * 질문 보내기: 답은 text/event-stream이라 apiFetch 대신 직접 받는다(같은 쿠키·CSRF 규칙).
  * 흐름이 열리기 전의 거절(409 AI_BUSY, 400 AI_QUESTION_LENGTH, 503 AI_UNAVAILABLE 등)은 ApiError로 던진다
  */
-export async function postQuestion(id: number, question: string, signal: AbortSignal): Promise<Response> {
+export async function postQuestion(id: number, question: string, signal: AbortSignal, options?: AiQuestionOptions): Promise<Response> {
   const headers = csrfHeaders();
   headers.set("Content-Type", "application/json");
   // 거절 응답은 JSON이라 함께 받는다(text/event-stream만 받으면 서버가 406에 빈 본문으로 답함)
@@ -110,7 +117,7 @@ export async function postQuestion(id: number, question: string, signal: AbortSi
   const response = await fetch(`/api/ai/conversations/${id}/ask`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, ...options }),
     credentials: "same-origin",
     signal,
   });
