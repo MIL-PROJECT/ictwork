@@ -13,6 +13,7 @@ import EquipmentManage from "./pages/Admin/EquipmentManage";
 import OrganizationManage from "./pages/Admin/OrganizationManage";
 import PersonnelManage from "./pages/Admin/PersonnelManage";
 import QaAccountPicker from "./pages/Qa/QaAccountPicker";
+import WorkGuidance from "./pages/Department/WorkGuidance";
 import WorkTypeManage from "./pages/Admin/WorkTypeManage";
 import AttributeManage from "./pages/Admin/AttributeManage";
 import AiChat from "./pages/Ai/AiChat";
@@ -89,6 +90,8 @@ export default function App() {
             <Route path="/approvals/todo" element={<ApprovalInbox />} />
             <Route path="/approvals/in-progress" element={<MyDrafts />} />
             <Route path="/approvals/docs/:id" element={<ApprovalDoc />} />
+            <Route path="/department/services" element={<WorkGuidance />} />
+            <Route path="/admin/department-services" element={<MovedTo to="/admin/work-types" />} />
             <Route path="/department/org-chart" element={<OrgChart />} />
             <Route path="/department/people" element={<PeopleList />} />
             <Route path="/department/equipment" element={<EquipmentList />} />

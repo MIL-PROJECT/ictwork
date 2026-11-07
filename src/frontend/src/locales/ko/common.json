@@ -21,7 +21,7 @@
       "support": "지원",
       "others": "기타",
       "work": "업무",
-      "department": "부서관리",
+      "department": "관리",
       "settings": "설정",
       "admin": "관리",
       "ai": "AI",
@@ -156,14 +156,19 @@
       "taskReceipt": "업무 접수",
       "workTypes": "업무 유형",
       "approvalRoutes": "결재 경로",
-      "taskRequest": "업무 요청"
+      "taskRequest": "업무 요청",
+      "dutyDirectives": "근무·지시사항",
+      "organizationPeople": "조직·인원",
+      "equipmentDiagrams": "장비·구성도",
+      "departmentWork": "부서 업무",
+      "departmentService": "업무 안내"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",
       "description": "500개 이상의 UI 컴포넌트와 페이지를 갖춘 Tailwind CSS 관리자 템플릿",
       "purchasePlan": "요금제 구매"
     },
-    "brandSub": "정보통신 업무 통합 관리",
+    "brandSub": "정보통신 운용·정비 통합체계",
     "foot": {
       "aiOn": "AI 질의응답 켜짐",
       "aiOff": "AI 질의응답 꺼짐"
@@ -254,5 +259,12 @@
     "lastLabel": "마지막 쪽",
     "pageLabel": "{page}쪽",
     "rowsPerPage": "페이지당 행:"
-  }
+  },
+  "workGuidance": {
+    "description": "부서별 업무 유형과 설명을 확인한 뒤 업무를 요청하세요.",
+    "search": "업무 유형·부서·설명 검색",
+    "empty": "표시할 업무 유형이 없습니다.",
+    "failed": "업무 안내를 불러오지 못했습니다.",
+    "retry": "다시 시도"
+}
 }

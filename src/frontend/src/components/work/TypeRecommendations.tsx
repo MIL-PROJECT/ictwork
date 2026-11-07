@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchFilterTypeOptions, type FilterTypeOption } from "@/api/work";
@@ -20,6 +21,7 @@ export default function TypeRecommendations({
   onNoResults: () => void;
 }) {
   const { t } = useTranslation("work");
+  const { t: tc } = useTranslation();
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState<string | null>(null);
   const [types, setTypes] = useState<FilterTypeOption[] | null>(null);
@@ -64,6 +66,7 @@ export default function TypeRecommendations({
     (chosen[row.departmentId] ?? []).includes(row.typeId);
   return (
     <div className="mb-5 space-y-4">
+      <Link to="/department/services" className="text-sm font-medium text-brand-700 underline dark:text-brand-300">{tc("sidebar.items.departmentService")}</Link>
       <div className="rounded-xl bg-brand-50 p-4 dark:bg-brand-500/10">
         <label
           htmlFor="request-department-issue"

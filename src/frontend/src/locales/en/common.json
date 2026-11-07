@@ -21,7 +21,7 @@
       "support": "Support",
       "others": "Others",
       "work": "Work",
-      "department": "Department",
+      "department": "Management",
       "settings": "Settings",
       "admin": "Admin",
       "ai": "AI",
@@ -156,14 +156,19 @@
       "taskReceipt": "Task Receipt",
       "workTypes": "Work Types",
       "approvalRoutes": "Approval Routes",
-      "taskRequest": "Task Request"
+      "taskRequest": "Task Request",
+      "dutyDirectives": "Duty & Directives",
+      "organizationPeople": "Organization & People",
+      "equipmentDiagrams": "Equipment & Diagrams",
+      "departmentWork": "Department Work",
+      "departmentService": "Work Guidance"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",
       "description": "Leading Tailwind CSS Admin Template with 500+ UI Component and Pages.",
       "purchasePlan": "Purchase Plan"
     },
-    "brandSub": "Integrated ICT work management",
+    "brandSub": "Integrated ICT Operations & Maintenance",
     "foot": {
       "aiOn": "AI Q&A on",
       "aiOff": "AI Q&A off"
@@ -254,5 +259,12 @@
     "lastLabel": "Last page",
     "pageLabel": "Page {page}",
     "rowsPerPage": "Rows per page:"
-  }
+  },
+  "workGuidance": {
+    "description": "Review department work types and descriptions before requesting work.",
+    "search": "Search work types, departments and descriptions",
+    "empty": "No matching work types.",
+    "failed": "Could not load work guidance.",
+    "retry": "Retry"
+}
 }
