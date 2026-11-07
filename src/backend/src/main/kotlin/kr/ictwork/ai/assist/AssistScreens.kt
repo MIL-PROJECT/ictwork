@@ -103,8 +103,8 @@ data class AssistScreen(
     fun taskOf(target: Long?): String = if (target != null && taskEdit != null) taskEdit else task
 }
 
-/** 이동 제안의 메뉴 하나 (AssistScreens.MENUS) */
-data class AssistMenu(val id: String, val name: String, val screens: List<String>, val target: String? = null)
+/** 이동 제안의 메뉴 하나 (AssistScreens.MENUS). path: 메뉴 첫 화면 경로가 대표 화면의 경로(새로 만들기 화면 등)와 다를 때 (slices/21 14.6 표) */
+data class AssistMenu(val id: String, val name: String, val screens: List<String>, val target: String? = null, val path: String? = null)
 
 /** 서버 후보 이름 (AssistCandidates) */
 object Sources {
@@ -398,7 +398,7 @@ object AssistScreens {
             fields = listOf(
                 AssistField(
                     "ops", "넣을 요소", FieldKinds.OPS, required = true, source = Sources.DIAGRAM_EQUIPMENT, maxRows = 30,
-                    help = "동작 목록. op는 place(장비 놓기, equipment), connect(선, from·to는 놓인 장비나 이번에 놓을 장비), text(글상자, text), zone(구역, name과 members)",
+                    help = "동작 목록. op는 place(장비 놓기, equipment), connect(선, from·to는 놓인 장비나 이번에 놓을 장비. 아직 놓이지 않은 장비는 place를 먼저), text(글상자, text), zone(구역, name과 members). 사용자가 이름을 말한 장비·도형과 사용자가 적은 글만 쓴다",
                 ),
             ),
         ),
@@ -502,8 +502,9 @@ object AssistScreens {
         AssistMenu("duty.rule", "근무표 편집", listOf("duty.rule", "duty.fill", "duty.holiday", "duty.roster", "duty.share")),
         AssistMenu("ict.edit", "정보통신 현황", listOf("ict.new", "ict.edit")),
         AssistMenu("calendar", "달력", listOf("calendar")),
-        AssistMenu("equipment", "장비", listOf("equipment"), "equipment"),
-        AssistMenu("diagram", "구성도", listOf("diagram"), "diagram"),
+        // 장비 화면 id의 경로는 새 장비 등록(/department/equipment/new), 구성도는 대상 경로라 메뉴 첫 화면(목록)을 따로 둔다
+        AssistMenu("equipment", "장비", listOf("equipment"), "equipment", "/department/equipment"),
+        AssistMenu("diagram", "구성도", listOf("diagram"), "diagram", "/department/diagrams"),
         AssistMenu("docbox.folder", "문서함", listOf("docbox.folder", "docbox.rename", "docbox.move", "docbox.share")),
         AssistMenu("people.attr", "인원", listOf("people.attr")),
         AssistMenu("worktype.type", "업무 유형 관리", listOf("worktype.type", "worktype.form")),

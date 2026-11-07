@@ -124,7 +124,11 @@ object AssistValidator {
             // 글 칸은 사용자 말 하나에 이어진 그대로 있는 글이거나 화면 처음 값일 때만 (사용자 결정)
             FieldKinds.TEXT, FieldKinds.LONGTEXT -> {
                 val text = clean(value as? String ?: return fail(5), field.max)
-                if (same(text, input.current[field.id]) || verbatim(text, input.userWords)) Converted(text) else fail(6)
+                if (same(text, input.current[field.id])) return Converted(text)
+                // 장소 칸에는 사용자가 받는 부서로 말한 이름("유선반에 요청")을 넣지 않는다(실제 모델 재측정: 장소에 받는 부서가 들어감)
+                if (verbatim(text, input.userWords) && !(field.id == PLACE && usedAsReceiver(text, input.userWords))) return Converted(text)
+                // 장소 칸(업무 요청·등록)만: 모델 값의 낱말 묶음이 사용자 말의 낱말과 같거나 그 뒤에 조사만 붙었으면 그 묶음을 넣는다 ("정보통신대대 중대본부"의 중대본부)
+                (if (field.id == PLACE) saidPart(text, input.userWords) else null)?.let { Converted(it) } ?: fail(6)
             }
             // 날짜·시각은 사용자 말에서 정규화 규칙으로 나온 값이거나 화면 처음 값일 때만 (결함 13)
             FieldKinds.DATE -> date(value)?.let { if (dateSaid(it, input) || same(it, input.current[field.id])) Converted(it) else fail(6) } ?: fail(5)
@@ -237,6 +241,37 @@ object AssistValidator {
         return v.isNotEmpty() && userWords.any { spaced(it).contains(v) }
     }
 
+    /** 끝 조사 (saidPart) */
+    private val TAIL_PARTICLE = Regex("(에서|에게|으로|에|의|로|이|가|은|는|을|를|도)$")
+    private val PARTICLE = Regex("에서|에게|으로|에|의|로|이|가|은|는|을|를|도")
+
+    /** 장소 칸 id (업무 요청·업무 등록의 요청 장소·장소) */
+    private const val PLACE = "place"
+
+    /**
+     * 장소 값의 이어진 낱말 묶음 가운데, 사용자 말의 낱말들과 같고(마지막 낱말은 뒤에 조사만 더 붙어도 됨) 끝 글자가 장소 꼴(반·실·부·고 등)인 가장 긴 것
+     * ("행정반 사무실"에 "행정반 전화가"면 "행정반"). 값 끝의 조사는 떼고 보고, 두 글자 이상만. 낱말 안의 글자("교체"·"101")와는 맞추지 않는다. 없으면 null
+     */
+    fun saidPart(value: String, userWords: List<String>): String? {
+        val tokens = spaced(value).split(' ').filter { it.isNotEmpty() }
+        val said = userWords.map { u -> spaced(u).split(' ').map { it.trimEnd(*END_MARKS, ',') } }
+        for (size in tokens.size downTo 1) {
+            for (from in 0..tokens.size - size) {
+                val part = tokens.subList(from, from + size).toMutableList().also { it[it.lastIndex] = TAIL_PARTICLE.replace(it.last(), "") }
+                if (part.joinToString("").length < 2 || part.last().last() !in PLACE_ENDS || usedAsReceiver(part.joinToString(" "), userWords)) continue
+                fun at(user: List<String>, i: Int) = part.indices.all { j ->
+                    val w = user[i + j]
+                    w == part[j] || (j == part.lastIndex && w.startsWith(part[j]) && PARTICLE.matches(w.removePrefix(part[j])))
+                }
+                if (said.any { user -> (0..user.size - part.size).any { i -> at(user, i) } }) return part.joinToString(" ")
+            }
+        }
+        return null
+    }
+
+    /** 장소 꼴 낱말의 끝 글자 (saidPart): 행정반·회의실·중대본부·통신창고·교육장·강당·막사 등 */
+    private const val PLACE_ENDS = "반실부고장당사관동층소대"
+
     private val END_MARKS = charArrayOf('.', '?', '!', '。', '？', '！', '…', '~')
 
     private fun spaced(text: String) = text.trim().replace(Regex("\\s+"), " ")
@@ -252,18 +287,56 @@ object AssistValidator {
     fun choiceSaid(c: Candidate, pool: List<Candidate>, words: List<String>, server: Boolean): Boolean {
         val joined = squash(words.joinToString(" "))
         if (joined.isEmpty()) return false
-        if ((listOf(c.choice.label, c.name) + c.choice.aliases).map(::squash).any { it.isNotEmpty() && it in joined }) return true
+        val names = listOf(c.choice.label, c.name) + c.choice.aliases
+        if (names.map(::squash).any { it.isNotEmpty() && it in joined }) return true
+        // 끝말만 다른 말("통화가 안 돼"·"안 된다고"와 선택지 "통화가 안 됨")도 그 선택지를 말한 것으로 본다(공백·문장 부호를 빼고 되·돼·됨 꼴을 맞춤)
+        val stemmed = stem(words.joinToString(" "))
+        if (names.map(::stem).any { it.length >= 2 && it in stemmed }) return true
         return server && c in mentioned(pool, words)
     }
 
+    /** 글자·숫자만 남기고 "됩니다·되는데·된다고·된다·되요·돼요·됨·돼"를 "되"로 */
+    private fun stem(text: String): String = Regex("됩니다|되는데|된다고|된다|되요|돼요|됨|돼").replace(text.filter { it.isLetterOrDigit() }.lowercase(), "되")
+
     /**
-     * 받는 부서·업무 유형 짝을 말했는가 (사용자 결정): 짝의 표시 이름(되묻기 단추 답), 업무 유형 이름(name), 받는 부서 경로(path) 전체나 그 끝 이름이 사용자 말에 있다
+     * 받는 부서·업무 유형 짝을 말했는가 (REQ-C03 ① 검증 기준, slices/21 14.5, J-28, DEC-149): 짝의 표시 이름(되묻기 단추 답)이 사용자 말에 있거나,
+     * 받는 부서로 말한 부서(receiverSaid)와 그 유형 이름(부서 이름 글자 안의 것은 빼고 본다)이 함께 있다.
+     * 유형 이름만("행정반 전화가 안 돼"의 전화), 부서 이름만, 장소로만 쓰인 부서 이름으로는 넣지 않고 추천 후보 단추로 되묻는다(실제 모델 검토)
      */
-    private fun pairSaid(c: Candidate, words: List<String>): Boolean {
+    fun pairSaid(c: Candidate, words: List<String>): Boolean {
         val joined = squash(words.joinToString(" "))
         if (joined.isEmpty()) return false
-        val dept = c.path?.let { p -> listOf(p, p.split(Regex("\\s+")).last()) }.orEmpty()
-        return (listOf(c.choice.label, c.name) + dept).map(::squash).any { it.length >= 2 && it in joined }
+        if (squash(c.choice.label) in joined) return true
+        val type = squash(c.name)
+        val rest = deptNames(c).fold(joined) { s, d -> s.replace(d, " ") }
+        return type.length >= 2 && type in rest && receiverSaid(c, words)
+    }
+
+    /** 짝의 받는 부서 이름: 경로 전체와 끝 이름 (긴 것 먼저) */
+    private fun deptNames(c: Candidate): List<String> =
+        c.path?.let { p -> listOf(p, p.split(Regex("\\s+")).last()) }.orEmpty().map(::squash).filter { it.length >= 2 }.distinct().sortedByDescending { it.length }
+
+    /** 받는 부서 뒤 조사와 그 뒤의 요청 낱말 (receiverSaid·usedAsReceiver) */
+    private const val RECEIVER_PARTICLE = "에게|에(?!서|있|설치|놓)|한테|께|으로|로"
+    private const val REQUEST_VERB = "(요청|부탁|맡기|맡겨|보내|신청|신고|접수|고쳐달|해달)"
+
+    /** 사용자가 이 이름을 받는 곳으로 말했나: 한 문장에서 이름 뒤에 받는 조사가 오고 그 뒤에 요청 낱말이 있다("유선반에 요청하고 싶어") */
+    fun usedAsReceiver(name: String, words: List<String>): Boolean {
+        val said = Regex(Regex.escape(squash(name)) + "($RECEIVER_PARTICLE).*$REQUEST_VERB")
+        return words.flatMap { it.split(Regex("[.?!\n]")) }.map(::squash).any { said.containsMatchIn(it) }
+    }
+
+    /**
+     * 짝의 부서를 받는 부서로 말했나: 한 문장에서 부서 이름 뒤에 "에·에게·한테·께·로"(또는 그 유형 이름과 "로·업무")가 오고 그 뒤에 요청·부탁·맡기·보내·신청·신고·접수·
+     * 고쳐 달·해 달이 있다("유선반에 요청", "2반 가상전화로 요청"). "에서·에 있·에 설치·에 놓"과 "행정반 전화가 안 돼"처럼 장소로만 쓰인 부서 이름은 아니다 (명세 REQ-C03 검증 기준)
+     */
+    fun receiverSaid(c: Candidate, words: List<String>): Boolean {
+        val type = Regex.escape(squash(c.name))
+        val sentences = words.flatMap { it.split(Regex("[.?!\n]")) }.map(::squash)
+        return deptNames(c).any { d ->
+            val said = Regex(Regex.escape(d) + "($RECEIVER_PARTICLE|$type(으로|로|업무)).*$REQUEST_VERB")
+            sentences.any { said.containsMatchIn(it) }
+        }
     }
 
     /**
@@ -441,49 +514,96 @@ object AssistValidator {
 
     /**
      * 구성도 동작 (J-12, PoC valid_ops): 장비는 후보에서, 선의 양 끝·구역 묶음은 놓인 장비·놓인 도형(placedShapes)이나 이번에 놓는 장비, 자리는 체계(화면)가 정한다.
-     * 끝마다 id·이름·종류(equipment·shape)를 함께 보낸다 (A6·6)
+     * 끝마다 id·이름·종류(equipment·shape)를 함께 보낸다 (A6·6). 고르는 값(장비·끝·묶음)은 사용자가 그 이름을 말한 것만(규칙 7), 글상자 글·구역 이름은
+     * 사용자 말에 이어진 그대로만(규칙 6) 받는다(REQ-C03 ①②, 실제 모델 검토: 말하지 않은 선 11개를 지어냄).
+     * 선의 끝이 사용자가 말한 아직 놓이지 않은 후보 장비면 그 장비 놓기를 선 앞에 더한다(실제 모델 검토: 놓기 없이 선만 냄). 같은 선은 한 번만
      */
     private fun ops(field: AssistField, value: Any?, input: AssistCheck): Converted {
         val pool = input.pool(field)
         val placed = (pool.filter { (it.choice.value as? Number)?.toLong() in input.placed } + input.placedShapes).toMutableList()
         fun kind(c: Candidate) = if (c in input.placedShapes) "shape" else "equipment"
+        val ctx = OpsContext(pool, placed, ::kind, { c -> choiceSaid(c, emptyList(), input.userWords, false) }, { t -> verbatim(t, input.userWords) })
         val out = mutableListOf<Map<String, Any?>>()
         val dropped = mutableListOf<Pair<Int, Int>>()
-        // 형식·후보에 맞지 않는 동작만 뺀다(결함 2-2). 뺀 장비는 placed에 들지 않으므로 그 장비를 잇는 선·그 장비만 든 구역도 함께 빠진다
+        // 형식·후보·근거에 맞지 않는 동작만 뺀다(결함 2-2). 뺀 장비는 placed에 들지 않으므로 그 장비를 잇는 선·그 장비만 든 구역도 함께 빠진다
         (value as? List<*> ?: return fail(5)).take(field.maxRows).forEachIndexed { i, raw ->
-            opOf(raw as? Map<*, *>, pool, placed, ::kind)?.let { out += it } ?: run { dropped += (i + 1) to 5 }
+            val r = opOf(raw as? Map<*, *>, ctx)
+            if (r is Int) dropped += (i + 1) to r
+            (r as? List<*>).orEmpty().forEach { op -> (op as? Map<*, *>)?.let { m -> out += m.entries.associate { (k, x) -> k.toString() to x } } }
         }
-        return Converted(out, droppedAt = dropped)
+        return Converted(out.take(field.maxRows), droppedAt = dropped)
     }
 
-    /** 구성도 동작 하나: 맞지 않으면 null. place는 놓은 장비를 placed에 더한다 */
-    private fun opOf(o: Map<*, *>?, pool: List<Candidate>, placed: MutableList<Candidate>, kind: (Candidate) -> String): Map<String, Any?>? {
-        o ?: return null
+    /** 구성도 동작 검사 재료: 후보, 놓인 것(이번에 놓은 장비가 더해짐), 끝 종류, 이름을 말했나, 글이 말에 그대로 있나, 이번에 놓은 장비·그은 선 */
+    private class OpsContext(
+        val pool: List<Candidate>, val placed: MutableList<Candidate>, val kind: (Candidate) -> String, val said: (Candidate) -> Boolean, val verbatim: (String) -> Boolean,
+    ) {
+        val placedNow = mutableSetOf<Candidate>()
+        val lines = mutableSetOf<Set<Any>>()
+    }
+
+    /** 구성도 동작 하나: 넣을 동작 목록(선 앞에 더한 놓기 포함) 또는 걸린 규칙 번호 */
+    private fun opOf(o: Map<*, *>?, ctx: OpsContext): Any {
+        o ?: return 5
         return when (o["op"]) {
-            "place" -> {
-                val e = pick(pool, o["equipment"] as? String ?: return null) ?: return null
-                if (e !in placed) placed += e
-                mapOf("op" to "place", "equipment" to e.choice.value, "equipmentLabel" to e.choice.label)
+            "place" -> placeOp(o, ctx)
+            "connect" -> connectOp(o, ctx)
+            "text" -> {
+                val text = (o["text"] as? String)?.let { clean(it, OPS_TEXT_MAX) }.orEmpty()
+                if (text.isEmpty()) 5 else if (!ctx.verbatim(text)) 6 else listOf(mapOf("op" to "text", "text" to text))
             }
-            "connect" -> {
-                val a = pick(placed, o["from"] as? String ?: return null) ?: return null
-                val b = pick(placed, o["to"] as? String ?: return null) ?: return null
-                if (a == b) return null
-                mapOf(
-                    "op" to "connect", "from" to a.choice.value, "fromLabel" to a.choice.label, "fromKind" to kind(a),
-                    "to" to b.choice.value, "toLabel" to b.choice.label, "toKind" to kind(b),
-                )
-            }
-            "text" -> (o["text"] as? String)?.let { clean(it, OPS_TEXT_MAX) }?.takeIf { it.isNotEmpty() }?.let { mapOf("op" to "text", "text" to it) }
-            "zone" -> (o["name"] as? String)?.let { clean(it, OPS_NAME_MAX) }?.takeIf { it.isNotEmpty() }?.let { name ->
-                val asked = (o["members"] as? List<*>).orEmpty()
-                val members = asked.mapNotNull { (it as? String)?.let { m -> pick(placed, m) } }.distinct()
-                // 묶을 것을 적었는데 남은 것이 없으면(뺀 장비만 든 구역) 뺀다
-                if (asked.isNotEmpty() && members.isEmpty()) return null
-                mapOf("op" to "zone", "name" to name, "members" to members.map { it.choice.value }, "memberLabels" to members.map { it.choice.label }, "memberKinds" to members.map(kind))
-            }
-            else -> null
+            "zone" -> zoneOp(o, ctx)
+            else -> 5
         }
+    }
+
+    /** 놓기: placed·placedNow에 더한다 */
+    private fun placed(e: Candidate, ctx: OpsContext): Map<String, Any?> {
+        if (e !in ctx.placed) ctx.placed += e
+        ctx.placedNow += e
+        return mapOf("op" to "place", "equipment" to e.choice.value, "equipmentLabel" to e.choice.label)
+    }
+
+    private fun placeOp(o: Map<*, *>, ctx: OpsContext): Any {
+        val e = (o["equipment"] as? String)?.let { pick(ctx.pool, it) } ?: return 5
+        if (!ctx.said(e)) return 7
+        // 선 앞에 체계가 이미 놓은 장비면 다시 놓지 않는다
+        return if (e in ctx.placedNow) emptyList<Map<String, Any?>>() else listOf(placed(e, ctx))
+    }
+
+    /** 선의 끝: 놓인 것, 아니면 아직 놓이지 않은 후보 장비. 사용자가 그 이름을 말해야 한다. 끝 또는 걸린 규칙 번호 */
+    private fun lineEnd(raw: Any?, ctx: OpsContext): Any {
+        val x = raw as? String ?: return 5
+        val c = pick(ctx.placed, x) ?: pick(ctx.pool, x) ?: return 5
+        return if (ctx.said(c)) c else 7
+    }
+
+    private fun connectOp(o: Map<*, *>, ctx: OpsContext): Any {
+        val a = lineEnd(o["from"], ctx)
+        if (a !is Candidate) return a
+        val b = lineEnd(o["to"], ctx)
+        if (b !is Candidate) return b
+        if (a == b) return 5
+        // 아직 놓이지 않은 끝은 선 앞에 놓기를 더한다
+        val added = listOf(a, b).filter { it !in ctx.placed }.map { placed(it, ctx) }
+        // 같은 두 끝의 선은 한 번만
+        if (!ctx.lines.add(setOf(a.choice.value, b.choice.value))) return added
+        return added + mapOf(
+            "op" to "connect", "from" to a.choice.value, "fromLabel" to a.choice.label, "fromKind" to ctx.kind(a),
+            "to" to b.choice.value, "toLabel" to b.choice.label, "toKind" to ctx.kind(b),
+        )
+    }
+
+    private fun zoneOp(o: Map<*, *>, ctx: OpsContext): Any {
+        val name = (o["name"] as? String)?.let { clean(it, OPS_NAME_MAX) }.orEmpty()
+        if (name.isEmpty()) return 5
+        if (!ctx.verbatim(name)) return 6
+        val asked = (o["members"] as? List<*>).orEmpty()
+        val picked = asked.mapNotNull { (it as? String)?.let { m -> pick(ctx.placed, m) } }.distinct()
+        val members = picked.filter(ctx.said)
+        // 묶을 것을 적었는데 남은 것이 없으면(뺀 장비만 든 구역, 말하지 않은 것만 든 구역) 뺀다
+        if (asked.isNotEmpty() && members.isEmpty()) return if (picked.isEmpty()) 5 else 7
+        return listOf(mapOf("op" to "zone", "name" to name, "members" to members.map { it.choice.value }, "memberLabels" to members.map { it.choice.label }, "memberKinds" to members.map(ctx.kind)))
     }
 
     /** 남은 구성도 동작의 체계 요약 (뺀 동작이 있을 때 모델 글 대신 보인다) */

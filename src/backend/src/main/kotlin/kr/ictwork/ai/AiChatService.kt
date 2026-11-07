@@ -394,6 +394,8 @@ class AiChatService(
         /** fill 이벤트를 보냈다 */
         var filled = false
         var extraUsed: List<AiSourceRef> = emptyList()
+        /** 조직의 부서 이름 (글 내용 질문 판정에서 뺀다, AiAnswerRules.docContent) */
+        var departments: List<String> = emptyList()
     }
 
     /** 기록 파일 근거: 파일 시각, 박스(지운 박스면 제목 없음), 지금 그 박스를 볼 수 있는지 */
@@ -473,6 +475,7 @@ class AiChatService(
             progress.found += (viewed?.found.orEmpty() + retriever.find(judge, job.question, vector)).distinctBy { listOf(it.ref.type, it.ref.id, it.ref.variant, it.ref.locator, it.text) }
             progress.results += viewed?.results.orEmpty()
             progress.pending = pendingCount(judge)
+            progress.departments = actor.tree.all().map { it.name }
             progress.recordNotes = recordNotes(actor, progress.found)
             val history = history(job, judge)
             progress.historySources = history.sources
@@ -491,7 +494,8 @@ class AiChatService(
             body.putObject("options").put("num_ctx", NUM_CTX).put("temperature", 0)
             // 마지막 호출에는 도구를 주지 않아 글로 답하게 한다 (도구 왕복 2번까지). 특정 업무 건이 어디까지 됐는지 묻고 그 업무 글을
             // 찾았으면 도구를 주지 않아 [체계 자료]의 업무 상태로 답하게 한다 (REQ-B03, 실제 모델 평가: 도구로 업무를 세어 엉뚱하게 답함)
-            if (round < MAX_MODEL_CALLS && !AiAnswerRules.workProgress(job.question, progress.found)) body.set<JsonNode>("tools", tools.definitions)
+            val toolsGiven = round < MAX_MODEL_CALLS && !AiAnswerRules.workProgress(job.question, progress.found)
+            if (toolsGiven) body.set<JsonNode>("tools", tools.definitions)
             val content = StringBuilder()
             val toolCalls = mutableListOf<JsonNode>()
             // content에서 다룬 데까지(보냈거나 앞의 "[체계 자료]" 따라 쓰기라 뺀 곳). 일반 답 문장·글로 쓴 도구 호출일 수 있는 글은
@@ -569,11 +573,28 @@ class AiChatService(
                 final = AiAnswerRules.stripVerbatim(final)
                 val whole = progress.text.toString() + final
                 if (progress.results.any { AiAnswerRules.usedToolResult(whole, it.forModel, progress.found) }) final = AiAnswerRules.stripToolCitation(final, progress.found)
-                // 도구가 범위 밖·체계에 없는 부서만 돌려줬는데 다른 말("배정된 업무는 없습니다")로 답했으면 그 오류 문장으로 바꾼다(재검토 모델3)
+                // 도구가 오류 문장(범위 밖·체계에 없는 부서·후보·찾지 못함)만 돌려줬으면 답은 그 문장과 같아야 하고, 아니면 그 문장으로 바꾼다 (REQ-B04).
+                // 다만 찾지 못함 오류뿐인데 답이 찾은 글에만 있는 수치로 답했으면(지침으로 답함) 찾지 못했다는 문장만 지우고 답을 둔다(출처를 숨기지 않게)
                 val told = AiAnswerRules.verbatimErrors(progress.results)
-                if (told.isNotEmpty() && progress.results.all { it.forModel.containsKey("오류") } && told.none { AiAnswerRules.contains(whole, it) }) {
+                val toldText = told.joinToString(" ")
+                if (told.isNotEmpty() && progress.results.all { it.forModel.containsKey("오류") } && !(AiAnswerRules.contains(whole, toldText) && AiAnswerRules.contains(toldText, whole))) {
+                    val docAnswer = told.all { it.startsWith(NOT_FOUND) } && progress.found.any { AiAnswerRules.figureFrom(whole, job.question, it.text, progress.results) }
                     if (progress.text.isNotEmpty()) reset(events, progress)
-                    final = told.joinToString(" ")
+                    final = if (docAnswer) whole.replace(Regex(Regex.escape(NOT_FOUND) + "[.]?\\s*"), "").trim() else toldText
+                }
+                // 숫자는 조회 도구로만 (REQ-B04): 이번 차례 도구 결과·쓴 글에 없는 개수를 답했으면(이어 묻기의 앞 답 숫자를 옮겨 씀, 실제 모델 검토)
+                // 첫 호출이고 도구를 줄 수 있으면 도구로 답하라고 한 번 더 묻고(둘째 호출에서 도구를 부르면 셋째 호출이 답한다), 아니면 찾지 못했다고 답한다
+                if (AiAnswerRules.unsupportedCount(progress.text.toString() + final, job.question, progress.results, progress.found, toolsGiven, progress.departments)) {
+                    if (progress.text.isNotEmpty()) reset(events, progress)
+                    if (toolsGiven && round == 1) {
+                        messages.addObject().put("role", "assistant").put("content", content.toString())
+                        messages.addObject().put("role", "system").put("content", COUNT_BY_TOOL)
+                        continue
+                    }
+                    // 이번 차례 도구가 범위 밖이라 했거나 장비를 물은 부서가 범위 밖이면 찾지 못함 대신 범위 밖 문장이다(실제 모델 검토: 이어 묻기에서 "찾지 못했습니다"로 끝남)
+                    val outside = progress.results.any { (it.forModel["오류"] as? String)?.startsWith(OUT_OF_SCOPE) == true } ||
+                        checkNotNull(readTx.execute { tools.equipmentOutOfScope(accessPolicy.actor(job.loginId), job.question) })
+                    final = if (outside) "$OUT_OF_SCOPE." else "$NOT_FOUND."
                 }
                 // 지우고 나니 답이 비었거나 일반 답 문장뿐이면 찾지 못했다고 답한다(재검토 H2·모델1)
                 if (AiAnswerRules.stripGeneral((progress.text.toString() + final).trim()).isBlank()) {
@@ -613,7 +634,13 @@ class AiChatService(
      */
     private fun settle(question: String, progress: Progress) {
         val answer = progress.text.toString()
-        val used = progress.results.filter { AiAnswerRules.usedToolResult(answer, it.forModel, progress.found) }
+        // 답의 수치가 찾은 글에서 왔고(figureFrom) 도구 결과 목록의 이름을 적지 않았으면 그 도구 결과는 쓰지 않은 것으로 본다: 조건·출처를 보이지 않는다
+        // (실제 모델 검토: 발전기 오일 교환 주기를 지침으로 답했는데 장비 조회 조건이 보임)
+        val fromDoc = progress.found.any { AiAnswerRules.figureFrom(answer, question, it.text, progress.results) }
+        val used = progress.results.filter {
+            AiAnswerRules.usedToolResult(answer, it.forModel, progress.found) &&
+                !(fromDoc && !it.forModel.containsKey("오류") && !AiAnswerRules.mentionsResult(answer, it.forModel))
+        }
         progress.usedTools = used.isNotEmpty()
         progress.conditions = used.flatMap { it.conditions }.distinct()
         progress.links = used.flatMap { it.links }.distinct()
@@ -671,9 +698,12 @@ class AiChatService(
         if (NOT_FOUND in answer || GENERAL in answer) return emptyList()
         val refs = progress.found.map { it.ref }
         val docs = if (progress.usedTools) {
-            // 모델이 도구 답 끝에 관계없는 문서 이름을 적기도 해(실제 모델 평가) 글도 겹쳐야 보인다
+            // 모델이 도구 답 끝에 관계없는 문서 이름을 적기도 해(실제 모델 평가) 글도 겹쳐야 보인다. 이름을 적지 않았어도 글이 겹치고 그 글에만 있는
+            // 단위 붙은 수치("250시간")를 답에 썼으면 보인다(실제 모델 검토: 발전기 오일 교환 주기를 지침 글로 답했는데 장비 출처만 보임)
             val used = AiAnswerRules.usedFound(answer, question, progress.found, byName = false)
-            refs.filterIndexed { i, ref -> i in used && answer.contains(ref.label.substringBeforeLast('.')) }
+            refs.filterIndexed { i, ref ->
+                i in used && (answer.contains(ref.label.substringBeforeLast('.')) || AiAnswerRules.figureFrom(answer, question, progress.found[i].text, progress.results))
+            }
         } else {
             // 쓴 글을 가려낼 수 없으면 질문과 가장 맞는 글 하나만(STRONG_COSINE 이상). 찾은 글을 모두 붙이지 않는다(재검토 M3)
             AiAnswerRules.usedFound(answer, question, progress.found).map { refs[it] }
@@ -840,6 +870,12 @@ class AiChatService(
         const val NOT_FOUND = AiAnswerRules.NOT_FOUND
         const val GENERAL = AiAnswerRules.GENERAL
 
+        /** 범위 밖 문장 (AiTools.outOfScope와 같은 글) */
+        const val OUT_OF_SCOPE = "볼 수 있는 범위 밖이라 답할 수 없습니다"
+
+        /** 근거 없는 개수를 답했을 때 다시 묻는 지시 (REQ-B04) */
+        const val COUNT_BY_TOOL = "개수(몇 대·몇 명·몇 건)는 이번 질문의 조건으로 조회 도구를 불러 그 결과로만 답한다. 앞 답의 숫자를 옮겨 쓰지 않는다. 조회 도구를 불러라."
+
         /** 기록 파일 기준 시각 표시 */
         private val RECORD_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
@@ -872,17 +908,18 @@ class AiChatService(
 9. 조회 도구가 "오류"를 돌려주면 그 오류 문장을 그대로 옮겨 답한다(다시 물으라는 안내면 질문자에게 다시 묻는다).
 
 도구 조건 예 (질문 → 부를 도구와 조건):
-- "1중대 반출 나간 장비 보여줘" → query_equipment, mode=list, department="1대대 1중대", carry_out="반출"
+- "1중대 반출 나간 장비 보여줘" → query_equipment, mode=list, department="정보통신대대 1중대", carry_out="반출"
 - "고장 난 무전기 몇 대야?" → query_equipment, mode=count, status="고장", keyword="무전기"
 - "3월 2일부터 3월 9일까지 끝낸 업무 몇 건?" → query_work, mode=count, basis=status_dashboard, metric=completed, period=CUSTOM, date_from="2026-03-02", date_to="2026-03-09"
 - "접수 대기 중인 인터넷 업무 몇 건?" → query_work, mode=count, basis=work_list, state="접수 대기", work_type="인터넷"
-- "3중대 상병 몇 명이야?" → query_people, mode=count, department="1대대 3중대", rank="상병"
+- "3중대 상병 몇 명이야?" → query_people, mode=count, department="정보통신대대 3중대", rank="상병"
 - "김철수 전화번호 알려줘" → query_people, mode=list, name="김철수"
-- "2반 반장 누구야?" → query_people, mode=list, department="1대대 1중대 2반", position="반장"
+- "유선반 반장 누구야?" → query_people, mode=list, department="정보통신대대 1중대 유선반", position="반장"
 - (앞 답의 출처가 "휴대용 무전기 3호 (SN-0003)"일 때) "그 장비 어디 있어?" → query_equipment, mode=list, keyword="휴대용 무전기 3호"
 - "이번 달 긴급 완료 몇 건?" → query_work, mode=count, basis=status_dashboard, metric=urgent_completed, period=THIS_MONTH
-- "이번 주 1중대장 지시 몇 건?" → query_directives, mode=count, department="1대대 1중대", period=THIS_WEEK
-- "오늘 1중대 당직 누구야?" → query_duty, mode=list, department="1대대 1중대", duty="당직"
+- "이번 주 1중대장 지시 몇 건?" → query_directives, mode=count, department="정보통신대대 1중대", period=THIS_WEEK
+- "오늘 1중대 당직 누구야?" → query_duty, mode=list, department="정보통신대대 1중대", duty="당직"
+- "오늘 상황실 근무자 누구야?" → query_duty, mode=list, duty="상황실" (duty에는 질문에 나온 근무표·근무 이름만 넣는다)
 - "홍길동 다음 근무 언제야?" → query_duty, mode=next, person="홍길동"
 - "지금 CPCON 몇 단계야?" → query_ict_status, mode=list, title="CPCON""""
     }

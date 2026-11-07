@@ -3,6 +3,7 @@ package kr.ictwork.ai
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import kr.ictwork.admin.Actor
+import kr.ictwork.admin.DepartmentTree
 import kr.ictwork.attribute.AttributeTargets
 import kr.ictwork.attribute.AttributeValues
 import kr.ictwork.common.error.ApiException
@@ -25,6 +26,7 @@ import kr.ictwork.ictstatus.BoxKinds
 import kr.ictwork.ictstatus.BoxRules
 import kr.ictwork.ictstatus.IctBoxService
 import kr.ictwork.ictstatus.TableColumnKinds
+import kr.ictwork.org.Department
 import kr.ictwork.org.DepartmentTypes
 import kr.ictwork.org.PersonnelRepository
 import kr.ictwork.status.StatusPeriods
@@ -114,15 +116,65 @@ class AiTools(
         AiToolResult(mapOf("오류" to "${e.message} 조건을 다시 물어 볼 것"))
     }
 
+    /**
+     * 장비를 묻는 질문에 적힌 부서가 질문자의 장비 범위(소속 범위) 밖인가 (도구 없이 끝낼 때 찾지 못함 대신 범위 밖 문장으로 답함, REQ-B04, 실제 모델 검토).
+     * 읽기 트랜잭션 안에서 부른다
+     */
+    fun equipmentOutOfScope(actor: Actor, question: String): Boolean =
+        "장비" in question && (pickDepartment(actor, null, Asked(question, emptyList()), actor.affiliationScope()) as? DeptPick.Stop)
+            ?.result?.forModel?.get("오류")?.toString()?.startsWith("볼 수 있는 범위 밖") == true
+
     // ───────────── 장비 ─────────────
 
     /** 지금 질문과 이어 묻기의 앞 질문들 */
-    private class Asked(val question: String, val context: List<String>)
+    private class Asked(val question: String, val context: List<String>) {
+        private val compact = squash((context + question).joinToString(" "))
+
+        /**
+         * 모델이 넣은 조건 글이 질문(이어 묻기의 앞 질문 포함)에 나왔나: 글 전체나 마지막 낱말(두 글자 이상). stem이면 앞 두 글자도 본다
+         * (상태·반출·전산망: "사용 중인"의 사용중, "정비 중"의 정비입고). 모델이 도구 조건 예·앞 답에서 옮겨 넣은 조건을 가린다
+         */
+        fun heard(value: String, stem: Boolean = false): Boolean {
+            val v = squash(value)
+            val last = squash(value.trim().split(Regex("\\s+")).last())
+            return v in compact || (last.length >= 2 && last in compact) || (stem && v.length >= 2 && v.take(2) in compact)
+        }
+
+        /** 정해진 값(상태·반출)의 말: 그 값을 뜻하는 말("망가진"의 고장, "수리 중"의 정비입고, CHOICE_WORDS)이 질문에 있다. 표에 없는 값은 heard(stem)로 본다 */
+        fun heardChoice(value: String): Boolean = CHOICE_WORDS[value]?.containsMatchIn(compact) ?: heard(value, stem = true)
+
+        /**
+         * 장소 글: 부서 이름을 양쪽에서 뺀 뒤, 장소 낱말이 지금 질문에 있거나 그 낱말 끝의 일반 장소 낱말(창고·사무실 등)이 지금 질문에 있다.
+         * 앞 질문은 그 장소(부서 이름 뺀 것)를 그대로 적었을 때만 본다 (정적 검토: "유선반 사무실"을 "유선"으로 남김)
+         */
+        fun heardPlace(value: String, departments: Collection<String>): Boolean {
+            val names = departments.map(::squash).filter { it.length >= 2 }.distinct().sortedByDescending { it.length }
+            fun strip(text: String) = names.fold(DEPT_WORD.replace(squash(text), " ")) { s, d -> s.replace(d, " ") }
+            val words = value.trim().split(Regex("\\s+")).map(::squash).filter { w -> w.length >= 2 && w !in names && !DEPT_WORD.matches(w) }
+            val now = strip(question)
+            if (words.isEmpty()) return squash(value) in squash(question)
+            return words.any { w -> w in now || GENERIC_PLACES.any { g -> w.endsWith(g) && g in now } } || words.joinToString("") in strip(context.joinToString(" "))
+        }
+
+        private fun squash(text: String) = text.replace(Regex("\\s+"), "").lowercase()
+    }
 
     private fun equipment(raw: JsonNode, actor: Actor, question: Asked): AiToolResult {
         val a = Args(raw)
         // 상태 칸의 반출 → 반출 여부 (PoC normalize)
         if (a.text("status") in CARRY_OUT_CODES) a.move("status", "carry_out")
+        // 질문에 없는 상태·반출·전산망·설치장소·반출 사유 조건은 버린다 (실제 모델 검토: "발전기 엔진 오일은 언제 갈아야 해?"에 status=정비입고,
+        // "그 장비들 어디 있어?"에 앞 답에 없던 install_place="유선반 사무실"을 넣어 0대로 답함, REQ-B04). 현재 위치는 "옆 반" → "2반"처럼 모델이 풀어 넣으므로 둔다
+        // 같은 뜻의 말("망가진"·"수리 중"·"밖에 나가 있는"·"창고에 있는")도 질문에 나온 것으로 본다(정적 검토: 같은 뜻의 말에 조건이 빠져 모두 셈)
+        // 뺀 조건은 결과에 적어 모델이 그 조건으로 센 것으로 여기지 않게 한다(실제 모델 검토: 뺀 "정비입고"를 답에 씀)
+        val ignored = mutableListOf<String>()
+        fun ignore(k: String, v: String) {
+            a.drop(k)
+            ignored += "${IGNORED_NAMES.getValue(k)}: $v"
+        }
+        listOf("status", "carry_out", "network").forEach { k -> a.text(k)?.let { if (!question.heardChoice(it)) ignore(k, it) } }
+        a.text("install_place")?.let { if (!question.heardPlace(it, actor.tree.all().map { d -> d.name })) ignore("install_place", it) }
+        a.text("carry_out_reason")?.let { if (!question.heard(it)) ignore("carry_out_reason", it) }
         val status = a.text("status")?.let { STATUS_CODES[it] ?: return retry("장비 상태 '$it'") }
         val carryOut = a.text("carry_out")?.let { CARRY_OUT_CODES[it] ?: return retry("반출 여부 '$it'") }
         val network = a.text("network")?.let { NETWORK_CODES[it] ?: return retry("사용전산망 '$it'") }
@@ -143,7 +195,8 @@ class AiTools(
         val place = a.text("install_place")
         val currentPlace = a.text("current_place")
         val carryOutReason = a.text("carry_out_reason")
-        val keyword = a.text("keyword")
+        // 글자 조건의 "장비·기기·물품·것"은 장비를 뜻하는 말이라 조건이 아니다(실제 모델 검토: keyword="장비"로 0대)
+        val keyword = a.text("keyword")?.takeIf { it.replace(Regex("\\s+"), "") !in GENERIC_OBJECTS }
         val osType = a.text("os_type")
         val osVersion = a.text("os_version")
         val hwVersion = a.text("hw_version")
@@ -154,12 +207,15 @@ class AiTools(
         val memo = a.text("memo")
         val includeSub = a.bool("include_sub") ?: true
         val scope = actor.affiliationScope()
-        val dept = when (val pick = pickDepartment(actor, a.text("department"), question, scope)) {
+        val pick = pickDepartment(actor, a.text("department"), question, scope, many = true)
+        val dept = when (pick) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
-        val departments = dept?.let { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }
+        // 여러 부서(Many)는 그 부서들(하위 포함)만 센다
+        val chosen = (pick as? DeptPick.Many)?.ids ?: listOfNotNull(dept)
+        val departments = chosen.takeIf { it.isNotEmpty() }?.flatMap { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }?.toSet()
         val listed = equipmentService.listed(actor, EquipmentListQuery())
         val inScope = listed.filter { departments == null || it.departmentId in departments }
             .filter { if (status == null) !it.disposed else it.status == status }
@@ -186,7 +242,7 @@ class AiTools(
         val systemName = keyword?.takeIf { !byText }?.let { k -> found.map { it.systemName }.distinct().singleOrNull()?.takeIf { it.equals(k, ignoreCase = true) } }
         val conditions = buildList {
             add("기준: 장비 목록(내가 볼 수 있는 장비)")
-            add("부서: " + (dept?.let { AiLabels.path(actor.tree, it) + if (includeSub) "(하위 포함)" else "(하위 제외)" } ?: "볼 수 있는 범위 전체"))
+            add("부서: " + (chosen.takeIf { it.isNotEmpty() }?.joinToString(", ") { AiLabels.path(actor.tree, it) }?.let { it + if (includeSub) "(하위 포함)" else "(하위 제외)" } ?: "볼 수 있는 범위 전체"))
             status?.let { add("상태: ${AiLabels.EQUIPMENT_STATUSES[it]}") }
             if (status != EquipmentStatuses.DISPOSED) add("불용 제외")
             carryOut?.let { add("반출 여부: ${AiLabels.CARRY_OUTS[it]}") }
@@ -227,7 +283,8 @@ class AiTools(
         val items = shown.map { e -> equipmentItem(views.getValue(checkNotNull(e.id)), e, detailed) }
         val groups = found.groupingBy { AiLabels.path(actor.tree, it.departmentId) }.eachCount().entries.sortedByDescending { it.value }.associate { it.key to it.value }
         return AiToolResult(
-            mapOf("기준" to "장비 목록", "조건" to conditions, "개수" to found.size, "부서별" to groups, "목록" to items, "목록 안내" to listNote(found.size)),
+            mapOf("기준" to "장비 목록", "조건" to conditions, "개수" to found.size, "부서별" to groups, "목록" to items, "목록 안내" to listNote(found.size)) +
+                (if (ignored.isEmpty()) emptyMap() else mapOf("뺀 조건" to "질문에 없는 조건(${ignored.joinToString(", ")})은 빼고 셈. 그 조건을 답에 쓰지 말 것")),
             conditions, links,
             shown.map { AiSourceRef(AiRefTypes.EQUIPMENT, checkNotNull(it.id), label = it.displayName, link = "/department/equipment/${it.id}") },
         )
@@ -484,6 +541,7 @@ class AiTools(
         val selection = when (val pick = pickDepartment(actor, a.text("department"), question, scope.allowed)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> listOf(pick.id)
+            is DeptPick.Many -> pick.ids
             DeptPick.All -> scope.fixedId?.let { listOf(it) } ?: scope.roots
         }
         if (selection.isEmpty()) return outOfScope()
@@ -537,7 +595,7 @@ class AiTools(
         val dept = when (val pick = pickDepartment(actor, a.text("department"), question, statusScope?.allowed ?: actor.workScope())) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
         val selection = statusScope?.let { s -> dept?.let { listOf(it) } ?: s.fixedId?.let { listOf(it) } ?: s.roots }
         if (selection != null && selection.isEmpty()) return outOfScope()
@@ -619,11 +677,10 @@ class AiTools(
 
     private fun people(raw: JsonNode, actor: Actor, question: Asked): AiToolResult {
         val a = Args(raw)
-        // "1대대장"처럼 부서 이름에 직책이 붙어 오면(부서 칸, 부서 칸이 비었으면 질문) 부서와 직책으로 나눈다 (재검토 M4)
-        val titled = a.text("department")?.let { TITLED.find(it) } ?: if (a.text("department") == null) TITLED.find(question.question) else null
-        if (titled != null) {
-            a.set("department", a.text("department")?.let { it.substring(0, titled.range.first) + titled.groupValues[1] } ?: titled.groupValues[1])
-            if (a.text("position") == null) a.set("position", titled.groupValues[2] + "장")
+        // "1대대장"·"유선반장"처럼 부서 이름에 직책이 붙어 오면(부서 칸, 부서 칸이 비었으면 질문) 부서와 직책으로 나눈다 (재검토 M4, slices/22 4.4)
+        titled(actor, a.text("department"), question.question)?.let { (department, title) ->
+            a.set("department", department)
+            if (a.text("position") == null) a.set("position", title)
         }
         // 직책 칸의 계급 → 계급 (PoC normalize)
         if (a.text("position") != null && a.text("position") !in POSITION_CODES) a.move("position", "rank")
@@ -636,7 +693,7 @@ class AiTools(
         val dept = when (val pick = pickDepartment(actor, a.text("department"), question, visible)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
         val departments = dept?.let { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }
         // "나"는 질문한 사람 (REQ-B04)
@@ -734,9 +791,8 @@ class AiTools(
     private fun directives(raw: JsonNode, actor: Actor, question: Asked): AiToolResult {
         val a = Args(raw)
         if (a.text("date_from") != null || a.text("date_to") != null) a.set("period", "CUSTOM")
-        // "1중대장 지시"처럼 직책이 붙으면 부서만 쓴다(명의 부서의 부서장이 그 명의자)
-        val titled = a.text("department")?.let { TITLED.find(it) } ?: if (a.text("department") == null) TITLED.find(question.question) else null
-        if (titled != null) a.set("department", a.text("department")?.let { it.substring(0, titled.range.first) + titled.groupValues[1] } ?: titled.groupValues[1])
+        // "1중대장 지시"·"유선반장 지시"처럼 직책이 붙으면 부서만 쓴다(명의 부서의 부서장이 그 명의자)
+        titled(actor, a.text("department"), question.question)?.let { a.set("department", it.first) }
         val today = LocalDate.now(clock)
         val period = a.text("period")?.let { p -> periodOf(p, a.text("date_from"), a.text("date_to"), today) ?: return retry("기간") }
         val includeSub = a.bool("include_sub") ?: false
@@ -744,7 +800,7 @@ class AiTools(
         val dept = when (val pick = pickDepartment(actor, a.text("department"), question, directiveAccess.visibleDepartments(actor))) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
         val departments = dept?.let { if (includeSub) actor.tree.selfAndDescendants(it) else setOf(it) }
         val visible = directiveAccess.visibleDirectives(actor)
@@ -813,7 +869,9 @@ class AiTools(
         if (mode != "list" && mode != "next") return retry("방식 '$mode'")
         val today = LocalDate.now(clock)
         val includeSub = a.bool("include_sub") ?: true
-        val duty = a.text("duty")
+        // 근무 글자는 질문(이어 묻기의 앞 질문 포함)에 있는 것만: 모델이 도구 조건 예의 "당직"을 옮겨 넣으면 버린다
+        // (실제 모델 검토: "오늘 상황실 근무자 누구야?"에 duty="당직"을 넣어 야간 당직으로 답함, REQ-B04 ④)
+        val duty = a.text("duty")?.takeIf { question.heard(it) }
         val person = a.text("person")
         val visible = dutyQuery.visible(actor)
         // 범위: 볼 수 있는 근무표의 부서와 그 상위, 그리고 소속 범위. 범위 안인데 근무표가 없으면 범위 밖이 아니라 찾지 못한 것이다
@@ -821,7 +879,7 @@ class AiTools(
         val dept = when (val pick = pickDepartment(actor, a.text("department"), question, scope)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
         val rosters = dept?.let { d -> (if (includeSub) actor.tree.selfAndDescendants(d) else setOf(d)).let { ids -> visible.filter { it.departmentId in ids } } } ?: visible
         if (dept != null && rosters.isEmpty()) return notFound(listOf("부서: " + AiLabels.path(actor.tree, dept)))
@@ -916,7 +974,7 @@ class AiTools(
         val dept = when (val pick = pickDepartment(actor, a.text("department"), asked, scope)) {
             is DeptPick.Stop -> return pick.result
             is DeptPick.One -> pick.id
-            DeptPick.All -> null
+            DeptPick.All, is DeptPick.Many -> null
         }
         val order = statusScopes.order(actor.tree, boxes.map { it.departmentId }.toSet()).withIndex().associate { it.value to it.index }
         val key = title?.let(::squash)
@@ -987,6 +1045,8 @@ class AiTools(
     private sealed class DeptPick {
         object All : DeptPick()
         class One(val id: Long) : DeptPick()
+        /** 이어지지 않는 부서 이름 여럿 (장비만, many=true) */
+        class Many(val ids: List<Long>) : DeptPick()
         class Stop(val result: AiToolResult) : DeptPick()
     }
 
@@ -998,10 +1058,10 @@ class AiTools(
      *    마지막 이름(남은 앞 낱말은 상위 부서 이름)이 맞는 사용 중 부서를 모두 후보로 → 시스템 관리자가 아니면 질문자 소속에서 가까운 곳(소속 → 상위 순)의 후보 먼저 →
      *    도구 범위와 겹쳐 0개면 범위 밖, 1개면 그 부서, 여럿이면 후보 경로로 다시 묻게 한다. 이름이 맞는 부서가 없으면 체계에 없는 부서
      */
-    private fun pickDepartment(actor: Actor, raw: String?, asked: Asked, scope: Set<Long>): DeptPick {
+    private fun pickDepartment(actor: Actor, raw: String?, asked: Asked, scope: Set<Long>, many: Boolean = false): DeptPick {
         val tree = actor.tree
         val question = asked.question
-        val path = raw.orEmpty().split(Regex("[\\s>▸]+")).filter { it.isNotBlank() }
+        val path = raw.orEmpty().split(Regex("[\\s>▸,，]+")).filter { it.isNotBlank() }
         OUR.find(question)?.let { match ->
             val inQuestion = question.replace(Regex("\\s+"), "")
             val explicit = path.filter { inQuestion.contains(it) && !it.startsWith("우리") && it != match.groupValues[1] }
@@ -1009,9 +1069,10 @@ class AiTools(
         }
         val compact = (asked.context + question).joinToString(" ").replace(Regex("\\s+"), "")
         val given = path.filter { compact.contains(it) }
-        // 모델이 부서를 빠뜨리거나 질문에 없는 부서만 넣었으면 질문에 적힌 부서 이름("3대대", "2중대 1반")을 쓴다
+        // 모델이 부서를 빠뜨리거나 질문에 없는 부서만 넣었으면 질문에 적힌 부서 이름("3대대", "2중대 1반", 조직에 있는 숫자 없는 이름 "유선반")을 적힌 차례로 쓴다
         // (실제 모델 평가: "3대대 장비"에 "1대대 3중대"를 넣어 셈)
-        val asked = DEPT_WORD.findAll(question).map { it.value.replace(" ", "") }.toList()
+        val numbered = DEPT_WORD.findAll(question).map { it.range to it.value.replace(" ", "") }.toList()
+        val asked = (numbered + namesIn(tree, question, numbered.map { it.first })).sortedBy { it.first.first }.map { it.second }
         // 모델이 질문에 적힌 경로의 앞(대대)을 바꿔 넣었으면("1대대 1중대 1반"에 "2대대 1중대 1반") 질문에 적힌 경로를 쓴다 (재검토 M5)
         var words = when {
             given.isEmpty() -> asked
@@ -1025,28 +1086,33 @@ class AiTools(
             // 남는 낱말이 없으면 질문에 부서가 없는 것: 볼 수 있는 범위 전체로 센다 (11.6 ①, 규칙 5)
             words = listOf(other ?: return DeptPick.All)
         }
+        /** 위에서 아래로 이어지는 이름들의 부서: 끝 이름의 부서 가운데 앞 이름들이 모두 위 부서인 것 */
+        fun pathOf(names: List<String>) = tree.all().filter { d ->
+            d.active && d.name == names.last() && names.dropLast(1).all { u -> generateSequence(d.parentId?.let(tree::find)) { p -> p.parentId?.let(tree::find) }.any { it.name == u } }
+        }
         val name = words.last()
-        val upper = words.dropLast(1)
-        val candidates = tree.all().filter { d ->
-            d.active && d.name == name && upper.all { u -> generateSequence(d.parentId?.let(tree::find)) { p -> p.parentId?.let(tree::find) }.any { it.name == u } }
+        val candidates = pathOf(words)
+        // 질문에 이어지지 않는 숫자 없는 부서 이름이 여럿("유선반과 무선반 장비 몇 대씩")이고 모델이 넣은 부서가 그 가운데 것뿐이면 이름마다 찾아, 하나라도 범위 밖이면
+        // 범위 밖이고, 장비는 그 부서들만 세며 다른 조회는 하나씩 다시 묻는다(정적 검토). 숫자 이름("2대대 3중대")은 아래대로 체계에 없는 부서다
+        if (asked.size > 1 && asked.containsAll(given) && asked.none { DEPT_WORD.matches(it) } && asked.all { w -> tree.all().any { it.active && it.name == w } } && pathOf(asked).isEmpty()) {
+            words = asked
+            val each = words.map { w -> nearest(actor, tree.all().filter { it.active && it.name == w }).filter { it.id in scope } }
+            if (each.any { it.isEmpty() }) return DeptPick.Stop(outOfScope())
+            if (!many || each.any { it.size > 1 }) {
+                return DeptPick.Stop(AiToolResult(mapOf("오류" to "여러 부서(${words.joinToString(", ")})를 한 번에 셀 수 없습니다. 부서를 하나씩 다시 물어 주세요. $VERBATIM")))
+            }
+            return DeptPick.Many(each.map { checkNotNull(it.single().id) })
         }
         if (candidates.isEmpty()) {
             // 범위 밖 오류와 같이 "이 문장 그대로 답할 것"을 붙인다(붙이지 않으면 "체계에 등록되지 않은 부서" 등으로 바꿔 씀, 실제 모델 평가 10번·12.6)
             return DeptPick.Stop(AiToolResult(mapOf("오류" to "체계에 없는 부서(${words.joinToString(" ")})입니다. 이 문장 그대로 답할 것"), listOf("체계에 없는 부서: ${words.joinToString(" ")}")))
         }
-        var list = candidates
-        if (!actor.isSysAdmin) {
-            // 질문자 소속에서 가까운 곳의 후보 먼저: 소속 → 위 부서 → … → 대대. 1중대장이 "1반"이라 하면 1중대 1반 (실제 모델 평가)
-            val near = actor.personnelDepartmentId?.let { own ->
-                generateSequence(tree.find(own)) { d -> d.parentId?.let(tree::find) }
-                    .map { up -> list.filter { tree.isWithin(checkNotNull(it.id), checkNotNull(up.id)) } }
-                    .firstOrNull { it.isNotEmpty() }
-            }
-            if (!near.isNullOrEmpty()) list = near
-        }
-        val inScope = list.filter { it.id in scope }
+        val inScope = nearest(actor, candidates).filter { it.id in scope }
         return when (inScope.size) {
-            0 -> DeptPick.Stop(outOfScope())
+            // 숫자 없는 부서 이름("행정반")이 범위 밖인데 회의록·지침 같은 글 내용을 묻는 말이면 그대로 답할 범위 밖 문장 대신 안내만 준다:
+            // 볼 수 있는 글로 답할 수 있게 (실제 모델 검토: "10월 회의에서 행정반 회선 이동은 누가 맡기로 했어?"가 범위 밖 문장만 답함). 세지 않는 것은 같다.
+            // 그 밖(개수·목록·사람·날짜를 묻는 말)은 범위 밖 문장이다(정적 검토)
+            0 -> DeptPick.Stop(if (words.none { DEPT_WORD.matches(it) } && AiAnswerRules.docContent(question, tree.all().map { it.name })) outOfScopeNote(name) else outOfScope())
             1 -> DeptPick.One(checkNotNull(inScope.single().id))
             // 후보 경로를 오류 문장에 넣어 답에 보이게 한다(모델이 후보 없이 "구체적인 부서를 알려주세요"만 씀, 재검토 M6)
             else -> inScope.map { AiLabels.path(tree, it.id) }.let { paths ->
@@ -1056,6 +1122,47 @@ class AiTools(
                     ),
                 )
             }
+        }
+    }
+
+    /** 질문자 소속에서 가까운 곳의 후보 먼저: 소속 → 위 부서 → … → 대대. 1중대장이 "1반"이라 하면 1중대 1반 (실제 모델 평가). 시스템 관리자는 모두 */
+    private fun nearest(actor: Actor, candidates: List<Department>): List<Department> {
+        if (actor.isSysAdmin) return candidates
+        val tree = actor.tree
+        return actor.personnelDepartmentId?.let { own ->
+            generateSequence(tree.find(own)) { d -> d.parentId?.let(tree::find) }
+                .map { up -> candidates.filter { tree.isWithin(checkNotNull(it.id), checkNotNull(up.id)) } }
+                .firstOrNull { it.isNotEmpty() }
+        } ?: candidates
+    }
+
+    /**
+     * 글에 적힌 조직의 부서 이름(숫자 없는 이름 포함, 사용 중지 부서도 찾아 뒤에서 체계에 없는 부서로): 긴 이름 먼저, taken(이미 찾은 자리)과 겹치지 않게.
+     * 조사가 붙어도("유선반의") 이름 글자로 찾는다. 조직 구조는 예시라 이름을 정해 두지 않는다 (명세 1.2, slices/22 4.4)
+     */
+    private fun namesIn(tree: DepartmentTree, text: String, taken: List<IntRange>): List<Pair<IntRange, String>> {
+        val ranges = taken.toMutableList()
+        return tree.all().map { it.name }.distinct().filter { it.length >= 2 }.sortedByDescending { it.length }.flatMap { name ->
+            Regex.fromLiteral(name).findAll(text).map { it.range }.filter { r -> ranges.none { r.first <= it.last && it.first <= r.last } }.toList()
+                .onEach { ranges += it }.map { it to name }
+        }
+    }
+
+    /**
+     * 직책이 붙은 부서 이름을 (부서 칸에 넣을 글, 직책)으로 나눈다. raw: 모델이 넣은 부서 칸(비었으면 질문 글을 본다).
+     * 숫자 이름("1대대장"·"2중대장"·"1반장")은 글 꼴로 나누고(조직에 없으면 뒤에서 체계에 없는 부서), 숫자 없는 이름("유선반장"·"정보통신대대장")은 조직에 있는 부서 이름 + 장일 때만.
+     * 숫자 없는 이름의 직책은 그 부서 종류의 부서장이다: 대대 → 대대장, 중대 → 중대장, 반 → 반장. "정보통신상황실장"은 반 종류라 반장(직책은 4가지뿐, Personnel.Positions).
+     * 뒤에 비·소·애가 오면("유선반장비") 장비·장소·장애라 나누지 않는다
+     */
+    private fun titled(actor: Actor, raw: String?, question: String): Pair<String, String>? {
+        val text = raw ?: question
+        // 부서 칸이면 직책 앞까지의 경로를 남기고, 질문 글이면 부서 이름만
+        fun department(m: MatchResult, name: String) = (raw?.substring(0, m.range.first) ?: "") + name
+        TITLED.find(text)?.let { m -> return department(m, m.groupValues[1]) to m.groupValues[2] + "장" }
+        val names = actor.tree.all().map { it.name }.toSet()
+        return actor.tree.all().filter { it.name.length >= 2 && "${it.name}장" !in names }.sortedByDescending { it.name.length }.firstNotNullOfOrNull { d ->
+            val title = HEAD_TITLES[d.type] ?: return@firstNotNullOfOrNull null
+            Regex(Regex.escape(d.name) + "장(?![비소애])").find(text)?.let { m -> department(m, d.name) to title }
         }
     }
 
@@ -1082,6 +1189,11 @@ class AiTools(
 
     /** 범위 밖: 세지 않는다 (REQ-B04, H-22) */
     private fun outOfScope() = AiToolResult(mapOf("오류" to "볼 수 있는 범위 밖이라 답할 수 없습니다. 이 문장 그대로 답할 것"), listOf("볼 수 있는 범위 밖"))
+
+    /** 범위 밖 부서를 개수·목록이 아닌 말에 적음: 세지 않고 안내만 (오류가 아니라 체계가 범위 밖 문장으로 바꾸지 않음, 조회 조건도 보이지 않음) */
+    private fun outOfScopeNote(name: String) = AiToolResult(
+        mapOf("안내" to "질문의 '$name'은 볼 수 있는 범위 밖 부서라 조회하지 않았다. 그 부서의 장비·인원·업무·근무 수나 목록을 묻는 질문이면 '볼 수 있는 범위 밖이라 답할 수 없습니다'라고 답하고, 회의록·지침 같은 글 내용을 묻는 질문이면 [체계 자료]의 글로 답할 것"),
+    )
 
     /** 이름·글자로 찾았는데 없음(볼 수 없는 것 포함): 체계가 정한 문장 그대로 답한다 (REQ-B04·B06) */
     private fun notFound(conditions: List<String>) = AiToolResult(mapOf("오류" to "${AiAnswerRules.NOT_FOUND}. $VERBATIM"), conditions)
@@ -1133,6 +1245,10 @@ class AiTools(
         fun move(from: String, to: String) {
             values[to] = values.remove(from)
         }
+
+        fun drop(key: String) {
+            values.remove(key)
+        }
     }
 
     companion object {
@@ -1157,6 +1273,28 @@ class AiTools(
 
         /** 질문에 적힌 부서 이름 (숫자 + 대대·중대·반) */
         private val DEPT_WORD = Regex("\\d+\\s*(?:대대|중대|반)")
+
+        /** 질문에 없어 뺀 장비 조건의 이름 (결과의 "뺀 조건") */
+        private val IGNORED_NAMES = mapOf("status" to "상태", "carry_out" to "반출 여부", "network" to "사용전산망", "install_place" to "설치장소", "carry_out_reason" to "반출 사유")
+
+        /** 상태·반출 값을 뜻하는 말 (heardChoice). 전산망은 이름 그대로(앞 두 글자 포함) */
+        private val CHOICE_WORDS = mapOf(
+            "고장" to Regex("고장|망가|안되|안돼|고쳐야"),
+            "정비입고" to Regex("정비|수리|입고"),
+            "미사용" to Regex("미사용|안쓰|쓰지않|사용하지않|사용안|예비"),
+            "사용중" to Regex("(?<!미)사용중(?!지)|(?<!미)사용하고있|(?<!미)사용하는|사용가능|운용중|쓰고있|(?<!안)쓰는"),
+            "불용대기" to Regex("불용"),
+            "불용" to Regex("불용"),
+            "반출" to Regex("반출|나가|빌려|대여"),
+            "반출 예정" to Regex("반출예정|나갈예정"),
+            "반출 아님" to Regex("반출|나가"),
+        )
+
+        /** 장비 글자 조건으로 쓰지 않는 말 */
+        private val GENERIC_OBJECTS = setOf("장비", "장비들", "기기", "물품", "것")
+
+        /** 장소 낱말 끝의 일반 장소 낱말 (heardPlace: "통신창고"는 질문의 "창고"로도 둔다) */
+        private val GENERIC_PLACES = listOf("창고", "사무실", "회의실", "통신실", "전산실", "서버실", "교육장", "진료실", "정비고")
 
         /** 직책이 붙은 부서 이름 "1대대장"·"2중대장"·"1반장" (부서, 직책 앞말) */
         private val TITLED = Regex("(\\d+\\s*(대대|중대|반))장")
@@ -1191,7 +1329,10 @@ class AiTools(
         val POSITION_CODES = mapOf("대대장" to "BN_CMDR", "중대장" to "CO_CMDR", "반장" to "SEC_LEAD", "구성원" to "MEMBER")
         val RANK_CODES = AiLabels.RANKS.entries.associate { it.value to it.key }
 
-        private val DEPT = """{"type": "string", "description": "부서 경로. 예: '1대대 1중대 1반'. 질문자의 대대를 붙여 풀어 쓴다"}"""
+        /** 부서 종류의 부서장 직책 이름 (POSITION_CODES의 이름, Personnel.Positions) */
+        private val HEAD_TITLES = mapOf(DepartmentTypes.BATTALION to "대대장", DepartmentTypes.COMPANY to "중대장", DepartmentTypes.SECTION to "반장")
+
+        private val DEPT = """{"type": "string", "description": "부서 경로. 예: '정보통신대대 1중대 유선반'. 질문자의 대대를 붙여 풀어 쓴다"}"""
 
         /** PoC run_poc.py TOOLS (search_documents 제외) + query_work.requester + query_equipment의 나머지 장비 항목(OS·HW·SW·MAC·도입일·사업·비고·HW·OS 설치일·현재 위치·반출 사유) (slices/12 5.5·11.6·12.6) */
         val TOOLS_JSON = """

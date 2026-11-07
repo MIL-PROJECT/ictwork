@@ -79,6 +79,17 @@ class QaMasterTest(
         assertThat(body).contains("bn1-co1-s1-m1").doesNotContain("bn1-reception").doesNotContain("ext-req").doesNotContain("\"demo\"")
     }
 
+    @Test
+    fun `임시 계정 12개는 그 순서 그대로 앞에 두고 시연 계정 14개를 뒤에 더하며 모두 초기 데이터에 있다 (DEC-149)`() {
+        assertThat(QaMaster.ACCOUNTS.take(12)).containsExactly(
+            "bn1-cmdr", "bn2-cmdr", "bn1-co1-cmdr", "bn1-co2-cmdr", "bn1-co1-s1-lead", "bn1-co1-s1-m1", "bn1-co1-s2-m1",
+            "bn1-co1-admin", "bn1-co2-s1-m1", "bn1-dual", "sysadmin", "inactive",
+        )
+        assertThat(QaMaster.ACCOUNTS).hasSize(26).doesNotHaveDuplicates()
+        val seed = checkNotNull(javaClass.getResource("/db/seed/R__seed_initial_data.sql")).readText(Charsets.UTF_8)
+        assertThat(QaMaster.ACCOUNTS).allSatisfy { assertThat(seed).contains("'$it'") }
+    }
+
     private fun login(id: String, password: String) =
         mockMvc.perform(post("/api/auth/login").with(csrf()).param("loginId", id).param("password", password))
 

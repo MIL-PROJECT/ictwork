@@ -205,8 +205,9 @@ class AssistCandidates(
             Candidate(Choice(pair(r.type.departmentId, r.type.typeId), "${r.type.departmentPath} · ${r.type.name}"), r.type.name, recommended = true, path = r.type.departmentPath)
         }
         val orgPool = tree.all().filter { it.active }.mapNotNull { it.id }.map { Candidate(Choice(it, AiLabels.path(tree, it)), tree.find(it)?.name.orEmpty()) }
+        // 질문자 소속의 "기타"는 말에 나왔어도(문제가 난 곳으로 말한 우리 부서) 받는 부서 후보로 내지 않는다(실제 모델 검토)
         val named = AssistValidator.mentioned(orgPool, ctx.userWords).mapNotNull { (it.choice.value as Long).takeIf(::receives) }.flatMap { d ->
-            resolver.resolve(tree, d).map { o -> Candidate(Choice(pair(d, o.typeId), "${AiLabels.path(tree, d)} · ${o.label}"), o.name, path = AiLabels.path(tree, d)) }
+            resolver.resolve(tree, d).filter { o -> !(o.isOther && d == ctx.actor.personnelDepartmentId) }.map { o -> Candidate(Choice(pair(d, o.typeId), "${AiLabels.path(tree, d)} · ${o.label}"), o.name, path = AiLabels.path(tree, d)) }
         }
         // 화면에 이미 고른 짝: 받는 부서는 목록 칸이라 AI가 지금 짝을 포함한 최종 목록을 낸다
         val current = AssistFields.pairsOf(ctx.value("targets")).filter { receives(it.first) }.mapNotNull { (d, t) ->

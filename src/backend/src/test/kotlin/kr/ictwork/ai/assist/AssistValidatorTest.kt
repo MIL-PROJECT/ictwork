@@ -185,7 +185,8 @@ class AssistValidatorTest {
         val pool = listOf(Candidate(Choice(1L, "PC-101 (SN-1)"), "PC-101"), Candidate(Choice(2L, "무전기A (SN-2)"), "무전기A"))
         val f = AssistField("ops", "넣을 요소", FieldKinds.OPS, source = Sources.DIAGRAM_EQUIPMENT)
         val shapes = listOf(Candidate(Choice("shape-a", "분배기"), "분배기"))
-        val input = AssistCheck(listOf(f), { pool }, { _, _ -> emptyList() }, emptyMap(), placed = listOf(1L), placedShapes = shapes)
+        val words = listOf("무전기A를 놓고 PC-101과 이어 줘. 분배기와 PC-101도 이어서 통신실 구역, 1층 구역으로 묶어 줘")
+        val input = AssistCheck(listOf(f), { pool }, { _, _ -> emptyList() }, emptyMap(), userWords = words, placed = listOf(1L), placedShapes = shapes)
         val raw = listOf(
             mapOf("op" to "place", "equipment" to "무전기A (SN-2)"), mapOf("op" to "connect", "from" to "PC-101 (SN-1)", "to" to "무전기A (SN-2)"),
             mapOf("op" to "zone", "name" to "통신실", "members" to listOf("PC-101 (SN-1)")),
@@ -201,8 +202,46 @@ class AssistValidatorTest {
         val shapeOps = AssistValidator.check(input, mapOf("ops" to withShape)).applied["ops"] as List<Map<String, Any?>>
         assertThat(shapeOps[0]).containsEntry("from", "shape-a").containsEntry("fromKind", "shape").containsEntry("to", 1L).containsEntry("toKind", "equipment")
         assertThat(shapeOps[1]).containsEntry("members", listOf("shape-a", 1L)).containsEntry("memberKinds", listOf("shape", "equipment"))
-        // 놓이지 않은 장비는 선의 끝이 될 수 없다
-        assertThat(AssistValidator.check(input, mapOf("ops" to listOf(mapOf("op" to "connect", "from" to "분배기", "to" to "무전기A (SN-2)")))).applied).isEmpty()
+        // 사용자가 이름을 말한 아직 놓이지 않은 장비가 선의 끝이면 그 장비 놓기를 선 앞에 더한다(실제 모델 검토: 놓기 없이 선만 냄)
+        @Suppress("UNCHECKED_CAST")
+        val auto = AssistValidator.check(input, mapOf("ops" to listOf(mapOf("op" to "connect", "from" to "분배기", "to" to "무전기A (SN-2)"), mapOf("op" to "place", "equipment" to "무전기A (SN-2)"))))
+            .applied["ops"] as List<Map<String, Any?>>
+        assertThat(auto.map { it["op"] }).containsExactly("place", "connect")
+        assertThat(auto[0]).containsEntry("equipment", 2L)
+        assertThat(auto[1]).containsEntry("from", "shape-a").containsEntry("to", 2L)
+    }
+
+    @Test
+    fun `구성도 동작은 사용자 말에 근거한 것만 넣고 같은 선은 한 번만 (실제 모델 검토)`() {
+        val f = AssistScreens.find("diagram")!!.fields.single()
+        val pool = listOf(
+            Candidate(Choice(1L, "구내 교환기 1호 (SN-1)"), "구내 교환기 1호"), Candidate(Choice(2L, "일반전화기 4호 (SN-4)"), "일반전화기 4호"),
+            Candidate(Choice(3L, "일반전화기 1호 (SN-5)"), "일반전화기 1호"), Candidate(Choice(4L, "일반전화기 2호 (SN-6)"), "일반전화기 2호"),
+        )
+        fun check(words: List<String>, raw: List<Map<String, Any?>>) =
+            AssistValidator.check(AssistCheck(listOf(f), { pool }, { _, _ -> emptyList() }, emptyMap(), userWords = words, placed = listOf(1L, 3L, 4L)), mapOf("ops" to raw))
+        // 시연 문장: 놓기 없이 선만 내도 4호를 놓고 잇는다
+        val said = check(listOf("일반전화기 4호를 놓고 구내 교환기 1호와 이어 줘"), listOf(mapOf("op" to "connect", "from" to "구내 교환기 1호 (SN-1)", "to" to "일반전화기 4호 (SN-4)")))
+        @Suppress("UNCHECKED_CAST")
+        val ops = said.applied["ops"] as List<Map<String, Any?>>
+        assertThat(ops.map { it["op"] }).containsExactly("place", "connect")
+        assertThat(ops[0]).containsEntry("equipment", 2L)
+        assertThat(ops[1]).containsEntry("from", 1L).containsEntry("to", 2L)
+        assertThat(said.violations).isEmpty()
+        // 말하지 않은 장비를 잇는 선·지어낸 글상자·구역 이름은 빼고, 같은 선은 한 번만
+        val raw = listOf(
+            mapOf("op" to "connect", "from" to "구내 교환기 1호 (SN-1)", "to" to "일반전화기 4호 (SN-4)"),
+            mapOf("op" to "connect", "from" to "일반전화기 4호 (SN-4)", "to" to "구내 교환기 1호 (SN-1)"),
+            mapOf("op" to "connect", "from" to "구내 교환기 1호 (SN-1)", "to" to "일반전화기 2호 (SN-6)"),
+            mapOf("op" to "text", "text" to "전화 회선 구성"),
+            mapOf("op" to "zone", "name" to "교환실", "members" to listOf("구내 교환기 1호 (SN-1)")),
+        )
+        val mixed = check(listOf("일반전화기 4호를 놓고 구내 교환기 1호와 이어 줘"), raw)
+        @Suppress("UNCHECKED_CAST")
+        assertThat((mixed.applied["ops"] as List<Map<String, Any?>>).map { it["op"] }).containsExactly("place", "connect")
+        assertThat(mixed.violations).containsExactly(AssistViolation("ops[3]", 7), AssistViolation("ops[4]", 6), AssistViolation("ops[5]", 6))
+        // 사용자 말이 없으면(지어낸 동작 11개 등) 아무것도 넣지 않는다
+        assertThat(check(emptyList(), raw).applied).isEmpty()
     }
 
     @Test
@@ -549,7 +588,8 @@ class AssistValidatorTest {
             mapOf("op" to "text", "text" to "회선 메모"),
             mapOf("op" to "jump"),
         )
-        val r = AssistValidator.check(AssistCheck(listOf(ops), { pool }, { _, _ -> emptyList() }, emptyMap()), mapOf("ops" to raw))
+        val words = listOf("단말-7을 놓고 A구역과 B구역으로 묶고 회선 메모 글상자 넣어 줘")
+        val r = AssistValidator.check(AssistCheck(listOf(ops), { pool }, { _, _ -> emptyList() }, emptyMap(), userWords = words), mapOf("ops" to raw))
         @Suppress("UNCHECKED_CAST")
         val out = r.applied["ops"] as List<Map<String, Any?>>
         assertThat(out.map { it["op"] }).containsExactly("place", "zone", "text")
@@ -631,7 +671,7 @@ class AssistValidatorTest {
     }
 
     @Test
-    fun `F12-6 받는 부서 짝은 부서 이름이나 유형 이름을 말했거나 단추로 고른 짝만 받는다`() {
+    fun `F12-6 받는 부서 짝은 유형 이름을 말했거나 단추로 고른 짝만 받는다(부서 이름만은 되묻기, 14·5)`() {
         val targets = AssistField("targets", "받는 부서·업무 유형", FieldKinds.PAIRS, required = true, perm = true, source = Sources.RECEIVERS)
         val pair = Candidate(Choice(mapOf("departmentId" to 4L, "typeId" to 40L), "1대대 1중대 2반 · 가상전화"), "가상전화", recommended = true, path = "1대대 1중대 2반")
         fun check(words: String) = AssistValidator.check(
@@ -641,9 +681,12 @@ class AssistValidatorTest {
         // 문제만 말함(추천 1순위라도 넣지 않음)
         assertThat(check("전화 회선 관련 업무 요청을 하고 싶어").applied).isEmpty()
         assertThat(check("전화 회선 관련 업무 요청을 하고 싶어").violations).containsExactly(AssistViolation("targets", 8))
-        // 부서 이름·유형 이름·단추 답(짝 표시 이름)
-        assertThat(check("2반에 전화 고쳐 달라고 요청해 줘").applied["targets"]).isEqualTo(listOf(mapOf("departmentId" to 4L, "typeId" to 40L)))
-        assertThat(check("가상전화 업무로 요청해 줘").applied).containsKey("targets")
+        // 부서 이름만 말함: 넣지 않고 그 부서의 유형을 후보 단추로 되묻는다 (slices/21 14.5, 실제 모델 검토)
+        assertThat(check("2반에 전화 고쳐 달라고 요청해 줘").applied).isEmpty()
+        // 유형 이름·부서와 유형·단추 답(짝 표시 이름)
+        assertThat(check("2반 가상전화로 요청해 줘").applied["targets"]).isEqualTo(listOf(mapOf("departmentId" to 4L, "typeId" to 40L)))
+        // 유형 이름만 말하면 넣지 않는다(명세 REQ-C03 검증 기준, DEC-149)
+        assertThat(check("가상전화 업무로 요청해 줘").applied).isEmpty()
         assertThat(check("1대대 1중대 2반 · 가상전화").applied).containsKey("targets")
     }
 
@@ -680,6 +723,70 @@ class AssistValidatorTest {
     }
 
     @Test
+    fun `받는 부서 짝은 유형 이름을 말했을 때만 넣고 부서 이름만 말하면(문제가 난 곳 포함) 넣지 않는다 (실제 모델 검토)`() {
+        val f = AssistField("targets", "받는 부서·업무 유형", FieldKinds.PAIRS, required = true, perm = true, source = Sources.RECEIVERS)
+        fun pair(id: String, path: String, type: String) = Candidate(Choice(id, "$path · $type"), type, path = path)
+        val pool = listOf(pair("1:1", "1대대 1중대 행정반", "기타"), pair("2:2", "1대대 통신소대", "회선"), pair("2:3", "1대대 통신소대", "인터넷"), pair("3:4", "1대대 정비반", "인터넷"))
+        fun check(words: String, picked: String) =
+            AssistValidator.check(AssistCheck(listOf(f), { pool }, { _, _ -> emptyList() }, emptyMap(), userWords = listOf(words)), mapOf("targets" to listOf(picked))).applied["targets"]
+        // 문제가 난 곳으로 말한 부서의 "기타"를 넣지 않는다(체계가 추천 후보 단추로 되묻는다)
+        assertThat(check("행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어", "1대대 1중대 행정반 · 기타")).isNull()
+        // 부서 이름만, 여러 부서에 있는 유형 이름만, "기타"만은 넣지 않는다
+        assertThat(check("통신소대에 요청해 줘", "1대대 통신소대 · 인터넷")).isNull()
+        assertThat(check("인터넷 업무로 요청해 줘", "1대대 통신소대 · 인터넷")).isNull()
+        assertThat(check("기타로 요청해 줘", "1대대 1중대 행정반 · 기타")).isNull()
+        // 유형 이름만(하나뿐인 것이라도), 장소로만 쓰인 부서 이름과 유형은 넣지 않는다(명세 REQ-C03 검증 기준, DEC-149)
+        assertThat(check("회선 업무로 요청해 줘", "1대대 통신소대 · 회선")).isNull()
+        assertThat(check("통신소대 회선이 끊겼어. 요청해 줘", "1대대 통신소대 · 회선")).isNull()
+        // 부서 뒤 조사 다음에 요청 낱말이 없거나 "에 있·에 설치"면 받는 부서가 아니다 (2차 정적 검토)
+        assertThat(check("통신소대에 있는 회선이 안 돼. 고쳐 달라고 요청해 줘", "1대대 통신소대 · 회선")).isNull()
+        assertThat(check("통신소대 회선으로 연락 줘", "1대대 통신소대 · 회선")).isNull()
+        assertThat(check("통신소대에 회선 고장을 신고해 줘", "1대대 통신소대 · 회선")).isEqualTo(listOf("2:2"))
+        // 받는 부서로 말한 부서(에·로)와 유형, 부서 바로 뒤 유형+로, 되묻기 단추의 짝 이름은 넣는다
+        assertThat(check("중대본부 회선이 끊겨. 통신소대에 요청 써줘", "1대대 통신소대 · 회선")).isEqualTo(listOf("2:2"))
+        assertThat(check("통신소대 인터넷 업무로 요청해 줘", "1대대 통신소대 · 인터넷")).isEqualTo(listOf("2:3"))
+        assertThat(check("행정반 기타로 요청해 줘", "1대대 1중대 행정반 · 기타")).isEqualTo(listOf("1:1"))
+        assertThat(check("1대대 정비반 · 인터넷", "1대대 정비반 · 인터넷")).isEqualTo(listOf("3:4"))
+    }
+
+    @Test
+    fun `짧은 글 칸은 모델 값 끝의 사용자 말 그대로인 낱말 묶음만 남긴다(끝 조사 뗌) (실제 모델 검토)`() {
+        val words = listOf("유선반에 중대본부 전화 통화가 안 된다고 요청 써줘")
+        val r = AssistValidator.check(input(words), mapOf("place" to "정보통신대대 1중대 중대본부", "detail" to "정보통신대대 1중대 중대본부 전화 고장"))
+        assertThat(r.applied).isEqualTo(mapOf("place" to "중대본부"))
+        assertThat(AssistValidator.saidPart("중대본부에서", words)).isEqualTo("중대본부")
+        // 끝 낱말이 사용자 말에 없으면 버린다(앞 낱말만 맞는 "전화 교환실"은 "전화"로 줄이지 않음)
+        assertThat(AssistValidator.saidPart("전화 교환실", words)).isNull()
+        assertThat(r.violations).containsExactly(AssistViolation("detail", 6))
+        // 장소 칸만이고, 낱말 안의 글자("PC-101"의 101, "교체해"의 교체)와는 맞추지 않는다 (2차 정적 검토)
+        assertThat(AssistValidator.saidPart("PC 101", listOf("PC-101 고쳐 줘"))).isNull()
+        val other = AssistValidator.check(input(listOf("행정반 공유기 교체해 줘")), mapOf("summary.text" to "행정반 공유기 교체 작업", "place" to "행정반 공유기실"))
+        assertThat(other.applied).isEqualTo(mapOf("place" to "행정반"))
+        // 이어진 낱말 묶음 어디든, 끝 글자가 장소 꼴(반·실·부 등)인 것만 ("행정반 사무실"에 "행정반", "전화 교환실"의 "전화"는 아님, 실제 모델 재측정)
+        assertThat(AssistValidator.saidPart("행정반 사무실", listOf("행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어"))).isEqualTo("행정반")
+        assertThat(AssistValidator.saidPart("전화 교환실", listOf("전화가 안 돼"))).isNull()
+        // 받는 부서로 말한 이름("유선반에 요청")은 장소가 아니다: 다른 장소 묶음을 고르고, 없으면 비워 되묻는다 (실제 모델 재측정 R1·R4)
+        val r4 = AssistValidator.check(input(listOf("전화기가 고장 나서 유선반에 요청하고 싶어")), mapOf("place" to "유선반"))
+        assertThat(r4.applied).isEmpty()
+        assertThat(r4.violations).containsExactly(AssistViolation("place", 6))
+        val r1 = listOf("유선반에 중대본부 전화가 통화가 안 된다고 요청해줘")
+        assertThat(AssistValidator.check(input(r1), mapOf("place" to "유선반")).applied).isEmpty()
+        assertThat(AssistValidator.check(input(r1), mapOf("place" to "유선반 중대본부")).applied).isEqualTo(mapOf("place" to "중대본부"))
+        // 장소로만 쓴 부서 이름은 그대로 둔다
+        assertThat(AssistValidator.check(input(listOf("행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어")), mapOf("place" to "행정반")).applied).isEqualTo(mapOf("place" to "행정반"))
+    }
+
+    @Test
+    fun `선택지 이름은 끝말(됨·돼·된다고)만 달라도 말한 것으로 본다 (실제 모델 재측정)`() {
+        val symptom = AssistField("symptom", "증상", FieldKinds.SELECT, choices = listOf(Choice("o1", "통화가 안 됨"), Choice("o2", "잡음"), Choice("o3", "전화기 고장")))
+        fun check(words: String) = AssistValidator.check(AssistCheck(listOf(symptom), { f -> f.choices!!.map { Candidate(it, it.label) } }, { _, _ -> emptyList() }, emptyMap(), userWords = listOf(words)), mapOf("symptom" to "통화가 안 됨")).applied["symptom"]
+        assertThat(check("통화가 안 돼. 요청해 줘")).isEqualTo("o1")
+        assertThat(check("유선반에 중대본부 전화가 통화가 안 된다고 요청해줘")).isEqualTo("o1")
+        // 다른 낱말(전화가 안 되는데)은 그 선택지를 말한 것이 아니다
+        assertThat(check("행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어")).isNull()
+    }
+
+    @Test
     fun `F12-1 작업 부탁 낱말과 화면 열기 낱말을 가린다`() {
         assertThat(AssistPrompts.asksTask("전화 회선 관련 업무 요청을 하고 싶어")).isTrue()
         assertThat(AssistPrompts.asksTask("단말-7 비고 고쳐 줘")).isTrue()
@@ -688,6 +795,14 @@ class AssistValidatorTest {
         assertThat(AssistPrompts.asksNavigate("인원현황 탭 보여줘")).isTrue()
         assertThat(AssistPrompts.asksNavigate("문서함 열어 줘")).isTrue()
         assertThat(AssistPrompts.asksNavigate("행정반 전화가 안 돼")).isFalse()
+        // 구성도 부탁(놓기·잇기·연결·배치·그리기)은 부탁 꼴만 작업이고, 연결을 묻는 말은 작업이 아니다 (실제 모델 검토)
+        listOf("일반전화기 4호를 놓고 구내 교환기 1호와 이어 줘", "스위치 1호를 라우터에 연결해 줘", "PC 2대를 배치해 줘", "교환기 두 대 사이에 선 그려 줘", "일반전화기 4호 놔 줘")
+            .forEach { assertThat(AssistPrompts.asksTask(it)).describedAs(it).isTrue() }
+        listOf("구내 교환기 1호 연결 상태 어때?", "일반전화기 4호는 어디에 연결돼 있어?", "그 장비들 어디 있어?")
+            .forEach { assertThat(AssistPrompts.asksTask(it)).describedAs(it).isFalse() }
+        assertThat(AssistPrompts.asksNavigate("그 장비들 어디 있어?")).isFalse()
+        listOf("결재함 띄워 줘", "업무 요청 화면으로 가자", "장비 메뉴 들어가 줘").forEach { assertThat(AssistPrompts.asksNavigate(it)).describedAs(it).isTrue() }
+        assertThat(AssistPrompts.intentSystem("2026-11-07 (토)", "가상 사용자")).contains("\"일반전화기 4호를 놓고 구내 교환기 1호와 이어 줘\" → intent=task, screen=diagram")
         // 의도 스키마: intent가 필수이고 qa·navigate·task
         val schema = AssistPrompts.intentSchema(com.fasterxml.jackson.databind.ObjectMapper())
         assertThat(schema.path("properties").path("intent").path("enum").map { it.asText() }).containsExactly("qa", "navigate", "task")

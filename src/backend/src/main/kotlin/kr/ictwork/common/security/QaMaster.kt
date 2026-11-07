@@ -41,10 +41,15 @@ class QaMaster(
         /** 전환한 세션에 적는 마스터 상태 표시 */
         const val STAMP_ATTRIBUTE = "ictwork.qaMasterStamp"
 
-        /** 고를 수 있는 계정: 초기 데이터의 확인용 계정(상황별 임시 계정 12개), 아이디로 고정 (db/seed, 명세 7장 시험 계정 아이디) */
+        /**
+         * 고를 수 있는 계정, 아이디로 고정 (db/seed): 상황별 임시 계정 12개(명세 7장 시험 계정 아이디) 뒤에
+         * 유저스토리를 따라갈 시연 계정 14개(상황실·본부중대·무선반장·2중대·3중대·근무지원대대, DEC-149, slices/22 4.1)
+         */
         val ACCOUNTS = listOf(
             "bn1-cmdr", "bn2-cmdr", "bn1-co1-cmdr", "bn1-co2-cmdr", "bn1-co1-s1-lead", "bn1-co1-s1-m1", "bn1-co1-s2-m1",
             "bn1-co1-admin", "bn1-co2-s1-m1", "bn1-dual", "sysadmin", "inactive",
+            "bn1-hq-s1-lead", "bn1-hq-s1-m1", "bn1-hq-cmdr", "bn1-co1-s2-lead", "bn1-co2-s2-lead", "bn1-co2-s2-m2", "bn1-co3-cmdr",
+            "bn1-co3-s1-lead", "bn1-co3-s1-m2", "bn1-co3-s2-lead", "bn2-co1-cmdr", "bn2-co1-s1-lead", "bn2-co1-s1-m1", "bn2-co2-s1-m1",
         )
 
         fun masterAuthentication(): Authentication =

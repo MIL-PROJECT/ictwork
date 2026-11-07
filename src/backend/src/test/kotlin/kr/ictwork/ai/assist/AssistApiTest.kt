@@ -349,7 +349,10 @@ class AssistApiTest(
         val fill = ev.of("fill").single()
         val values = fill.path("values")
         assertThat(values.path("place").asText()).isEqualTo("행정반")
-        assertThat(values.fieldNames().asSequence().toList()).containsExactly("place")
+        // 모델이 다듬은 찾기 글은 버리고, 작업을 낳은 사용자 말 그대로를 찾기 글로 넣는다(실제 모델 검토: 찾기 글을 되물음)
+        assertThat(values.path("recommend.query").asText()).isEqualTo("행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어")
+        assertThat(values.fieldNames().asSequence().toList()).containsExactlyInAnyOrder("place", "recommend.query")
+        assertThat(fill.path("asks").map { it.path("field").asText() }).doesNotContain("recommend.query")
         // 받는 부서 되묻기: 사용자 말로 돌린 업무 추천 후보 단추, 되묻기마다 칸 이름(label)
         val asks = fill.path("asks")
         val receiver = asks.first { it.path("field").asText() == "targets" }
@@ -386,15 +389,77 @@ class AssistApiTest(
     }
 
     @Test
-    fun `C03 받는 부서 추천 후보가 없으면 부서나 업무 이름을 글로 되묻고, 부서 이름을 말하면 바로 넣는다`() {
+    fun `C03 받는 부서 추천 후보가 없으면 부서나 업무 이름을 글로 되묻고, 부서 이름만 말하면 그 부서의 유형을 단추로 되묻고, 유형까지 말하면 바로 넣는다`() {
         val id = newConversation("as-s1")
         val none = ask("as-s1", id, mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "answers" to mapOf("place" to "통신창고"))).of("fill").single()
         val ask = none.path("asks").first { it.path("field").asText() == "targets" }
         assertThat(ask.path("question").asText()).isEqualTo(AssistService.NO_RECEIVER)
         assertThat(ask.path("kind").asText()).isEqualTo("text")
+        // 부서 이름만(문제가 난 곳으로 말한 부서 포함): 모델이 그 부서의 유형을 골라도 넣지 않고 그 부서의 유형을 후보 단추로 되묻는다 (REQ-C03 ①, 14.5, 실제 모델 검토)
         FakeOllama.structured(mapOf("kind" to "fill", "values" to mapOf("targets" to listOf("$s2Label · 가상전화")), "ask" to emptyList<Any>(), "message" to ""))
-        val named = ask("as-s1", id, mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "업무지원2반에 요청해 줘")).of("fill").single()
+        val dept = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "업무지원2반 전화가 안 되는데 요청해 줘")).of("fill").single()
+        assertThat(dept.path("values").has("targets")).isFalse()
+        val choices = dept.path("asks").first { it.path("field").asText() == "targets" }
+        assertThat(choices.path("kind").asText()).isEqualTo("choice")
+        assertThat(choices.path("choices").map { it.asText() }).contains("$s2Label · 가상전화")
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to mapOf("targets" to listOf("$s2Label · 가상전화")), "ask" to emptyList<Any>(), "message" to ""))
+        val named = ask("as-s1", id, mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "업무지원2반 가상전화로 요청해 줘")).of("fill").single()
         assertThat(named.path("values").path("targets").map { it.asLong() }).containsExactly(s2.id)
+    }
+
+    @Test
+    fun `C04 필수 칸이 남았는데 모델 글이 다 찼다고 하면 체계 글로 바꾼다 (실제 모델 검토)`() {
+        val id = newConversation("as-s1")
+        FakeOllama.structured(mapOf("screen" to "request"))
+        chat("as-s1", id, "행정반 전화가 안 되는데 고쳐 달라고 요청하고 싶어")
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to mapOf("place" to "행정반"), "ask" to emptyList<Any>(), "message" to "필수 칸이 다 채워졌습니다. 화면에서 [결재 올리기] 단추를 직접 눌러 주세요."))
+        val fill = ask("as-s1", id, mapOf("mode" to "fill", "trigger" to "start", "screen" to mapOf("id" to "request"), "fields" to emptyMap<String, Any>())).of("fill").single()
+        assertThat(fill.path("summary").path("empty").map { it.asText() }).isNotEmpty()
+        assertThat(fill.path("message").asText()).isEqualTo("남은 칸을 채운 뒤 화면에서 [결재 올리기] 단추를 직접 눌러 주세요.")
+    }
+
+    @Test
+    fun `C03 유형 이름만 말하면 받는 부서를 넣지 않고 그 유형 후보를 먼저 보이며, 받는 부서와 유형을 함께 말하면 모델이 놓쳐도 그 짝을 넣는다 (실제 모델 검토)`() {
+        // 시연 문장 꼴: "행정반 가상전화가 안 되는데 …" — 유형 이름(가상전화)만 있고 받는 부서는 말하지 않음
+        FakeOllama.structured(mapOf("screen" to "request"))
+        val id = newConversation("as-s1")
+        chat("as-s1", id, "행정반 가상전화가 안 되는데 고쳐 달라고 요청하고 싶어")
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to mapOf("targets" to listOf("$s2Label · 가상전화")), "ask" to emptyList<Any>(), "message" to ""))
+        val typeOnly = ask("as-s1", id, mapOf("mode" to "fill", "trigger" to "start", "screen" to mapOf("id" to "request"), "fields" to emptyMap<String, Any>())).of("fill").single()
+        assertThat(typeOnly.path("values").has("targets")).isFalse()
+        val buttons = typeOnly.path("asks").first { it.path("field").asText() == "targets" }
+        assertThat(buttons.path("kind").asText()).isEqualTo("choice")
+        assertThat(buttons.path("choices")[0].asText()).isEqualTo("$s2Label · 가상전화")
+        // 받는 부서(에)와 유형을 함께 말함: 모델이 짝을 내지 않아도 체계가 말한 짝을 넣고 그 양식 칸을 묻는다
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to emptyMap<String, Any>(), "ask" to emptyList<Any>(), "message" to ""))
+        val named = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "행정반 가상전화가 끊겨. 업무지원2반에 요청 써줘")).of("fill").single()
+        assertThat(named.path("values").path("targets").map { it.asLong() }).containsExactly(s2.id)
+        assertThat(named.path("values").path("chosenTypes").path(s2.id.toString()).map { it.asLong() }).containsExactly(typeId)
+        assertThat(named.path("asks").map { it.path("field").asText() }).doesNotContain("targets")
+    }
+
+    @Test
+    fun `C03 사람 칸 이름 바로 뒤에 말한 사람이 하나뿐이면 모델이 비워도 넣는다 (실제 모델 재측정)`() {
+        val person = checkNotNull(personnelRepository.findAll().single { it.name == "사람-as-s1" }.id)
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to emptyMap<String, Any>(), "ask" to emptyList<Any>(), "message" to ""))
+        val fill = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "register"), "question" to "랜선 교체 작업 등록해 줘. 담당자는 사람-as-s1 병장")).of("fill").single()
+        assertThat(fill.path("values").path("assignees").map { it.asLong() }).containsExactly(person)
+        // 열람 범위 같은 다른 사람 칸에는 넣지 않는다
+        assertThat(fill.path("values").has("viewerPeople")).isFalse()
+        // 말한 사람이 둘이면 넣지 않는다 (3차 정적 검토)
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to emptyMap<String, Any>(), "ask" to emptyList<Any>(), "message" to ""))
+        val two = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "register"), "question" to "랜선 교체 작업 등록해 줘. 담당자는 사람-as-s1 병장과 사람-as-s2 상병")).of("fill").single()
+        assertThat(two.path("values").has("assignees")).isFalse()
+    }
+
+    @Test
+    fun `C03 작업 부탁 낱말만 있는 말은 업무 추천 찾기 글로 넣지 않는다 (정적 검토)`() {
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to emptyMap<String, Any>(), "ask" to emptyList<Any>(), "message" to ""))
+        val bare = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "업무 요청 써 줘")).of("fill").single()
+        assertThat(bare.path("values").has("recommend.query")).isFalse()
+        FakeOllama.structured(mapOf("kind" to "fill", "values" to emptyMap<String, Any>(), "ask" to emptyList<Any>(), "message" to ""))
+        val problem = ask("as-s1", newConversation("as-s1"), mapOf("mode" to "fill", "screen" to mapOf("id" to "request"), "question" to "프린터 고장 업무 요청 써 줘")).of("fill").single()
+        assertThat(problem.path("values").path("recommend.query").asText()).isEqualTo("프린터 고장 업무 요청 써 줘")
     }
 
     @Test
@@ -570,7 +635,8 @@ class AssistApiTest(
         )
         val body = mapOf("mode" to "fill", "trigger" to "start", "screen" to mapOf("id" to "request"), "fields" to mapOf("place" to "행정반", "detail" to "전화 안 됨"))
         val fill = ask("as-s1", id, body).of("fill").single()
-        assertThat(fill.path("values").has("recommend.query")).isFalse()
+        // 지어낸 찾기 글은 버리고 작업을 낳은 사용자 말 그대로를 넣는다
+        assertThat(fill.path("values").path("recommend.query").asText()).isEqualTo("행정반 전화가 안 되는데 고쳐 줘")
         val contact = fill.path("asks").first { it.path("field").asText() == "contact" }
         assertThat(contact.path("question").asText()).isEqualTo("연락처를 알려 주세요.")
     }
@@ -1035,7 +1101,10 @@ class AssistApiTest(
         assertThat(one.text()).isEqualTo("장비 단말-7 (AS-SN-0001) 화면을 열 수 있습니다.")
         // 말하지 않은 대상 글(모델이 지어냄)은 넣지 않는다
         FakeOllama.structured(mapOf("intent" to "navigate", "screen" to "equipment", "target_hint" to "AS-SN-0001"))
-        assertThat(chat("as-s1", id, "장비 화면 열어 줘").of("proposal").single().path("options").single().path("target").isNull).isTrue()
+        val menu = chat("as-s1", id, "장비 화면 열어 줘").of("proposal").single().path("options").single()
+        assertThat(menu.path("target").isNull).isTrue()
+        // 장비 메뉴 첫 화면은 목록(새 장비 등록 화면이 아님, 14.6 표)
+        assertThat(menu.path("route").asText()).isEqualTo("/department/equipment")
         // 화면 열기 단추는 [작성 시작]에 쓸 수 없다
         val proposal = detail("as-s1", id).path("messages")[3]
         assertThat(proposal.path("assist").path("kind").asText()).isEqualTo("proposal")
@@ -1047,6 +1116,13 @@ class AssistApiTest(
         val route = chat("as-s1", id, "결재 경로 관리 보여줘")
         assertThat(route.of("proposal")).isEmpty()
         assertThat(FakeOllama.chatRequests).hasSize(1)
+        // 화면을 보여 달라는 말이 아니면 모델이 navigate를 골라도 묻고 답하기(실제 모델 검토: "그 장비들 어디 있어?"에 화면 열기 단추만 냄)
+        FakeOllama.structured(mapOf("intent" to "navigate", "screen" to "equipment"))
+        FakeOllama.reply("단말-7은 업무지원1반에 있습니다.")
+        val where = chat("as-s1", id, "그 장비들 어디 있어?")
+        assertThat(where.of("proposal")).isEmpty()
+        assertThat(where.text()).isEqualTo("단말-7은 업무지원1반에 있습니다.")
+        assertThat(FakeOllama.chatRequests).hasSize(2)
     }
 
     @Test

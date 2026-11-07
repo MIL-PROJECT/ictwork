@@ -162,7 +162,7 @@ class AiQaTest(
         @DynamicPropertySource
         fun ollama(registry: DynamicPropertyRegistry) = registry.add("ictwork.ai.base-url") { FakeOllama.baseUrl }
 
-        private val NAMES = listOf("1대대", "2대대", "1중대", "1반", "2반")
+        private val NAMES = listOf("1대대", "2대대", "1중대", "1반", "2반", "가상통신대대", "가상본부중대", "가상상황실", "가상유선반")
     }
 
     private lateinit var c1: Department
@@ -1036,6 +1036,85 @@ class AiQaTest(
     }
 
     @Test
+    fun `B04 B05 질문에 없는 상태·설치장소 조건은 버리고, 도구로 답해도 그 글에만 있는 수치를 쓰면 글 출처를 보인다 (실제 모델 검토)`() {
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "keyword" to "무전기A", "status" to "정비입고", "install_place" to "유선반 사무실"))
+        FakeOllama.reply("무전기A가 있습니다. 발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        val events = ask("ai-c1cmdr", "발전기 엔진 오일 교환 주기는?")
+        assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isEqualTo(1)
+        assertThat(events.meta().texts("conditions")).noneMatch { it.startsWith("상태:") || it.startsWith("설치장소:") }
+        assertThat(events.meta().texts("sources")).contains("ZQX 정비 메모.txt")
+        // 뺀 조건은 결과에 적고, 답이 글의 수치로 답하고 도구 목록을 적지 않았으면 그 도구의 조건·출처를 보이지 않는다
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "keyword" to "발전기", "status" to "정비입고"))
+        FakeOllama.reply("발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        val doc = ask("ai-c1cmdr", "발전기 엔진 오일 교환 주기는?")
+        assertThat(FakeOllama.lastToolResults().single().path("뺀 조건").asText()).contains("상태: 정비입고")
+        assertThat(doc.meta().texts("conditions")).isEmpty()
+        assertThat(doc.meta().texts("sources")).contains("ZQX 정비 메모.txt").noneMatch { it.contains("SN-") }
+        // 이름으로 찾지 못했다는 도구 오류여도 글의 수치로 답했으면 그 답을 둔다
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "keyword" to "발전기"))
+        FakeOllama.reply("발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        assertThat(ask("ai-c1cmdr", "발전기 엔진 오일 교환 주기는?").text()).isEqualTo("발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        // 질문(이어 묻기의 앞 질문 포함)에 나온 조건은 그대로 쓴다
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "status" to "고장", "install_place" to "통신창고"))
+        FakeOllama.reply("통신창고의 고장 장비는 무전기A입니다.")
+        val kept = ask("ai-c1cmdr", "통신창고에 있는 고장 장비 보여줘")
+        assertThat(kept.meta().texts("conditions")).contains("상태: 고장", "설치장소: '통신창고' 포함")
+        // 같은 뜻의 말("망가진", "창고에 있는")도 질문에 나온 것으로 본다 (정적 검토)
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "status" to "고장", "install_place" to "통신창고"))
+        FakeOllama.reply("창고의 망가진 장비는 무전기A입니다.")
+        val synonym = ask("ai-c1cmdr", "창고에 있는 망가진 장비 보여줘")
+        assertThat(synonym.meta().texts("conditions")).contains("상태: 고장", "설치장소: '통신창고' 포함")
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "keyword" to "무전기A", "status" to "정비입고"))
+        FakeOllama.reply("수리 중인 무전기A는 없습니다.")
+        assertThat(ask("ai-c1cmdr", "수리 중인 무전기A 있어?").meta().texts("conditions")).contains("상태: 정비입고")
+        // 장소의 부서 이름("1반")·앞 글자로는 두지 않고, 앞 질문은 그 장소를 그대로 적었을 때만 본다 (정적 검토)
+        fun placeKept(question: String, id: Long = newConversation("ai-c1cmdr")): Boolean {
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count", "install_place" to "1반 사무실"))
+            FakeOllama.reply("0대입니다.")
+            ask("ai-c1cmdr", question, id)
+            return FakeOllama.lastToolResults().single().path("조건").map { it.asText() }.contains("설치장소: '1반 사무실' 포함")
+        }
+        assertThat(placeKept("1반 장비 몇 대야?")).isFalse()
+        assertThat(placeKept("사무실에 있는 장비 몇 대야?")).isTrue()
+        val conversation = newConversation("ai-c1cmdr")
+        assertThat(placeKept("1반 사무실 장비 몇 대야?", conversation)).isTrue()
+        assertThat(placeKept("그 장비들 몇 대야?", conversation)).isTrue()
+        assertThat(placeKept("그럼 1반은 몇 대야?", newConversation("ai-c1cmdr"))).isFalse()
+        // 같은 뜻 말은 그 값을 뜻하는 말만: "미사용"에 사용중을, "예정된"에 반출 예정을 두지 않는다
+        fun kept(question: String, key: String, value: String, label: String): Boolean {
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count", key to value))
+            FakeOllama.reply("0대입니다.")
+            ask("ai-c1cmdr", question)
+            return FakeOllama.lastToolResults().single().path("조건").map { it.asText() }.contains(label)
+        }
+        assertThat(kept("사용하고 있는 장비 몇 대야?", "status", "사용중", "상태: 사용중")).isTrue()
+        assertThat(kept("운용 중인 장비 몇 대야?", "status", "사용중", "상태: 사용중")).isTrue()
+        assertThat(kept("미사용 장비 몇 대야?", "status", "사용중", "상태: 사용중")).isFalse()
+        assertThat(kept("사용하지 않는 장비 몇 대야?", "status", "미사용", "상태: 미사용")).isTrue()
+        assertThat(kept("점검 예정된 장비 몇 대야?", "carry_out", "반출 예정", "반출 여부: 반출 예정")).isFalse()
+        assertThat(kept("나갈 예정인 장비 몇 대야?", "carry_out", "반출 예정", "반출 여부: 반출 예정")).isTrue()
+        // 글자 조건의 "장비"는 조건이 아니다 (실제 모델 검토: "유선반과 무선반 장비 몇 대씩"에 keyword="장비"로 0대)
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to "1대대 1중대 1반", "keyword" to "장비"))
+        FakeOllama.reply("셌습니다.")
+        ask("ai-c1cmdr", "1반 장비 몇 대야?")
+        assertThat(FakeOllama.lastToolResults().single().path("조건").map { it.asText() }).noneMatch { it.startsWith("글자") }
+    }
+
+    @Test
+    fun `B04 찾지 못했다는 도구 오류뿐이면 그 문장만 답하고, 글의 수치로 답했으면 찾지 못했다는 문장만 지운다 (정적 검토)`() {
+        FakeOllama.tool("query_duty", mapOf("mode" to "next", "person" to "없는가상인"))
+        FakeOllama.reply("체계 자료에서 찾지 못했습니다. 없는가상인은 2반 통신창고에 있습니다.")
+        val notFound = ask("ai-c1cmdr", "없는가상인 다음 근무 언제야?")
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).startsWith("체계 자료에서 찾지 못했습니다")
+        assertThat(notFound.text()).isEqualTo("체계 자료에서 찾지 못했습니다.")
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list", "keyword" to "발전기"))
+        FakeOllama.reply("체계 자료에서 찾지 못했습니다. 발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        val doc = ask("ai-c1cmdr", "발전기 엔진 오일 교환 주기는?")
+        assertThat(doc.text()).isEqualTo("발전기 엔진 오일은 ZQX-7 규격으로 250시간마다 교환합니다.")
+        assertThat(doc.meta().texts("sources")).contains("ZQX 정비 메모.txt")
+    }
+
+    @Test
     fun `B06 찾지 못했다는 따라 쓰기·일반 답 문장뿐인 답은 찾지 못했다고 답하고, 일반 답 본문은 바로 흘려 보낸다 (2026-10-31 재검토)`() {
         // "[체계 자료]에서 찾지 못했습니다."를 한 줄로 쓰면 빈 답이 되던 것(H2)
         FakeOllama.reply("[체계 자료]에서 찾지 못했습니다.")
@@ -1064,6 +1143,39 @@ class AiQaTest(
         FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to "1중대", "status" to "고장"))
         FakeOllama.reply("구체적인 부서를 알려 주세요.")
         assertThat(ask("ai-admin", "1중대 고장 장비 몇 대야?").text()).contains("후보: ", "1대대 1중대", "2대대 1중대")
+        // 오류 문장 앞에 지어낸 까닭을 붙여도 그 문장만 답한다(실제 모델 검토)
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to "1대대 2반"))
+        FakeOllama.reply("2반은 다른 중대 소속이라 볼 수 있는 범위 밖이라 답할 수 없습니다.")
+        assertThat(ask("ai-s1b", "2반 장비 몇 대야?").text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+    }
+
+    @Test
+    fun `B04 이어 묻기에서 도구 없이 개수를 답하면 도구로 다시 묻게 하고, 끝내 근거가 없으면 찾지 못했다고 답한다 (실제 모델 검토)`() {
+        val id = newConversation("ai-s1b")
+        FakeOllama.tool("query_equipment", mapOf("mode" to "list"))
+        FakeOllama.reply("무전기A와 PC-101이 있습니다.")
+        ask("ai-s1b", "우리 반 장비 뭐 있어?", id)
+        // 다른 반 장비 수를 앞 답에서 지어냄 → 도구로 다시 묻게 함 → 범위 밖 오류 문장
+        FakeOllama.reply("2반 장비는 총 18대입니다.")
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to "1대대 2반"))
+        FakeOllama.reply("2반 장비는 14대입니다.")
+        val events = ask("ai-s1b", "2반 장비 몇 대야?", id)
+        assertThat(events.text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+        assertThat(FakeOllama.chatRequests.takeLast(3)[1].path("messages").map { it.path("content").asText() }).contains(AiChatService.COUNT_BY_TOOL)
+        assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("볼 수 있는 범위 밖")
+        // 다시 물어도 도구를 부르지 않고 지어내면 숫자 없이 답한다(다시 묻기는 첫 호출 뒤 한 번만). 장비를 물은 부서가 범위 밖이면 범위 밖 문장이다
+        val before = FakeOllama.chatRequests.size
+        repeat(2) { FakeOllama.reply("2반 장비는 총 18대입니다.") }
+        val made = ask("ai-s1b", "2반 장비는 몇 대야?", id)
+        assertThat(made.text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+        assertThat(FakeOllama.chatRequests.size - before).isEqualTo(2)
+        repeat(2) { FakeOllama.reply("1반 장비는 총 18대입니다.") }
+        assertThat(ask("ai-s1b", "1반 장비는 몇 대야?", id).text()).isEqualTo("체계 자료에서 찾지 못했습니다.")
+        assertThat(jdbcTemplate.queryForObject("SELECT content FROM ai_message WHERE conversation_id = ? ORDER BY id DESC LIMIT 1", String::class.java, id)).doesNotContain("18대")
+        // 도구 결과의 개수로 답하면 그대로 둔다
+        FakeOllama.tool("query_equipment", mapOf("mode" to "count", "keyword" to "PC-101"))
+        FakeOllama.reply("PC-101은 1대입니다.")
+        assertThat(ask("ai-s1b", "PC-101 몇 대야?").text()).isEqualTo("PC-101은 1대입니다.")
     }
 
     @Test
@@ -1089,6 +1201,124 @@ class AiQaTest(
         FakeOllama.reply("2대입니다.")
         ask("ai-admin", "1대대 1중대 고장 장비 몇 대야?")
         assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isEqualTo(2)
+    }
+
+    @Test
+    fun `B04 조직에 있는 숫자 없는 부서 이름은 직책이 붙어도 바로잡고 모델이 부서를 비우면 질문에 적힌 이름으로 센다 (slices 22 4장)`() {
+        // 조직은 예시라(명세 1.2) 이름에 숫자가 없는 부서: 가상통신대대 > 가상본부중대 > 가상상황실, 1대대 1중대·2대대 1중대 > 가상유선반(같은 이름 둘)
+        val created = mutableListOf<Long>()
+        tx.executeWithoutResult {
+            val bv = dept("가상통신대대", "BATTALION", null)
+            val cv = dept("가상본부중대", "COMPANY", bv)
+            val room = dept("가상상황실", "SECTION", cv)
+            val wire1 = dept("가상유선반", "SECTION", c1)
+            val wire2 = dept("가상유선반", "SECTION", departmentRepository.findById(checkNotNull(s21.parentId)).get())
+            val radio = dept("가상무선반", "SECTION", c1)
+            val video = dept("가상화상회의반", "SECTION", cv)
+            created += listOf(bv, cv, room, wire1, wire2, radio, video).map { checkNotNull(it.id) }
+            personnelRepository.save(Personnel("가상대대장", bv.id!!, "BN_CMDR", "LTC"))
+            personnelRepository.save(Personnel("가상실장", room.id!!, "SEC_LEAD", "LT1"))
+            personnelRepository.save(Personnel("가상근무자", room.id!!, "MEMBER", "SGT"))
+            personnelRepository.save(Personnel("가상반장", wire1.id!!, "SEC_LEAD", "SFC", contact = "010-0000-0009"))
+            equipment("가상교환기1", wire1, "AI-SN-0901", EquipmentStatuses.IN_USE)
+            equipment("가상교환기2", wire2, "AI-SN-0902", EquipmentStatuses.IN_USE)
+        }
+        try {
+            // 부서 칸의 "가상유선반장"은 가상유선반 + 반장, 같은 이름이 둘이면 질문자 소속에서 가까운 것
+            FakeOllama.tool("query_people", mapOf("mode" to "list", "department" to "가상유선반장"))
+            FakeOllama.reply("가상반장입니다.")
+            val byArg = ask("ai-c1cmdr", "가상유선반장 연락처 알려줘")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("성명").asText() }).containsExactly("가상반장")
+            assertThat(byArg.meta().texts("conditions")).contains("부서: 1대대 1중대 가상유선반(하위 포함)", "직책: 반장")
+            // 부서 칸을 비워도 질문의 "가상유선반장"으로 나눈다
+            FakeOllama.tool("query_people", mapOf("mode" to "list"))
+            FakeOllama.reply("가상반장입니다.")
+            ask("ai-c1cmdr", "가상유선반장 연락처 알려줘")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("성명").asText() }).containsExactly("가상반장")
+            // 대대 이름 + 장은 대대장, 반 종류(상황실)의 장은 반장 (직책은 4가지뿐)
+            FakeOllama.tool("query_people", mapOf("mode" to "list", "department" to "가상통신대대장"))
+            FakeOllama.reply("가상대대장입니다.")
+            val battalion = ask("ai-admin", "가상통신대대장 누구야?")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("성명").asText() }).containsExactly("가상대대장")
+            assertThat(battalion.meta().texts("conditions")).contains("부서: 가상통신대대(하위 포함)", "직책: 대대장")
+            FakeOllama.tool("query_people", mapOf("mode" to "list", "department" to "가상상황실장"))
+            FakeOllama.reply("가상실장입니다.")
+            ask("ai-admin", "가상상황실장 누구야?")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("성명").asText() }).containsExactly("가상실장")
+            // 뒤에 "비"가 오면(장비) 직책으로 나누지 않는다
+            FakeOllama.tool("query_people", mapOf("mode" to "count"))
+            FakeOllama.reply("1명입니다.")
+            val equipmentWord = ask("ai-c1cmdr", "가상유선반장비 담당 인원 몇 명이야?")
+            assertThat(equipmentWord.meta().texts("conditions")).contains("부서: 1대대 1중대 가상유선반(하위 포함)").noneMatch { it.startsWith("직책") }
+            // 모델이 부서를 비우면 질문에 적힌 숫자 없는 이름으로 센다(조사가 붙어도)
+            FakeOllama.tool("query_people", mapOf("mode" to "count"))
+            FakeOllama.reply("2명입니다.")
+            ask("ai-c1cmdr", "가상상황실의 인원 몇 명이야?")
+            assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isEqualTo(2)
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count"))
+            FakeOllama.reply("1대입니다.")
+            val equipmentCount = ask("ai-c1cmdr", "가상유선반 장비 몇 대야?")
+            assertThat(FakeOllama.lastToolResults().single().path("개수").asInt()).isEqualTo(1)
+            assertThat(equipmentCount.meta().texts("conditions")).contains("부서: 1대대 1중대 가상유선반(하위 포함)")
+            // 같은 이름이 여럿이면(시스템 관리자) 후보로 다시 묻고, 질문에 위 부서를 적으면 그 경로로 센다
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count"))
+            FakeOllama.reply("어느 부서인가요?")
+            ask("ai-admin", "가상유선반 장비 몇 대야?")
+            assertThat(FakeOllama.lastToolResults().single().path("후보").map { it.asText() }).containsExactlyInAnyOrder("1대대 1중대 가상유선반", "2대대 1중대 가상유선반")
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count"))
+            FakeOllama.reply("1대입니다.")
+            val path = ask("ai-admin", "2대대 1중대 가상유선반 장비 몇 대야?")
+            assertThat(path.meta().texts("conditions")).contains("부서: 2대대 1중대 가상유선반(하위 포함)")
+            // 지시사항의 "가상상황실장"은 명의 부서 가상상황실
+            FakeOllama.tool("query_directives", mapOf("mode" to "count", "department" to "가상상황실장"))
+            FakeOllama.reply("0건입니다.")
+            val directive = ask("ai-admin", "가상상황실장 지시 몇 건?")
+            assertThat(directive.meta().texts("conditions")).contains("명의 부서: 가상통신대대 가상본부중대 가상상황실(하위 제외)")
+            // 범위 밖의 숫자 없는 부서 이름: 개수·목록을 묻는 말은 범위 밖 문장, 글 내용을 묻는 말은 세지 않고 안내만 주어 글로 답하게 한다 (실제 모델 검토)
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count"))
+            FakeOllama.reply("2대입니다.")
+            assertThat(ask("ai-c1cmdr", "가상상황실 장비 몇 대야?").text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+            FakeOllama.tool("query_equipment", mapOf("mode" to "list"))
+            FakeOllama.reply("회의록에 따르면 유선반장이 맡기로 했습니다.")
+            val meeting = ask("ai-c1cmdr", "10월 회의에서 가상상황실 회선 이동은 누가 맡기로 했어?")
+            assertThat(FakeOllama.lastToolResults().single().path("안내").asText()).contains("볼 수 있는 범위 밖 부서라 조회하지 않았다")
+            assertThat(meeting.text()).isEqualTo("회의록에 따르면 유선반장이 맡기로 했습니다.")
+            assertThat(meeting.meta().texts("conditions")).isEmpty()
+            // 글 내용이 아니라 목록·사람·날짜를 묻는 말은 범위 밖 문장이다 (정적 검토)
+            FakeOllama.tool("query_equipment", mapOf("mode" to "list"))
+            FakeOllama.reply("가상교환기가 있습니다.")
+            assertThat(ask("ai-c1cmdr", "가상상황실 장비 알려줘").text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+            // 이어지지 않는 숫자 없는 부서 이름 여럿(모델이 부서를 비움): 하나라도 범위 밖이면 범위 밖, 아니면 장비는 그 부서들만 센다 (정적 검토)
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count", "group_by_department" to true))
+            FakeOllama.reply("부서별로 셌습니다.")
+            assertThat(ask("ai-c1cmdr", "가상유선반과 가상상황실 장비 몇 대씩이야?").text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count", "group_by_department" to true))
+            FakeOllama.reply("부서별로 셌습니다.")
+            val pair = ask("ai-c1cmdr", "가상유선반과 가상무선반 장비 몇 대씩이야?")
+            val each = FakeOllama.lastToolResults().single()
+            assertThat(each.path("개수").asInt()).isEqualTo(1)
+            assertThat(each.path("부서별").fieldNames().asSequence().toList()).containsExactly("1대대 1중대 가상유선반")
+            assertThat(FakeOllama.lastToolResults().single().path("조건").map { it.asText() }).contains("부서: 1대대 1중대 가상유선반, 1대대 1중대 가상무선반(하위 포함)")
+            // 모델이 부서 칸에 그 이름들(띄어 쓰거나 쉼표)이나 그 가운데 하나를 넣어도 같다 (3차 정적 검토)
+            listOf("가상유선반 가상무선반", "가상유선반, 가상무선반", "가상유선반").forEach { arg ->
+                FakeOllama.tool("query_equipment", mapOf("mode" to "count", "department" to arg))
+                FakeOllama.reply("부서별로 셌습니다.")
+                ask("ai-c1cmdr", "가상유선반과 가상무선반 장비 몇 대씩이야?")
+                assertThat(FakeOllama.lastToolResults().single().path("조건").map { it.asText() }).describedAs(arg).contains("부서: 1대대 1중대 가상유선반, 1대대 1중대 가상무선반(하위 포함)")
+            }
+            // 부서 이름 속 "회의"는 글 내용을 묻는 말이 아니다: 범위 밖 문장 (3차 정적 검토)
+            FakeOllama.tool("query_equipment", mapOf("mode" to "count"))
+            FakeOllama.reply("3대입니다.")
+            assertThat(ask("ai-c1cmdr", "가상화상회의반 장비 몇 대야?").text()).isEqualTo("볼 수 있는 범위 밖이라 답할 수 없습니다.")
+            // 장비 밖 조회는 하나씩 다시 묻는다
+            FakeOllama.tool("query_people", mapOf("mode" to "count"))
+            FakeOllama.reply("나눠 물어 주세요.")
+            ask("ai-c1cmdr", "가상유선반과 가상무선반 인원 몇 명이야?")
+            assertThat(FakeOllama.lastToolResults().single().path("오류").asText()).contains("부서를 하나씩 다시 물어 주세요")
+        } finally {
+            val ids = created.joinToString(",")
+            execute(listOf("DELETE FROM equipment WHERE department_id IN ($ids)", "DELETE FROM personnel WHERE department_id IN ($ids)", "DELETE FROM department WHERE id IN ($ids)"))
+        }
     }
 
     @Test
@@ -2214,6 +2444,28 @@ class AiQaTest(
             val messages = FakeOllama.chatRequests.last().path("messages")
             assertThat(messages.map { it.path("role").asText() }).containsExactly("system", "user")
             assertThat(messages.toString()).doesNotContain("사람-ai-c1cmdr입니다")
+        } finally {
+            removeDuty()
+        }
+    }
+
+    @Test
+    fun `B04 질문에 없는 근무 글자(조건 예의 당직)는 버리고, 상황실 근무자는 근무표 이름으로 찾는다 (실제 모델 검토)`() {
+        val night = dutyRoster(c1, "야간 당직", "당직사관")
+        val room = dutyRoster(c1, "상황실 근무", "주간")
+        dutyPlace(night, "2026-10-31", "ai-c1cmdr")
+        dutyPlace(room, "2026-10-31", "ai-s1a")
+        try {
+            FakeOllama.tool("query_duty", mapOf("mode" to "list", "duty" to "당직"))
+            FakeOllama.reply("오늘 근무자는 사람-ai-s1a입니다.")
+            val events = ask("ai-c1cmdr", "오늘 상황실 근무자 누구야?")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("근무표").asText() }).contains("1대대 1중대 상황실 근무")
+            assertThat(events.meta().texts("conditions")).noneMatch { it.startsWith("근무:") }
+            FakeOllama.tool("query_duty", mapOf("mode" to "list", "duty" to "상황실"))
+            FakeOllama.reply("사람-ai-s1a입니다.")
+            ask("ai-c1cmdr", "오늘 상황실 근무자 누구야?")
+            assertThat(FakeOllama.lastToolResults().single().path("목록").map { it.path("근무표").asText() }).containsExactly("1대대 1중대 상황실 근무")
+            assertThat(FakeOllama.lastSystem()).contains("\"오늘 상황실 근무자 누구야?\" → query_duty, mode=list, duty=\"상황실\"")
         } finally {
             removeDuty()
         }

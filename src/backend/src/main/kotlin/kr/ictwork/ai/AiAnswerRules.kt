@@ -138,6 +138,90 @@ object AiAnswerRules {
         return used(forModel["개수"]) || used(forModel["값"]) || used(forModel["목록"])
     }
 
+    /** 답의 개수 말: "18대"·"3명"·"5건" ("2대대" 같은 부서 이름은 뺌) */
+    private val COUNT_CLAIM = Regex("""(\d+)\s*(?:대(?!대)|명|건)""")
+    private val NUMBER = Regex("""\d+""")
+
+    /** 글(회의록·지침 등)의 내용을 묻는 말 (범위 밖 부서 안내, 개수 근거) */
+    private val DOC_CONTENT = Regex("회의|참석|지침|절차|맡기로|맡았|안건|내용|결정|논의|작업\\s*안내|주의할")
+
+    /** 회의 낱말이 든 장소 이름 (docContent에서 뺀다) */
+    private val MEETING_PLACES = Regex("회의실")
+
+    /** 글 내용을 묻는 말인가: 부서 이름(화상회의반 등)·장소 이름(회의실)을 뺀 질문에 회의·참석·지침 같은 말이 있다 */
+    fun docContent(question: String, departments: Collection<String> = emptyList()): Boolean {
+        val text = departments.filter { it.length >= 2 }.distinct().sortedByDescending { it.length }.fold(question) { s, d -> s.replace(d, " ") }
+        return DOC_CONTENT.containsMatchIn(MEETING_PLACES.replace(text, " "))
+    }
+
+    /** 개수를 묻는 말 ("몇 대", "몇 명", "몇 건", "개수") */
+    private val COUNT_QUESTION = Regex("""몇\s*(대|명|건|개)|개수|수량""")
+
+    /**
+     * 근거 없는 개수 (REQ-B04 "숫자는 조회 도구로만", 실제 모델 검토: 이어 묻기의 앞 답 숫자와 업무 글의 "무전기 4대"로 다른 부서 장비를 "총 18대"로 답함):
+     * 답의 개수 말 가운데 하나라도 그 숫자가 이번 차례의 오류 아닌 도구 결과에 없다. 개수를 묻는 말이 아니면 답이 쓴 찾은 글의 숫자도 근거로 본다
+     * (개수를 묻는 말에는 글의 숫자로 장비·인원·업무 합계를 답하지 않는다). 일반 답(용어 뜻)은 보지 않는다
+     */
+    fun unsupportedCount(
+        answer: String, question: String, results: List<AiToolResult>, found: List<AiFound>, toolsOffered: Boolean = true, departments: Collection<String> = emptyList(),
+    ): Boolean {
+        if (GENERAL in answer) return false
+        val claims = COUNT_CLAIM.findAll(answer.replace(",", "")).map { it.groupValues[1] }.toSet()
+        if (claims.isEmpty()) return false
+        val usable = results.filter { !it.forModel.containsKey("오류") }
+        // 도구 결과의 숫자와 그 합(여러 도구의 개수 합, 부서별 수의 합, 정적 검토)
+        val sums = listOf(usable.mapNotNull { (it.forModel["개수"] as? Number)?.toLong() }) +
+            usable.map { r -> (r.forModel["부서별"] as? Map<*, *>).orEmpty().values.mapNotNull { (it as? Number)?.toLong() } }
+        val tool = usable.flatMap { numbersIn(it.forModel) }.toSet() + sums.filter { it.isNotEmpty() }.map { it.sum().toString() }
+        // 개수를 묻는 말은 도구 결과 없이 질문과 맞는 글(STRONG_COSINE 이상)로 답했고, 도구를 줄 수 없는 차례이거나 글 내용(회의·참석·지침 등)을 묻는 말일 때만
+        // 그 글의 숫자를 근거로 본다("10월 회의에 몇 명 참석했어?"). 그 밖의 말은 답이 쓴 글의 숫자도 근거다
+        val used = usedFound(answer, question, found)
+        val docs = (if (COUNT_QUESTION.containsMatchIn(question)) {
+            used.filter { usable.isEmpty() && found[it].cosine >= STRONG_COSINE && (!toolsOffered || docContent(question, departments)) }
+        } else {
+            used
+        }).flatMap { i -> numbersIn(found[i].text) }.toSet()
+        // 질문에 적힌 개수 말("5대 넘는")만 근거다(부서 번호·날짜 숫자는 아님)
+        val asked = COUNT_CLAIM.findAll(question.replace(",", "")).map { it.groupValues[1] }.toSet()
+        return claims.any { it !in tool && it !in docs && it !in asked }
+    }
+
+    /** 답이 도구 결과를 적었나: 목록의 글 값(장비명·성명 등 두 글자 이상)이나 개수·값의 숫자가 답에 있다 */
+    fun mentionsResult(answer: String, forModel: Map<String, Any?>): Boolean {
+        val plain = squash(answer)
+        val numbers = NUMBER.findAll(answer.replace(",", "")).map { it.value }.toSet()
+        if ((numbersIn(forModel["개수"]) + numbersIn(forModel["값"])).any { it in numbers }) return true
+        fun said(v: Any?): Boolean = when (v) {
+            is String -> squash(v).let { it.length >= 2 && plain.contains(it) }
+            is Map<*, *> -> v.values.any(::said)
+            is Collection<*> -> v.any(::said)
+            else -> false
+        }
+        return said(forModel["목록"])
+    }
+
+    /** 단위가 붙은 수치 ("250시간", "6개월") */
+    private val FIGURE = Regex("""\d+(?:\.\d+)?\s*(?:시간|개월|주|일|분|초|회|년)""")
+
+    /**
+     * 도구로 답했어도 이 글을 썼다고 볼 수치 (보일 출처, REQ-B05, 실제 모델 검토: 발전기 오일 교환 주기를 지침 글로 답했는데 장비 출처만 보임):
+     * 답의 단위 붙은 수치("250시간")가 질문·도구 결과에는 없고 이 글에 있다
+     */
+    fun figureFrom(answer: String, question: String, text: String, results: List<AiToolResult>): Boolean {
+        val doc = squash(text)
+        val asked = squash(question)
+        val tool = squash(results.joinToString(" ") { it.forModel.toString() })
+        return FIGURE.findAll(answer).map { squash(it.value) }.any { it in doc && it !in asked && it !in tool }
+    }
+
+    private fun numbersIn(v: Any?): List<String> = when (v) {
+        is Number -> listOf(v.toString().removeSuffix(".0"))
+        is String -> NUMBER.findAll(v.replace(",", "")).map { it.value }.toList()
+        is Map<*, *> -> v.values.flatMap(::numbersIn)
+        is Collection<*> -> v.flatMap(::numbersIn)
+        else -> emptyList()
+    }
+
     /** 글에 든 도구 호출: `이름 {…}`·`이름({…})`, `<tool_call>{"name":…, "arguments":…}</tool_call>`, `{"name":…, "arguments":…}` */
     fun textCalls(text: String): List<AiTextCall> {
         val calls = mutableListOf<AiTextCall>()

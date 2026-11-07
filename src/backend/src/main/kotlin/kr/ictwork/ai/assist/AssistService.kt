@@ -229,9 +229,10 @@ class AssistService(
         if (chosen == AssistPrompts.NONE) return IntentOutcome.Text(UNSUPPORTED)
         if (chosen == AssistPrompts.FINAL_REQUEST) return IntentOutcome.Text(FINAL_BY_USER)
         val screen = AssistScreens.find(chosen) ?: return IntentOutcome.Qa
-        // task는 작업을 분명히 부탁한 말일 때만: 부탁 낱말이 없으면 화면을 보여 달라는 말이면 화면 열기, 아니면 묻고 답하기
+        // task는 작업을 분명히 부탁한 말일 때만: 부탁 낱말이 없으면 화면을 보여 달라는 말이면 화면 열기, 아니면 묻고 답하기.
+        // navigate도 화면을 보여 달라·열어 달라는 말일 때만(실제 모델 검토: "그 장비들 어디 있어?"에 화면 열기 단추만 냄)
         val kind = when (intent) {
-            AssistPrompts.NAVIGATE -> AssistPrompts.NAVIGATE
+            AssistPrompts.NAVIGATE -> if (AssistPrompts.asksNavigate(job.question)) AssistPrompts.NAVIGATE else AssistPrompts.QA
             AssistPrompts.TASK -> if (AssistPrompts.asksTask(job.question)) AssistPrompts.TASK else if (AssistPrompts.asksNavigate(job.question)) AssistPrompts.NAVIGATE else AssistPrompts.QA
             else -> AssistPrompts.QA
         }
@@ -281,7 +282,7 @@ class AssistService(
             val name = target.label.substringBefore(" — ")
             ProposalOption(targetScreen.id, null, "${menu.name} $name 열기", target.id, targetScreen.route(target.id), ProposalOption.KIND_NAVIGATE)
         } else {
-            ProposalOption(menu.id, null, "${menu.name} 화면 열기", null, checkNotNull(AssistScreens.find(menu.id)).route(null), ProposalOption.KIND_NAVIGATE)
+            ProposalOption(menu.id, null, "${menu.name} 화면 열기", null, menu.path ?: checkNotNull(AssistScreens.find(menu.id)).route(null), ProposalOption.KIND_NAVIGATE)
         }
         val text = if (target != null) "${menu.name} ${target.label.substringBefore(" — ")} 화면을 열 수 있습니다." else "${menu.name} 화면을 열 수 있습니다."
         return IntentOutcome.Text(text, listOf(option))
@@ -447,6 +448,15 @@ class AssistService(
             if (!again) break
         }
 
+        if (modelTurn) {
+            problemQuery(prepared, fields)?.let { modelFilled += it }
+            // 받는 부서와 유형을 함께 말했는데 모델이 다른 짝을 골라 빠졌으면 말한 짝을 넣고, 그 짝의 양식 칸을 다시 읽는다
+            readTx.execute { saidReceivers(prepared, fields) }?.let {
+                modelFilled += it
+                fields = checkNotNull(readTx.execute { fieldsOf.of(prepared.actor, screen, prepared.target?.id, prepared::value) })
+            }
+            modelFilled += checkNotNull(readTx.execute { saidPeople(prepared, fields) })
+        }
         if (opsDropped > 0) message = AssistValidator.opsSummary(prepared.applied[fields.first { it.kind == FieldKinds.OPS }.id], opsDropped)
         // 5. 되묻기·요약·출처 (5.7 ⑨·13.6·13.9)
         return checkNotNull(readTx.execute { finish(prepared, fields, answered.keys, proposed.values.toList(), forced, modelAsks, info, materials, sourceMarks, message, found, toolResults, historyData, modelFilled) })
@@ -762,6 +772,8 @@ class AssistService(
         val empty = fields.filter { it.required && AssistValidator.empty(after[it.id]) }.map { it.label }
         val audience = fields.filter { it.perm && !AssistValidator.empty(after[it.id]) }.map { f -> mapOf("field" to f.id, "label" to f.label, "names" to names(turn, fields, f, after[f.id], memo)) }
         val final = finalLabel(turn, after)
+        // 필수 칸이 남았는데 모델 글이 다 찼다·최종 단추를 누르라고 하면 체계 글로 바꾼다 (실제 모델 검토: 받는 부서·장소가 비었는데 "필수 칸이 다 채워졌습니다")
+        val shownMessage = if (empty.isNotEmpty() && DONE_CLAIM.containsMatchIn(message)) "남은 칸을 채운 뒤 화면에서 $final 단추를 직접 눌러 주세요." else message
         val next = turn.screen.id == "request" && empty.isEmpty() && proposed.isEmpty() && asks.none { byId[it.field]?.required == true }
         val sources = marks.mapValues { (_, ns) -> ns.distinct().map { materials[it - 1].ref } }.filterValues { it.isNotEmpty() }
             .entries.groupBy({ AssistShapes.outboundKey(turn.screen.id, it.key) }, { it.value }).mapValues { (_, v) -> v.flatten().distinct() }
@@ -781,7 +793,7 @@ class AssistService(
             "sources" to sources,
             "next" to next,
             "summary" to mapOf("filled" to filled, "empty" to empty, "audience" to audience.map { "${it["label"]}: ${(it["names"] as List<*>).joinToString(", ")}" }, "final" to final),
-            "message" to message,
+            "message" to shownMessage,
         )
         val asked = asks.mapNotNull { byId[it.field]?.label }.distinct()
         return FillOutcome.Filled(
@@ -796,8 +808,59 @@ class AssistService(
      */
     private fun receiverAsk(turn: Turn, fields: List<AssistField>, after: Map<String, Any?>, memo: AssistCandidates.Memo): AssistAsk? {
         val f = fields.firstOrNull { it.kind == FieldKinds.PAIRS && it.source == Sources.RECEIVERS }?.takeIf { it.id !in turn.declined && AssistValidator.empty(after[it.id]) } ?: return null
-        val choices = pool(f, memo).map { it.choice.label }.take(AssistValidator.MAX_CHOICES)
+        // 받는 부서로 말한 부서의 유형, 말한 유형 이름의 짝을 앞에 둔다 (명세 REQ-C03 검증 기준: 유형 이름만 말하면 그 유형 후보를 먼저)
+        val said = AssistValidator.squash(turn.userWords.joinToString(" "))
+        val choices = pool(f, memo).sortedByDescending { c ->
+            (if (AssistValidator.receiverSaid(c, turn.userWords)) 2 else 0) + (if (c.name.length >= 2 && AssistValidator.squash(c.name) in said) 1 else 0)
+        }.map { it.choice.label }.take(AssistValidator.MAX_CHOICES)
         return if (choices.isEmpty()) AssistAsk(f.id, NO_RECEIVER) else AssistAsk(f.id, ASK_RECEIVER, AssistAsk.CHOICE, choices)
+    }
+
+    /**
+     * 받는 부서와 그 유형을 함께 말한 짝 (명세 REQ-C03 검증 기준 "받는 부서 이름과 유형 이름을 함께 말하면 그 짝이 들어간다"): 받는 부서 칸이 비었고
+     * 사용자 칸·비워 두기가 아니며 후보 가운데 그렇게 말한 짝이 있으면 넣는다(실제 모델 검토: "유선반에 요청"인데 모델이 다른 유형을 골라 빠짐). 넣은 칸 id
+     */
+    private fun saidReceivers(turn: Turn, fields: List<AssistField>): String? {
+        val f = fields.firstOrNull { it.kind == FieldKinds.PAIRS && it.source == Sources.RECEIVERS } ?: return null
+        if (f.id in turn.declined || f.id in turn.userEdited || !AssistValidator.empty(turn.value(f.id))) return null
+        val memo = candidates.Memo(CandidateContext(turn.actor, turn.screen, turn.target?.id, turn::value, turn.userWords))
+        // 같은 부서에서 유형 이름이 다른 유형 이름 안에 들면("전화"와 "전화 회선 신설·이동") 긴 것을 고르고, 남은 것이 하나뿐일 때만(같은 이름의 부서가 여럿이면 단추로 되묻는다)
+        val all = pool(f, memo).filter { AssistValidator.pairSaid(it, turn.userWords) }
+        val said = all.filter { c -> all.none { o -> o !== c && o.path == c.path && o.name.length > c.name.length && c.name in o.name } }.singleOrNull() ?: return null
+        turn.applied[f.id] = listOf(said.choice.value)
+        return f.id
+    }
+
+    /**
+     * 업무 추천 찾기 글 (REQ-C03 ②⑥, REQ-C07 업무 요청 "업무 추천 찾기 글"): 모델이 비웠고 지금 값·사용자 칸·비워 두기가 아니면 이 작업을 낳은 사용자 말을
+     * 그대로(공백만 정규화, 칸 길이까지) 넣는다. 받는 부서 추천 후보도 이 글로 만든다(실제 모델 검토: 찾기 글을 되물음). 넣은 칸 id를 돌려준다
+     */
+    private fun problemQuery(turn: Turn, fields: List<AssistField>): String? {
+        val f = fields.firstOrNull { it.id == RECOMMEND_QUERY } ?: return null
+        if (f.id in turn.declined || f.id in turn.userEdited || !AssistValidator.empty(turn.value(f.id))) return null
+        val origin = turn.origin?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        // 작업 부탁 낱말만 있는 말("업무 요청 써 줘")은 문제를 말한 것이 아니라 넣지 않는다(정적 검토, REQ-C03 ②)
+        if (origin.split(' ').map { AssistRecommend.normalize(it) }.none { w -> w.length >= 2 && REQUEST_ONLY.none { w.startsWith(it) } }) return null
+        turn.applied[f.id] = FormRules.clip(origin, f.max)
+        return f.id
+    }
+
+    /**
+     * 사람 칸 (실제 모델 검토: "담당자는 이예준 병장"인데 담당자가 빔): 모델이 비운 사람 칸(인원 후보 여러 값)의 이름(담당자 등) 바로 뒤 몇 글자 안에
+     * 사람 이름을 말했고 사용자 말에 나온 사람이 그 하나뿐이면 그 사람을 넣는다. 사용자 칸·비워 두기·지금 값이 있는 칸은 두지 않는다. 넣은 칸 id들
+     */
+    private fun saidPeople(turn: Turn, fields: List<AssistField>): List<String> {
+        val memo = candidates.Memo(CandidateContext(turn.actor, turn.screen, turn.target?.id, turn::value, turn.userWords))
+        val said = AssistValidator.squash(turn.userWords.joinToString(" "))
+        return fields.filter { it.kind == FieldKinds.MULTI && it.source == Sources.PEOPLE && it.id !in turn.declined && it.id !in turn.userEdited && AssistValidator.empty(turn.value(it.id)) }
+            .mapNotNull { f ->
+                // 사용자 말에 나온 사람이 하나뿐일 때만("이예준 병장과 김민수 상병"이면 넣지 않음)
+                val named = AssistValidator.mentioned(pool(f, memo), turn.userWords).takeIf { it.size == 1 } ?: return@mapNotNull null
+                val near = named.filter { p ->
+                    f.names.any { n -> Regex(Regex.escape(AssistValidator.squash(n)) + ".{0,4}" + Regex.escape(AssistValidator.squash(p.name))).containsMatchIn(said) }
+                }
+                near.singleOrNull()?.let { turn.applied[f.id] = listOf(it.choice.value); f.id }
+            }
     }
 
     /** 화면의 최종 단추 이름 (화면 정의). 업무 요청·업무 등록은 결재 경로가 본인 한 단계뿐이면 화면처럼 [보내기 (본인 결재)]다 */
@@ -902,6 +965,13 @@ class AssistService(
         const val MAX_SHAPES = 100
         const val NARROW_KEEP = 30
         const val MAX_QUERY_TEXT = 1000
+        const val RECOMMEND_QUERY = "recommend.query"
+
+        /** 찾기 글로 쓰지 않는 작업 부탁 낱말의 앞부분 (problemQuery) */
+        private val REQUEST_ONLY = listOf("업무", "요청", "작성", "써", "쓰", "해", "하고", "할", "부탁", "등록", "만들", "시작", "좀", "줘", "주세", "싶", "새로", "하나")
+
+        /** 모델 글이 칸이 다 찼다거나 최종 단추를 누르라고 하는 말 */
+        private val DONE_CLAIM = Regex("다\\s*(채워|찼|채웠|입력)|모두\\s*(채워|찼|채웠|입력)|단추를\\s*(직접\\s*)?눌러")
 
         const val UNSUPPORTED = "지원하지 않는 일입니다."
         const val FINAL_BY_USER = "저장·보내기·결재 같은 최종 동작은 AI가 하지 않습니다. 화면의 최종 단추를 직접 눌러 주세요."
