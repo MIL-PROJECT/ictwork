@@ -449,7 +449,10 @@ class AiChatService(
             val messages = body.putArray("messages")
             messages.addObject().put("role", "system").put("content", AiAssistance.SYSTEM)
             messages.addObject().put("role", "user").put("content", objectMapper.writeValueAsString(mapOf(
-                "기능" to job.options.task, "입력" to job.question, "확인된 사실" to AiAnswerRules.redactInstructions(context.facts),
+                "기능" to job.options.task, "입력" to job.question,
+                // Historical cases are shown as references, not facts about the current fault.
+                "확인된 사실" to if (job.options.task == AiTasks.SYMPTOM) "" else AiAnswerRules.redactInstructions(context.facts),
+                "현재 입력에서 확인할 항목" to context.questions,
                 "검토 의견 선택지" to context.adviceOptions,
                 "검토 지시" to if (context.adviceOptions != null) "advice에는 검토 의견 선택지에서만 원문 그대로 골라 넣는다. 사실·수치 평가는 추가하지 않는다. " + if (context.allowQuestions) "questions에는 입력에서 빠진 정보만 질문한다." else "questions는 빈 배열이다." else null,
             )))
@@ -472,7 +475,7 @@ class AiChatService(
             val questions = lines("questions")
             // The model cannot introduce new quantities into a report.
             val numbers = Regex("\\d+(?:\\.\\d+)?")
-            val allowed = numbers.findAll(context.facts + job.question).map { it.value }.toSet()
+            val allowed = numbers.findAll((if (job.options.task == AiTasks.SYMPTOM) "" else context.facts) + job.question).map { it.value }.toSet()
             require((advice + questions).all { line -> numbers.findAll(line).all { it.value in allowed } })
             if (job.options.task == AiTasks.SUMMARY) require((advice + questions).none { numbers.containsMatchIn(it) })
             context.adviceOptions?.let { allowed -> require(advice.all { it in allowed }) }

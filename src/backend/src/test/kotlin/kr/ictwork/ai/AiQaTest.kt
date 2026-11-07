@@ -525,6 +525,13 @@ class AiQaTest(
             assertThat(sources).hasSize(3).allMatch { it in allowedIds }
             assertThat(reply.text()).contains("완료", "등록된 기록 없음").doesNotContain("프린터 인쇄 오류 사례 4")
             assertThat(reply.text()).doesNotContain("정상적으로 처리되었습니다").contains("기본 안내")
+            FakeOllama.reply("""{"advice":[],"questions":["언제부터 발생했나요?"]}""")
+            val analysis = events(startAsk("ai-s1a", newConversation("ai-s1a"), "프린터 인쇄 오류", mapOf("task" to AiTasks.SYMPTOM)))
+            assertThat(analysis.text()).contains("언제부터 발생했나요?")
+            val modelInput = json(FakeOllama.chatRequests.last().path("messages")[1].path("content").asText())
+            assertThat(modelInput.path("확인된 사실").asText()).isEmpty()
+            assertThat(modelInput.path("입력").asText()).isEqualTo("프린터 인쇄 오류")
+            assertThat(modelInput.toString()).doesNotContain("프린터 인쇄 오류 사례")
         } finally {
             tx.executeWithoutResult { itemRepository.deleteAllById(itemIds); requestRepository.deleteAllById(requestIds) }
         }
