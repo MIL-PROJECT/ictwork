@@ -1,0 +1,10 @@
+# 하위 패키지의 알려진 보안 취약점(GitHub Dependabot 경고·pnpm audit)을 같은 메이저 안의 고친 판으로 올린다. 직접 쓰는 패키지 판은 package.json에 둔다
+overrides:
+  "nanoid@<3.3.18": ^3.3.18
+  "nanoid@>=4.0.0 <5.1.16": ^5.1.16
+  "lodash-es@<4.18.0": ^4.18.1
+  "katex@<0.18.2": ^0.18.2
+  "source-map-js@<1.2.2": ^1.2.2
+  "minimatch@>=7.0.0 <11.0.1": ^11.0.1
+  "brace-expansion@>=4.0.0 <5.0.12": ^5.0.12
+  "zod@>=4.0.0 <4.6.6": ^4.6.6
