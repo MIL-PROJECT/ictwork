@@ -23,7 +23,6 @@
       "work": "업무",
       "department": "부서관리",
       "settings": "설정",
-      "admin": "관리",
       "ai": "AI",
       "home": ""
     },
@@ -157,7 +156,8 @@
       "workTypes": "업무 유형",
       "approvalRoutes": "결재 경로",
       "taskRequest": "업무 요청",
-      "departmentService": "부서 업무 안내",
+      "departmentWork": "부서 업무",
+      "departmentService": "내 부서 안내",
       "dutyDirectives": "근무·지시사항",
       "organizationPeople": "조직·인원",
       "equipmentDiagrams": "장비·구성도",

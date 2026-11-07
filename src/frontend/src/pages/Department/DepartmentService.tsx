@@ -16,7 +16,7 @@ export default function DepartmentService() {
   return (
     <div className="space-y-5">
       <PageMeta titleKey="work:service.title" />
-      <PageBreadcrumb pageTitle={t("service.title")} description={t("service.help")} />
+      <PageBreadcrumb pageTitle={t("service.title")} description={t("service.help")} back="/approvals/request" />
       <section className={SECTION}>
         <DepartmentServiceEditor
           load={fetchOwnDepartmentService}

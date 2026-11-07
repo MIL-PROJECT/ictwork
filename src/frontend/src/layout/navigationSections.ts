@@ -14,6 +14,12 @@ export const sectionLinks = {
   equipmentDiagrams: [
     { key: "equipment", path: "/department/equipment" },
     { key: "diagrams", path: "/department/diagrams" },
+    { key: "equipmentManage", path: "/admin/equipment", feature: "ADMIN_EQUIPMENT" },
+  ],
+  departmentWork: [
+    { key: "departmentService", path: "/department/services" },
+    { key: "departmentServiceManage", path: "/admin/department-services", feature: "ADMIN_WORK_TYPE" },
+    { key: "approvalRoutes", path: "/admin/approval-routes", feature: "ADMIN_SYSTEM" },
   ],
 } satisfies Record<string, SectionLink[]>;
 

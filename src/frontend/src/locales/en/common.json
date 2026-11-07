@@ -23,7 +23,6 @@
       "work": "Work",
       "department": "Department",
       "settings": "Settings",
-      "admin": "Admin",
       "ai": "AI",
       "home": ""
     },
@@ -157,7 +156,8 @@
       "workTypes": "Work Types",
       "approvalRoutes": "Approval Routes",
       "taskRequest": "Task Request",
-      "departmentService": "Department services",
+      "departmentWork": "Department Work",
+      "departmentService": "My Department Services",
       "dutyDirectives": "Duty & Directives",
       "organizationPeople": "Organization & People",
       "equipmentDiagrams": "Equipment & Diagrams",

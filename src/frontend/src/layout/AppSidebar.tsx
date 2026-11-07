@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 import {
   AiIcon,
-  BoxCubeIcon,
   BoxIcon,
   ChartAltIcon,
   DashboardAltIcon,
@@ -130,6 +129,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { icon: <GroupIcon fontSize={24} />, name: "조직·인원", key: "organizationPeople", section: "organizationPeople" },
       { icon: <DashboardAltIcon fontSize={24} />, name: "장비·구성도", key: "equipmentDiagrams", section: "equipmentDiagrams" },
+      { icon: <DocsIcon fontSize={24} />, name: "부서 업무", key: "departmentWork", section: "departmentWork" },
       {
         icon: <FolderIcon fontSize={24} />,
         name: "문서함",
@@ -161,33 +161,6 @@ const menuGroups: MenuGroup[] = [
       },
     ],
   },
-  // 관리: 권한 있는 사용자에게만 보인다 (A1-b, DEC-056). 메뉴 숨김은 편의이고 막는 것은 서버 API
-  {
-    key: "admin",
-    items: [
-      {
-        icon: <BoxCubeIcon fontSize={24} />,
-        name: "장비관리",
-        key: "equipmentManage",
-        path: "/admin/equipment",
-        feature: "ADMIN_EQUIPMENT",
-      },
-      {
-        icon: <DocsIcon fontSize={24} />,
-        name: "부서 안내·업무 유형 관리",
-        key: "departmentServiceManage",
-        path: "/admin/department-services",
-        feature: "ADMIN_WORK_TYPE",
-      },
-      {
-        icon: <TaskIcon fontSize={24} />,
-        name: "결재 경로",
-        key: "approvalRoutes",
-        path: "/admin/approval-routes",
-        feature: "ADMIN_SYSTEM",
-      },
-    ],
-  },
 ];
 
 /** menuTrail 결과의 메뉴 주소 (경로 표시에서 지금 화면이 그 메뉴 자체인지 가릴 때) */
@@ -213,7 +186,6 @@ function BrandMark() {
 /** 지금 경로의 메뉴 위치: 묶음 이름 키와 항목(하위 항목) 이름 키. 상단 경로 표시와 페이지 제목 위 구역명에 쓴다 (OMNIS crumbs) */
 /** 메뉴 주소 밖의 상세 화면(처리 건·요청·결재 문서)이 들어온 목록. 상단 경로와 [이전으로]가 이 목록으로 돌아간다 */
 export function listPathOf(pathname: string, search = ""): string | null {
-  if (pathname === "/department/services") return "/approvals/request";
   const from = new URLSearchParams(search).get("from");
   if (/^\/work\/(items|requests)\/\d+/.test(pathname))
     return from === "receipts" ? "/approvals/receipts" : from === "mine" || from === "viewable" ? `/tasks?tab=${from}` : "/tasks";
