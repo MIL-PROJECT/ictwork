@@ -1,5 +1,5 @@
 import useGoBack from "@/hooks/useGoBack";
-import { listPathOf, menuItemPath, menuTrail } from "@/layout/AppSidebar";
+import { listPathOf, menuItemPath, menuTrail } from "@/layout/navigationSections";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 

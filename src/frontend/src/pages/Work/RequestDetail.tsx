@@ -45,7 +45,8 @@ function RequestDetailPage() {
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("frameWork");
   const id = idParam(useParams().id);
-  const from = viewFromOf(useSearchParams()[0].get("from"));
+  const [params] = useSearchParams();
+  const from = viewFromOf(params.get("from"));
   const navigate = useNavigate();
   const describeError = useWorkError();
   const { departments, personnel, paths } = useOrgData({ personnel: true });
@@ -223,7 +224,7 @@ function RequestDetailPage() {
             // 작업 단추는 인쇄하지 않는다 (OMNIS 제목 오른쪽 화면 동작)
             <div className="contents print:hidden">
               {request.editable && (
-                <ActionButton onClick={() => navigate(`/work/requests/${request.id}/edit`)}>{t("requestDetail.edit")}</ActionButton>
+                <ActionButton onClick={() => navigate(`/work/requests/${request.id}/edit?${params.toString()}`)}>{t("requestDetail.edit")}</ActionButton>
               )}
               {request.cancelable && (
                 <ActionButton tone="danger" onClick={() => setDialog("cancel")}>

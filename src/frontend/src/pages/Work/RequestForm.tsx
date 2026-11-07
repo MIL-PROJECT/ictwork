@@ -110,7 +110,8 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { safeListReturn, withListReturn } from "@/layout/navigationSections";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 // 초점을 받을 수 있는 칸 (올리기 실패 때 첫 오류 칸으로 옮김, REQ-101)
 const FOCUSABLE =
@@ -174,6 +175,8 @@ export default function RequestForm({
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("workform");
   const { id } = useParams();
+  const location = useLocation();
+  const returnList = safeListReturn(new URLSearchParams(location.search).get("returnTo"));
   // 고쳐 다시 올리기(/work/requests/:id/edit): 번호가 잘못되면 서버를 부르지 않고 "찾을 수 없음"
   const editing = id !== undefined;
   const editId = editing ? idParam(id) : null;
@@ -788,7 +791,7 @@ export default function RequestForm({
       if (editId !== null) {
         await resubmitRequest(editId, input);
         // 고치기 화면을 기록에서 바꿔 넣어 요청 화면의 [이전으로]가 고치기 화면으로 돌아가지 않게
-        navigate(`/work/requests/${editId}?from=mine`, { replace: true });
+        navigate(withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine"), { replace: true });
       } else {
         const created = await createRequest(input);
         navigate(`/work/requests/${created.id}?from=mine`);
@@ -1540,7 +1543,7 @@ export default function RequestForm({
         )}
         // 고쳐 다시 올리기 화면만 [이전으로] (업무 등록·업무 요청은 메뉴 화면)
         back={
-          editId !== null ? `/work/requests/${editId}?from=mine` : undefined
+          editId !== null ? withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine") : undefined
         }
       />
       {loadedEdit && (

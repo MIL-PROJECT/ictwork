@@ -63,7 +63,7 @@ async function csrfHeaders(context, origin) {
         page.locator('[name=password]').press('Enter'),
       ]);
       assert.equal(login.status(), 200);
-      await page.locator('aside').first().getByRole('heading', { name: '관리', exact: true }).waitFor();
+      await page.locator('aside').first().getByRole('link', { name: '부서 정보', exact: true }).waitFor();
       await page.getByText('현황 전체', { exact: true }).waitFor({ timeout: 30000 });
       const metrics = await page.locator('.board-metric-value').allTextContents();
       assert.equal(metrics.length, 4);
@@ -92,6 +92,19 @@ async function csrfHeaders(context, origin) {
       await page.goto(origin + '/department/docs');
       await page.locator('main h1').waitFor();
       if (run === 1) await require('./verify-navigation.cjs')(page, origin, installed, profile, evidence);
+      if (run === 2) {
+        const workflow = JSON.parse(fs.readFileSync(path.join(evidence,'workflow-result.json'),'utf8'));
+        const completed = await api.get(origin+'/api/work/items/'+workflow.completedItemId+'?from=department');
+        assert.equal(completed.status(),200);
+        assert.equal((await completed.json()).status,'DONE');
+        const rejected = await api.get(origin+'/api/work/items/'+workflow.rejectedItemId+'?from=department');
+        assert.equal(rejected.status(),200);
+        assert.equal((await rejected.json()).status,'REJECTED');
+        const registered = await api.get(origin+'/api/work/requests/'+workflow.registeredRequestId+'?from=mine');
+        assert.equal(registered.status(),200);
+        assert.equal((await registered.json()).kind,'REGISTER');
+        console.log('PASS request, registration, completion and rejection persisted across restart');
+      }
       result.runs.push({ run, startSeconds, origin, loginStatus: login.status(), dashboardMetrics: metrics, eventId, persistence: true, rendererIsolation: actual.sandbox && actual.contextIsolation && !actual.nodeIntegration });
       console.log('PASS installed launch ' + run + ', login, synthetic event persistence, request/diagrams/docs, ' + startSeconds.toFixed(1) + 's startup');
       shutdownAt = Date.now();
