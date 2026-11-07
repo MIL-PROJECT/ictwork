@@ -18,7 +18,6 @@ import {
   GridIcon,
   GroupIcon,
   HorizontaLDots,
-  LayoutIcon,
   PaperPlaneIcon,
   SettingsAltIcon,
   TaskIcon,
@@ -166,7 +165,6 @@ const menuGroups: MenuGroup[] = [
   {
     key: "admin",
     items: [
-      { icon: <LayoutIcon fontSize={24} />, name: "조직·인원 관리", key: "organizationPersonnelManage", section: "organizationPersonnelManage" },
       {
         icon: <BoxCubeIcon fontSize={24} />,
         name: "장비관리",

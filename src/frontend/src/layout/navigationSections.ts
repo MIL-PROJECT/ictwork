@@ -8,14 +8,12 @@ export const sectionLinks = {
   organizationPeople: [
     { key: "orgChart", path: "/department/org-chart" },
     { key: "people", path: "/department/people" },
+    { key: "orgManage", path: "/admin/organization", feature: "ADMIN_ORG" },
+    { key: "personnelManage", path: "/admin/personnel", feature: "ADMIN_PERSONNEL" },
   ],
   equipmentDiagrams: [
     { key: "equipment", path: "/department/equipment" },
     { key: "diagrams", path: "/department/diagrams" },
-  ],
-  organizationPersonnelManage: [
-    { key: "orgManage", path: "/admin/organization", feature: "ADMIN_ORG" },
-    { key: "personnelManage", path: "/admin/personnel", feature: "ADMIN_PERSONNEL" },
   ],
 } satisfies Record<string, SectionLink[]>;
 

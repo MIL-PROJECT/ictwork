@@ -7,7 +7,8 @@ const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
 const resources = process.resourcesPath;
-const profile = path.join(app.getPath('appData'), 'OMNIS Desktop');
+const customProfile = app.commandLine.getSwitchValue('user-data-dir');
+const profile = customProfile ? path.resolve(customProfile) : path.join(app.getPath('appData'), 'OMNIS Desktop');
 app.setPath('userData', profile);
 const state = path.join(profile, 'service');
 const data = path.join(state, 'mysql-data');
