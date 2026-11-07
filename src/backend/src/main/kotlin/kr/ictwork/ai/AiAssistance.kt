@@ -96,8 +96,10 @@ class AiAssistance(
         // Search a bounded set of actual completed work in the existing department work scope.
         val completed = work.departmentItems(loginId).filter { it.status == WorkStatuses.DONE }
             .sortedWith(compareByDescending<ItemListItem> { it.updatedAt }.thenByDescending { it.id }).take(MAX_CANDIDATES)
-        val candidates = completed.map { it to AiCaseSearch.score(question, it.title + " " + it.types.joinToString(" ") { type -> type.name }) }
-            .filter { it.second > 0 }.sortedByDescending { it.second }.distinctBy { it.first.requestId }.take(12)
+        val ranked = completed.map { it to AiCaseSearch.score(question, it.title + " " + it.types.joinToString(" ") { type -> type.name }) }
+            .filter { it.second > 0 }.sortedByDescending { it.second }
+        val best = ranked.firstOrNull()?.second ?: 0.0
+        val candidates = ranked.filter { it.second >= best * 0.75 }.distinctBy { it.first.requestId }.take(12)
         val matches = candidates.mapNotNull { (item, score) ->
             val key = AiSourceKey(AiSourceTypes.WORK_ITEM, item.id)
             if (!judge.canUse(key)) return@mapNotNull null
@@ -154,7 +156,9 @@ class AiAssistance(
 /** A small, explainable lexical matcher. A match is never presented as a probability or a diagnosis. */
 object AiCaseSearch {
     private val ignored = setOf("고장", "사례", "유사", "분석", "증상", "업무", "업무용", "행정용", "사용자", "오늘", "어제", "현재", "찾아줘", "찾아주세요", "알려줘", "알려주세요", "보여줘", "해주세요", "문제", "안됨", "확인", "요청", "지원", "관련", "비슷한", "발생", "발생했어요", "있어요", "입니다", "됩니다")
-    private fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase().replace(Regex("컴퓨터|피씨"), "pc")
+    private fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase()
+        .replace(Regex("컴퓨터|피씨"), "pc")
+        .replace(Regex("켜지지\\s*않[^\\s.]*|안\\s*켜[^\\s.]*"), " 전원 ")
     private val equipmentGroups = listOf(listOf("pc", "노트북"), listOf("프린터", "복합기"), listOf("전화기", "전화"), listOf("무전기"), listOf("중계기"), listOf("스위치"), listOf("라우터"), listOf("서버"), listOf("방송"), listOf("발전기"), listOf("ups", "무정전"))
     private fun hasEquipment(text: String, word: String) = if (word == "pc" || word == "ups") Regex("(?<![a-z0-9])$word(?![a-z0-9])").containsMatchIn(text) else text.contains(word)
     fun words(question: String): List<String> = Regex("[\\p{L}\\p{N}]+").findAll(normalized(question)).map {

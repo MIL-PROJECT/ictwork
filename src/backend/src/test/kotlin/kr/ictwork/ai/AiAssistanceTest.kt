@@ -42,6 +42,8 @@ class AiAssistanceTest {
         assertThat(AiCaseSearch.score("전화기 통화 중 잡음 발생", "무선 중계기 잡음 점검")).isZero()
         assertThat(AiCaseSearch.score("업무용 PC가 켜지지 않아요", "훈련용 업무용 노트북 대여")).isZero()
         assertThat(AiCaseSearch.score("업무용 PC가 켜지지 않아요", "업무용 PC 대여")).isZero()
+        assertThat(AiCaseSearch.matches("PC가 켜지지 않아요", "행정용 PC 전원 불량")).contains("pc", "전원")
+        assertThat(AiCaseSearch.score("PC가 켜지지 않아요", "행정용 PC 전원 불량")).isGreaterThan(AiCaseSearch.score("PC가 켜지지 않아요", "행정용 PC 네트워크 연결 끊김"))
         assertThat(AiCaseSearch.matches("전화기에 잡음이 납니다", "회의실 전화기 교체")).contains("전화기")
         assertThat(AiCaseSearch.score("고장 유사 사례 찾아줘", "고장 업무 지원 요청")).isZero()
     }
