@@ -196,4 +196,63 @@ class DutyViewTest : DutyTestBase() {
         // 수정 화면에서는 보인다
         assertThat(detail("adm", id)["rules"][0]["name"].asText()).isEqualTo("평일")
     }
+
+    // ───────── 사용성 개선 (slices/19 8.1, G-150) ─────────
+
+    /** 내 다음 근무 (G-150 ①): 오늘 이후 가장 이른 내 배치 날과 근무표. 오늘 배치도 다음 근무, 지난 날은 아님, 없으면 null */
+    @Test
+    fun nextDuty() {
+        val id = roster("adm", c1, "야간 당직")
+        val rule = weekdayRule("adm", id, "목요일", listOf("hong"), listOf("THU"))
+        assertThat(today("hong")["next"].isNull).isTrue()
+        setWeekday("adm", id, rule, "2026-11-12", "hong").andExpect(status().isOk)
+        val next = today("hong")["next"]
+        assertThat(next["date"].asText()).isEqualTo("2026-11-12")
+        assertThat(next["items"].map { it["rosterId"].asLong() to it["rosterName"].asText() }).containsExactly(id to "야간 당직")
+        assertThat(next["items"][0]["departmentLabel"].asText()).isEqualTo("1중대")
+        assertThat(next["items"][0]["short"].isNull).isTrue()
+        // 오늘 배치가 있으면 오늘
+        setWeekday("adm", id, rule, "2026-11-01", "hong").andExpect(status().isOk)
+        assertThat(today("hong")["next"]["date"].asText()).isEqualTo("2026-11-01")
+        // 날이 지나면 다음 배치
+        clock.now = LocalDateTime.of(2026, 11, 2, 0, 0)
+        assertThat(today("hong")["next"]["date"].asText()).isEqualTo("2026-11-12")
+        // 다른 사람의 다음 근무는 보이지 않는다
+        assertThat(today("adm")["next"].isNull).isTrue()
+        // 같은 날 두 근무표면 근무표 순서대로 둘 다
+        val second = roster("adm", c1, "불침번")
+        val secondRule = weekdayRule("adm", second, "목요일", listOf("hong"), listOf("THU"))
+        setWeekday("adm", second, secondRule, "2026-11-12", "hong").andExpect(status().isOk)
+        assertThat(today("hong")["next"]["items"].map { it["rosterId"].asLong() }).containsExactly(id, second)
+    }
+
+    /** 내 다음 근무의 교대 배치는 근무 종류 짧은 글자만, 근무 종류·규칙 이름은 넣지 않는다 (slices/19 3.1) */
+    @Test
+    fun nextShiftShort() {
+        val id = roster("adm", c1, "통신 교대")
+        val shift = shiftRule("adm", id, "교대")
+        val day = shiftType("adm", id, shift, "주간", "주", 1)
+        shiftSettings("adm", id, shift, listOf(day, null), listOf("hong" to 1)).andExpect(status().isOk)
+        val weekday = weekdayRule("adm", id, "평일", listOf("A"))
+        fill("adm", id, "2026-11", first(weekday, "A")).andExpect(status().isOk)
+        val next = today("hong")["next"]
+        assertThat(next["date"].asText()).isEqualTo("2026-11-01")
+        assertThat(next["items"].map { it["short"].asText() }).containsExactly("주")
+        assertThat(next.toString()).doesNotContain("주간")
+    }
+
+    /** 코드 재검토 7: 지운 근무표의 배치는 내 다음 근무에서 빠진다 */
+    @Test
+    fun nextDutySkipsDeletedRoster() {
+        val gone = roster("adm", c1, "지울 근무표")
+        val goneRule = weekdayRule("adm", gone, "목요일", listOf("hong"), listOf("THU"))
+        setWeekday("adm", gone, goneRule, "2026-11-05", "hong").andExpect(status().isOk)
+        val kept = roster("adm", c1, "남는 근무표")
+        val keptRule = weekdayRule("adm", kept, "목요일", listOf("hong"), listOf("THU"))
+        setWeekday("adm", kept, keptRule, "2026-11-12", "hong").andExpect(status().isOk)
+        assertThat(today("hong")["next"]["date"].asText()).isEqualTo("2026-11-05")
+        send("DELETE", "adm", "/api/duty/rosters/$gone?version=${version(gone)}").andExpect(status().isNoContent)
+        assertThat(today("hong")["next"]["items"].map { it["rosterId"].asLong() }).containsExactly(kept)
+        assertThat(today("hong")["next"]["date"].asText()).isEqualTo("2026-11-12")
+    }
 }

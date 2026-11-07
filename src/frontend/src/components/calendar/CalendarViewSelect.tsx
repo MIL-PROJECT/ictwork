@@ -66,7 +66,7 @@ const CalendarViewSelect: React.FC<CalendarViewSelectProps> = ({
       </button>
 
       {isOpen && (
-        <div className="calendar-view-menu absolute inset-e-0 z-50 mt-1.5 w-36 max-w-[calc(100vw-32px)] space-y-0.5 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg sm:w-38 dark:border-gray-700 dark:bg-gray-900">
+        <div className="calendar-view-menu absolute inset-e-0 z-50 mt-1.5 w-36 max-w-[calc(100vw/var(--app-zoom)_-_32px)] space-y-0.5 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg sm:w-38 dark:border-gray-700 dark:bg-gray-900">
           {CALENDAR_VIEW_OPTIONS.map((view) => (
             <button
               key={view.key}

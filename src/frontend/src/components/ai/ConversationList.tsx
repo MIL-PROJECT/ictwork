@@ -79,7 +79,7 @@ export default function ConversationList({ conversations, error, selectedId, bus
             <p className="text-[13px] text-gray-500 dark:text-gray-400">{t("list.empty")}</p>
           </div>
         ) : (
-          <ul className="custom-scrollbar max-h-[60vh] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
+          <ul className="custom-scrollbar max-h-[calc(60vh/var(--app-zoom))] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
             {conversations.map((c) => {
               const selected = c.id === selectedId;
               return (

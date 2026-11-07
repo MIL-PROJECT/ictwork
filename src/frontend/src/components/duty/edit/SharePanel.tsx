@@ -42,13 +42,14 @@ export default function SharePanel({ detail, departments, write }: { detail: Dut
             <li key={s.departmentId} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
               <span className="min-w-0 break-keep text-gray-800 dark:text-white/90">{s.path}</span>
               <span className="flex items-center gap-4">
-                {/* 하위 포함: 키보드로도 켜고 끄며, 화면 읽기 이름에 부서를 넣어 줄마다 구별한다(공개 범위 고르기 ScopePicker와 같게). 저장된 값을 그대로 보인다 */}
+                {/* 하위 포함: 키보드로도 켜고 끄며, 화면 읽기 이름에 부서를 넣어 줄마다 구별한다(공개 범위 고르기 ScopePicker와 같게). 저장된 값을 그대로 보인다.
+                    저장 중에도 disabled로 하지 않아 초점이 남는다(두 번 저장은 save가 막음, slices/19 C12 ③) */}
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 select-none dark:text-gray-400">
                   <input
                     type="checkbox"
                     role="switch"
                     checked={s.includeSub}
-                    disabled={busy}
+                    aria-busy={busy}
                     aria-label={t("includeSubOf", { name: s.path })}
                     onChange={(e) => void save(current.map((c) => (c.departmentId === s.departmentId ? { ...c, includeSub: e.target.checked } : c)))}
                     className="size-4 cursor-pointer rounded accent-brand-500 disabled:cursor-not-allowed"

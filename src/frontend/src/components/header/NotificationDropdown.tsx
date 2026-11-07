@@ -261,7 +261,7 @@ export default function NotificationDropdown() {
       {toast &&
         !isOpen &&
         createPortal(
-          <div className="fixed inset-e-6 top-16 z-100000 flex w-[min(460px,calc(100vw-32px))] items-start gap-3 rounded-2xl bg-brand-500 px-4 py-3 text-white shadow-[0_30px_70px_-20px_rgba(29,32,51,0.45)] motion-safe:animate-[omnis-pop_0.18s_ease-out]">
+          <div className="fixed inset-e-6 top-16 z-100000 flex w-[min(460px,calc(100vw/var(--app-zoom)_-_32px))] items-start gap-3 rounded-2xl bg-brand-500 px-4 py-3 text-white shadow-[0_30px_70px_-20px_rgba(29,32,51,0.45)] motion-safe:animate-[omnis-pop_0.18s_ease-out]">
             <BellAltIcon
               className="mt-0.5 size-5 shrink-0 opacity-90"
               aria-hidden

@@ -19,6 +19,7 @@ import { type BucketKey, BucketCards, PerfCards } from "@/components/status/Stat
 import { CompareTrend, MetricBars, TrendChart, TypeBars } from "@/components/status/StatusCharts";
 import { type CompareLine, CompareTable, PeopleSection } from "@/components/status/StatusTables";
 import { dash, hasChildren, isDescendant, percent, type Period, periodError, periodRange, SERIES_LIMIT, seriesColors } from "@/components/status/statusUtil";
+import { applyFontSize, useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { ChartAltIcon, DownloadIcon, GroupIcon, InfoIcon, ListIcon, PageIcon, PieChartIcon, SliderHorizontalIcon, TableIcon } from "@/icons";
 import { cn } from "@/utils";
@@ -240,13 +241,21 @@ export default function WorkStatus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peopleKey]);
 
-  // 인쇄: 그래프를 밝은 색·종이 너비로 다시 그린다 (5장). 화면 글자색은 index.css의 dark 변형이 인쇄 때 빠져 밝은 테마로 찍힌다
+  // 인쇄: 그래프를 밝은 색·종이 너비로 다시 그린다 (5장). 화면 글자색은 index.css의 dark 변형이 인쇄 때 빠져 밝은 테마로 찍힌다.
+  // 글자 크기 "크게"(REQ-008)면 인쇄하는 동안 화면을 보통으로 두어, 그래프가 보통 크기 기준으로 재어져 종이에 맞게 한다
+  const { user } = useAuth();
+  const fontSizeRef = useRef(user?.fontSize);
+  useEffect(() => {
+    fontSizeRef.current = user?.fontSize;
+  }, [user?.fontSize]);
   useEffect(() => {
     const before = () => {
+      applyFontSize(undefined);
       setPrinting(true);
       window.dispatchEvent(new Event("resize"));
     };
     const after = () => {
+      applyFontSize(fontSizeRef.current);
       setPrinting(false);
       window.dispatchEvent(new Event("resize"));
     };
@@ -258,6 +267,7 @@ export default function WorkStatus() {
     };
   }, []);
   const print = () => {
+    applyFontSize(undefined);
     setPrinting(true);
     window.dispatchEvent(new Event("resize"));
     requestAnimationFrame(() => requestAnimationFrame(() => window.print()));

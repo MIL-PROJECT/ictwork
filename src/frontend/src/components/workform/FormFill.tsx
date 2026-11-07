@@ -3,8 +3,16 @@ import type { AttachmentItem } from "@/components/file/attachments";
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { type FillValue, mergedAnswers } from "./fill";
-import { type FormDefinition, type FormItem, isQuestion, path, skippedWithAnswers, valueProblem } from "./questions";
+import {
+  type FormDefinition,
+  type FormItem,
+  isQuestion,
+  path,
+  skippedWithAnswers,
+  valueProblem,
+} from "./questions";
 import ValueInput from "./ValueInput";
+import { RequestDisclosure } from "@/components/work/RequestFlow";
 
 /**
  * 양식 채우기 (REQ-118·808, slices/11 2.4.4): 요청 작성과 관리 화면의 미리보기가 같이 쓴다.
@@ -18,6 +26,7 @@ export default function FormFill({
   idPrefix,
   upload,
   showRequired = false,
+  guided = false,
 }: {
   definition: FormDefinition;
   value: FillValue;
@@ -25,30 +34,54 @@ export default function FormFill({
   idPrefix: string;
   upload?: (file: File) => Promise<{ id: number }>;
   showRequired?: boolean;
+  guided?: boolean; // Opt-in presentation; form rules and answer shape stay shared.
 }) {
   const { t } = useTranslation("workform");
   const answers = mergedAnswers(definition, value);
   const sections = path(definition, answers);
   const skipped = skippedWithAnswers(definition, answers);
 
-  const setAnswer = (key: string, next: unknown) => onChange((prev) => ({ ...prev, answers: { ...prev.answers, [key]: next } }));
-  const setFiles = (key: string): Dispatch<SetStateAction<AttachmentItem[]>> => (next) =>
-    onChange((prev) => ({ ...prev, files: { ...prev.files, [key]: typeof next === "function" ? next(prev.files[key] ?? []) : next } }));
+  const setAnswer = (key: string, next: unknown) =>
+    onChange((prev) => ({
+      ...prev,
+      answers: { ...prev.answers, [key]: next },
+    }));
+  const setFiles =
+    (key: string): Dispatch<SetStateAction<AttachmentItem[]>> =>
+    (next) =>
+      onChange((prev) => ({
+        ...prev,
+        files: {
+          ...prev.files,
+          [key]:
+            typeof next === "function" ? next(prev.files[key] ?? []) : next,
+        },
+      }));
 
   const question = (item: FormItem) => {
     const problem = valueProblem(item, answers[item.key], showRequired);
     const id = `${idPrefix}-${item.key}`;
     return (
       <div key={item.key} className="space-y-1.5">
-        <p id={`${id}-title`} className="text-sm font-medium text-gray-800 dark:text-white/90">
+        <p
+          id={`${id}-title`}
+          className="text-sm font-medium text-gray-800 dark:text-white/90"
+        >
           {item.title}
           {item.required && (
-            <span className="ms-1 text-error-600 dark:text-error-400" aria-label={t("fill.required")}>
+            <span
+              className="ms-1 text-error-600 dark:text-error-400"
+              aria-label={t("fill.required")}
+            >
               *
             </span>
           )}
         </p>
-        {item.description && <p className="text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400">{item.description}</p>}
+        {item.description && (
+          <p className="text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+            {item.description}
+          </p>
+        )}
         <ValueInput
           item={item}
           value={value.answers[item.key]}
@@ -61,7 +94,11 @@ export default function FormFill({
         />
         {/* 칸이 aria-describedby로 가리키는 오류 문구 (ValueInput의 invalid와 짝) */}
         {problem && (
-          <p id={`${id}-error`} role="alert" className="text-theme-xs text-error-600 dark:text-error-400">
+          <p
+            id={`${id}-error`}
+            role="alert"
+            className="text-theme-xs text-error-600 dark:text-error-400"
+          >
             {t(problem.message, problem.values)}
           </p>
         )}
@@ -70,29 +107,93 @@ export default function FormFill({
   };
 
   const guide = (item: FormItem) => (
-    <div key={item.key} className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-white/5">
-      {item.title && <p className="text-sm font-semibold text-gray-800 dark:text-white/90">{item.title}</p>}
-      {item.description && <p className="text-sm whitespace-pre-wrap text-gray-600 dark:text-gray-300">{item.description}</p>}
-      {item.imageFileId !== null && <img src={formImageUrl(item.imageFileId)} alt={item.title || t("fill.guideImage")} className="max-h-80 max-w-full rounded" />}
+    <div
+      key={item.key}
+      className="space-y-1.5 rounded-lg bg-gray-50 p-3 dark:bg-white/5"
+    >
+      {item.title && (
+        <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+          {item.title}
+        </p>
+      )}
+      {item.description && (
+        <p className="text-sm whitespace-pre-wrap text-gray-600 dark:text-gray-300">
+          {item.description}
+        </p>
+      )}
+      {item.imageFileId !== null && (
+        <img
+          src={formImageUrl(item.imageFileId)}
+          alt={item.title || t("fill.guideImage")}
+          className="max-h-80 max-w-full rounded"
+        />
+      )}
     </div>
   );
 
   return (
     <div className="space-y-5">
-      {sections.map((section, index) => (
-        <div key={section.key} className={index > 0 ? "space-y-4 border-t border-gray-200 pt-4 dark:border-gray-800" : "space-y-4"}>
-          {(section.title || section.description) && (
-            <div>
-              {section.title && <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">{section.title}</h4>}
-              {section.description && <p className="text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400">{section.description}</p>}
+      {sections.map((section, index) => {
+        const fields = (
+          <>
+            {section.description && (
+              <p
+                className={
+                  guided
+                    ? "mb-4 rounded-lg border-s-2 border-brand-400 bg-brand-50/60 p-4 text-sm leading-relaxed whitespace-pre-wrap text-gray-700 dark:bg-brand-500/10 dark:text-gray-300"
+                    : "text-sm whitespace-pre-wrap text-gray-500 dark:text-gray-400"
+                }
+              >
+                {section.description}
+              </p>
+            )}
+            <div className="space-y-5">
+              {section.items.map((item) =>
+                isQuestion(item) ? question(item) : guide(item),
+              )}
             </div>
-          )}
-          {section.items.map((item) => (isQuestion(item) ? question(item) : guide(item)))}
-        </div>
-      ))}
+          </>
+        );
+        return guided && sections.length > 1 ? (
+          <RequestDisclosure
+            key={section.key}
+            title={`${index + 1}. ${section.title || t("fill.sectionN", { n: index + 1 })}`}
+            initiallyOpen={index === 0}
+          >
+            {fields}
+          </RequestDisclosure>
+        ) : (
+          <div
+            key={section.key}
+            className={
+              index > 0
+                ? "space-y-4 border-t border-gray-200 pt-4 dark:border-gray-800"
+                : "space-y-4"
+            }
+          >
+            {section.title && (
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                {section.title}
+              </h4>
+            )}
+            {fields}
+          </div>
+        );
+      })}
       {skipped.length > 0 && (
-        <p role="status" className="rounded-lg bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">
-          {t("fill.skippedNotice", { sections: skipped.map((s) => s.title || t("fill.sectionN", { n: definition.sections.indexOf(s) + 1 })).join(", ") })}
+        <p
+          role="status"
+          className="rounded-lg bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-500/15 dark:text-warning-400"
+        >
+          {t("fill.skippedNotice", {
+            sections: skipped
+              .map(
+                (s) =>
+                  s.title ||
+                  t("fill.sectionN", { n: definition.sections.indexOf(s) + 1 }),
+              )
+              .join(", "),
+          })}
         </p>
       )}
     </div>

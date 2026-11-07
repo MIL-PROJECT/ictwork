@@ -31,9 +31,11 @@ export const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      // 창 안 검색 칸에 글자가 있으면 Esc는 글자만 지우고(브라우저 기본 동작) 창은 닫지 않는다 (slices/19 C10)
+      const target = event.target;
+      if (target instanceof HTMLInputElement && target.type === "search" && target.value !== "") return;
+      onClose();
     };
 
     if (isOpen) {

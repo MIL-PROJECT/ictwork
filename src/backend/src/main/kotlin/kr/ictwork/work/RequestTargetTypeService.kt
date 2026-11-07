@@ -11,6 +11,7 @@ import kr.ictwork.file.FileService
 import kr.ictwork.form.FormDefinition
 import kr.ictwork.form.FormMode
 import kr.ictwork.form.FormRules
+import kr.ictwork.worktype.ScheduleModes
 import kr.ictwork.worktype.TargetTypes
 import kr.ictwork.worktype.TypeView
 import kr.ictwork.worktype.WorkForms
@@ -24,6 +25,9 @@ import org.springframework.stereotype.Service
  * 받는 부서 하나와 고른 업무 유형 (REQ-118, slices/11 3.4.3). 업무 등록은 받는 부서가 우리 부서로 정해져 departmentId를 무시한다
  */
 data class TargetInput(val departmentId: Long? = null, val types: List<TypeChoiceInput> = emptyList())
+
+/** 간편 부서 요청의 일정 규칙 (RequestTargetTypeService.scheduleRule) */
+data class ScheduleRule(val exactRequired: Boolean, val preferredMax: Int)
 
 /**
  * 고른 유형 하나와 그 양식 (slices/11 3.5.2). formVersionId: 화면이 채운 양식 판(양식 없으면 null) — 지금 판과 다르면 409 FORM_CHANGED(G-59).
@@ -48,6 +52,18 @@ class RequestTargetTypeService(
 ) {
     private class Wanted(val target: Long, val type: WorkType, val choice: TypeChoiceInput)
 
+    /**
+     * 간편 부서 요청의 일정 규칙: 고른 유형 중 하나라도 정확한 일정 필수면 정확한 일정, 아니면 희망 일자를 받는 유형의 가장 큰 개수까지(모두 받지 않으면 0).
+     * 고를 수 없는 유형은 apply가 거부한다
+     */
+    fun scheduleRule(targets: List<TargetInput>): ScheduleRule {
+        val types = workTypeRepository.findAllById(targets.flatMap { it.types.map { type -> type.workTypeId } }.toSet()).filter { it.active }
+        return ScheduleRule(
+            exactRequired = types.any { it.scheduleMode == ScheduleModes.EXACT_REQUIRED },
+            preferredMax = types.filter { it.scheduleMode == ScheduleModes.PREFERRED }.maxOfOrNull { it.preferredCount } ?: 0,
+        )
+    }
+
     /** 요청의 받는 부서(request.targetDepartmentIds를 정한 뒤)마다 고른 유형·답을 검사해 저장한다. 다시 올릴 때 원래 고른 유형은 그대로 쓸 수 있다 */
     fun apply(actor: Actor, request: WorkRequest, targets: List<TargetInput>) {
         val requestId = checkNotNull(request.id)
@@ -69,6 +85,7 @@ class RequestTargetTypeService(
             picked.map { choice ->
                 val type = byId[choice.workTypeId]
                 val ok = type != null && (choice.workTypeId in listed || (choice.workTypeId in kept && resolver.stillUsable(actor.tree, target, type)))
+                if (request.departmentIntake && (type?.departmentId != target || type.active != true)) throw badRequest("WORK_TYPE_INVALID", "받는 부서가 등록한 사용 중인 업무 유형만 고르세요.")
                 if (!ok) throw badRequest("WORK_TYPE_INVALID", "고를 수 없는 업무 유형입니다. 사용 중인 유형을 다시 고르세요.")
                 Wanted(target, checkNotNull(type), choice)
             }

@@ -265,6 +265,29 @@ FROM (
 JOIN department d ON d.id = v.department_id
 WHERE NOT EXISTS (SELECT 1 FROM work_type t WHERE t.department_id = v.department_id AND t.name = v.name COLLATE utf8mb4_bin);
 
+-- 유형 설명(업무 요청의 유형 추천 근거, V41)과 일정 방식 예시. 설명이 빈 유형에만 채운다(관리자가 고친 설명·일정 방식은 그대로)
+-- 일정 방식: 1대대 화상회의 희망 일자 3개, 1중대 인터넷 2개, 1중대 1반 전장망 받지 않음, 1중대 2반 화상회의 정확한 일정 필수, 나머지 희망 일자 1개
+UPDATE work_type t
+JOIN (
+    SELECT 1 AS department_id, '인트라넷' AS name, '인트라넷 접속 불가, 계정 잠김·비밀번호 초기화, 사용 권한 신청을 처리합니다.' AS description, 'PREFERRED' AS schedule_mode, 1 AS preferred_count
+    UNION ALL SELECT 1, '화상회의', '대대 화상회의 체계 연결과 회의실 영상·음향 장비 점검을 지원합니다. 회의 전에 장비를 준비합니다.', 'PREFERRED', 3
+    UNION ALL SELECT 2, '인터넷', '인터넷 회선 신규 설치, 속도 저하·끊김, 특정 사이트 접속 장애를 점검합니다.', 'PREFERRED', 2
+    UNION ALL SELECT 2, '전화', '일반 전화 통화 불가·잡음, 전화기 고장·교체, 회선 이동과 번호 변경을 처리합니다.', 'PREFERRED', 1
+    UNION ALL SELECT 5, '전화', '일반 전화 통화 불가·잡음, 전화기 고장·교체, 회선 이동과 번호 변경을 처리합니다.', 'PREFERRED', 1
+    UNION ALL SELECT 5, '전장망', '전장망 단말기·중계기·안테나 상태 점검과 장비 교체, 운용 교육을 지원합니다.', 'NONE', 1
+    UNION ALL SELECT 6, '화상회의', '중대 화상회의 준비와 회의 자료 공유를 지원합니다. 회의 날짜와 시작·종료 시각이 필요합니다.', 'EXACT_REQUIRED', 1
+    UNION ALL SELECT 7, '전화', '일반 전화 통화 불가·잡음, 전화기 고장·교체, 회선 이동과 번호 변경을 처리합니다.', 'PREFERRED', 1
+    UNION ALL SELECT 8, '전화', '일반 전화 통화 불가·잡음, 전화기 고장·교체, 회선 이동과 번호 변경을 처리합니다.', 'PREFERRED', 1
+    UNION ALL SELECT 12, '인트라넷', '인트라넷 접속 불가, 계정 잠김·비밀번호 초기화, 사용 권한 신청을 처리합니다.', 'PREFERRED', 1
+    UNION ALL SELECT 12, '전장망', '전장망 단말기·중계기·안테나 상태 점검과 장비 교체, 운용 교육을 지원합니다.', 'PREFERRED', 1
+) v ON t.department_id = v.department_id AND t.name = v.name COLLATE utf8mb4_bin AND NOT t.is_other
+SET t.description = v.description,
+    -- 일정 방식은 아직 처음 값(희망 일자 하나)일 때만 예시로 바꾼다. 여러 표 UPDATE는 SET 순서가 정해지지 않으므로
+    -- 예시 값은 PREFERRED(개수 1~3)이거나 개수 1(NONE·EXACT_REQUIRED)로만 둔다(어느 순서로 바뀌어도 같은 결과)
+    t.schedule_mode = IF(t.schedule_mode = 'PREFERRED' AND t.preferred_count = 1, v.schedule_mode, t.schedule_mode),
+    t.preferred_count = IF(t.schedule_mode = 'PREFERRED' AND t.preferred_count = 1, v.preferred_count, t.preferred_count)
+WHERE t.description = '';
+
 -- 가상 양식 (REQ-808, slices/11 3.5.4): 질문 종류를 고루 쓴다. 인트라넷(단답·IP 칸·드롭다운), 화상회의(안내문·날짜·시각·숫자·선형 배율),
 -- 1중대 인터넷(객관식 구역 이동), 전화(단답 전화번호 검증·객관식 기타), 1중대 1반 전화(체크박스·파일), 전장망(그리드), 1중대 2반 화상회의(장문·이메일).
 -- 질문 표시(key)는 고정. 그 유형에 판이 하나도 없을 때만 첫 판을 넣고, 지금 판이 비어 있는 유형에만 그 판을 지금 판으로 둔다(관리자가 고친 양식은 그대로)

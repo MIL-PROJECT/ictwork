@@ -102,7 +102,6 @@
     "typeHelp": "Choose one or more work types for each receiving department. Types made by that department and the departments above and below it are grouped by the department that made them. \"Other\" can be chosen together with other types.",
     "typeHelpRegister": "Choose one or more types made by your department or the departments above and below it.",
     "typeNeedTarget": "Choose a receiving department first.",
-    "typeSearch": "Search types",
     "typeNone": "No types to choose.",
     "typeKept": "originally chosen type (hidden by a closer type with the same name, but kept as is)",
     "typeInactive": "deactivated. Remove it and choose another type",
@@ -458,7 +457,7 @@
     "workEvent": "Task"
   },
   "admin": {
-    "workTypesDesc": "Work types received by the target department of your role. Types already used are deactivated instead of deleted. \"Other\" always stays last and cannot be changed.",
+    "workTypesDesc": "Work types received by your role departments. The description is used to recommend types in task requests, so describe the work, systems and symptoms concretely. Types already used are deactivated, not deleted. \"Other\" always stays last and cannot be changed.",
     "noWorkTypeDepartment": "There is no department whose work types you can edit.",
     "otherFixed": "Fixed (last)",
     "moveUp": "Up",
@@ -481,7 +480,21 @@
     "form": "Form",
     "hasForm": "Yes",
     "noForm": "No",
-    "noFormOther": "No form (common fields only)"
+    "noFormOther": "No form (common fields only)",
+    "editType": "Edit name and description",
+    "description": "Description",
+    "descriptionExample": "e.g. Meeting room video/audio checks and video conference connection. No picture, no sound",
+    "descriptionHelp": "Task requests recommend this type from the words in its description. Describe the work, systems and common symptoms.",
+    "descriptionMissing": "Description needed · not recommended until one is added",
+    "scheduleColumn": "Schedule",
+    "scheduleFor": "Schedule for {name}",
+    "schedule": {
+      "NONE": "No preferred dates",
+      "PREFERRED-1": "1 preferred date",
+      "PREFERRED-2": "Up to 2 preferred dates",
+      "PREFERRED-3": "Up to 3 preferred dates",
+      "EXACT_REQUIRED": "Exact schedule required"
+    }
   },
   "errors": {
     "default": "Could not complete. Try again in a moment.",
@@ -529,7 +542,7 @@
     "DEPARTMENT_INVALID": "Could not find the department.",
     "POSITION_INVALID": "The position must be section leader, company commander or battalion commander.",
     "WORK_TYPE_DUPLICATE": "This department already has a work type with the same name.",
-    "WORK_TYPE_OTHER_FIXED": "\"Other\" cannot be renamed or deactivated.",
+    "WORK_TYPE_OTHER_FIXED": "\"Other\" cannot be renamed, deactivated, described or given a schedule option.",
     "WORK_TYPE_CONFLICT": "Another administrator changed it first. Reload and try again.",
     "NAME_INVALID": "Enter a name of 1–50 characters.",
     "COLOR_INVALID": "Unknown color.",
@@ -549,7 +562,13 @@
     "FILE_NOT_TEMP": "Some attachments have expired or cannot be used. Remove them and upload again.",
     "FORM_CHANGED": "The form changed while you were writing. The new form was loaded; check it and submit again.",
     "ANSWER_INVALID": "Check the form answers.",
-    "FORM_INVALID": "Check the form."
+    "FORM_INVALID": "Check the form.",
+    "PREFERRED_SCHEDULE_INVALID": "Check the preferred date and time.",
+    "REQUEST_SCHEDULE_REQUIRED": "Enter the preferred date and both times for this scheduled service.",
+    "REQUEST_SCHEDULE_INVALID": "The preferred end must follow the start, within one year.",
+    "WORK_TYPE_SCHEDULE_MODE_INVALID": "Choose a valid schedule option.",
+    "WORK_TYPE_DESCRIPTION_INVALID": "Enter a description of 1 to 500 characters.",
+    "REQUEST_MODE_FIXED": "The request mode cannot be changed when resubmitting."
   },
   "applicant": {
     "title": "Applicant",
@@ -584,5 +603,153 @@
     "NORMAL": "Normal",
     "URGENT": "Urgent",
     "urgentTag": "[Urgent]"
+  },
+  "flow": {
+    "navigation": "Request steps",
+    "steps": [
+      "Department",
+      "Request details",
+      "Preferred dates",
+      "Review & send"
+    ],
+    "headings": [
+      "Who should receive this request?",
+      "Follow the department’s guidance",
+      "When would you prefer the work?",
+      "Review your request"
+    ],
+    "descriptions": [
+      "Describe your issue for department recommendations, or choose a department directly.",
+      "Choose the department’s work type and complete its form, including location and details.",
+      "Enter your preferred date and attach files. The request goes to the whole department.",
+      "Review your details, preferred dates and visibility before sending."
+    ],
+    "stepOf": "Step {step} of {total}",
+    "summary": "Request summary",
+    "destination": "Departments · Work types",
+    "help": "Use the selected departments’ guidance and forms. Your entries are kept when you move between steps.",
+    "footer": "Your request is sent after the final review.",
+    "previous": "Back",
+    "next": "Next",
+    "sending": "Sending…",
+    "chooseViewers": "Choose / change viewers",
+    "editRoute": "Review / change approval route",
+    "chooseAssignees": "Choose / change persons in charge",
+    "errors": [
+      "Check the receiving departments and their work types.",
+      "Complete the required details and department forms.",
+      "Check the preferred date and time.",
+      "Check who can view this request."
+    ],
+    "destinationEmpty": "No department selected yet.",
+    "typePending": "Choose a work type.",
+    "contactLater": "You can add a contact number in the preferred dates step.",
+    "noForm": "This work type has no additional form. Enter the request details below.",
+    "reviewTitle": "Request to send",
+    "editContent": "Edit details",
+    "editSchedule": "Edit dates and attachments",
+    "none": "None",
+    "selfNotice": "This request will be sent immediately with self approval. Receiving departments start with receipt.",
+    "approvalNotice": "The request will be sent to the selected departments after approval.",
+    "typeFailed": "Could not load work types.",
+    "retry": "Retry"
+  },
+  "recommend": {
+    "issue": "Which system needs help, and what is the issue?",
+    "placeholder": "For example: I cannot connect to the tactical network.",
+    "basis": "Recommends up to 3 work types from the names and descriptions each department wrote.",
+    "loading": "Loading work types…",
+    "search": "Find recommended work",
+    "failed": "Could not load work types.",
+    "changed": "The text changed. Press ‘Find recommended work’ again.",
+    "results": "{count} recommendations",
+    "limit": "Up to 3 · choose one",
+    "empty": "No matching work type. Find the department directly in the org chart below.",
+    "systems": "Registered responsibilities",
+    "guide": "Department form guidance",
+    "guideLoading": "Loading guidance…",
+    "guideFailed": "Could not load guidance. Check the form after selecting the department.",
+    "noGuide": "No separate guidance is registered. Check the responsibilities before selecting.",
+    "reason": "Why this work type",
+    "matched": "Your description includes this department’s registered work type: {names}.",
+    "select": "Request this work",
+    "selected": "Selected",
+    "manual": "Choose a department from the organization chart",
+    "manualHelp": "Expand the organization tree. Only departments with available receiving staff can be added.",
+    "fields": "This work form asks about: {names}.",
+    "description": "Description",
+    "typeMatched": "‘{names}’ in the description matches what you entered."
+  },
+  "intake": {
+    "typeHelp": "Choose the selected department’s work type before completing its form in the next step.",
+    "context": "Request location and details",
+    "place": "Request location",
+    "details": "Details",
+    "scheduleTitle": "Preferred work dates",
+    "scheduleHelp": "Enter a preferred date and time; the receiving department uses it to set the actual schedule. Time is optional.",
+    "date": "Preferred date",
+    "time": "Preferred time",
+    "quickTime": "Common times",
+    "deliveryTitle": "Receiving department",
+    "departmentDelivery": "Send to the selected department without assigning an individual.",
+    "scheduleNotice": "These are preferences, not a confirmed work schedule.",
+    "sendHistory": "Send history",
+    "scheduleHelpRanked": "You can enter up to {count} preferred dates in order of preference. The receiving department uses them to set the actual schedule. Time is optional.",
+    "rank": "Choice {n}",
+    "addDate": "Add preferred date ({count}/{max})",
+    "removeDate": "Remove {label}"
+  },
+  "guidance": {
+    "startTime": "Start time",
+    "endTime": "End time",
+    "exactTitle": "Preferred service schedule (required)",
+    "exactHelp": "Enter the date and both times. Leave the end date empty for the same day.",
+    "requiredHelp": "The selected work type is a scheduled service. Provide the exact date and time.",
+    "optionalTitle": "Add preferred dates (optional)",
+    "editDelivery": "Edit attachments and delivery",
+    "noSchedule": "No preferred dates · coordinate with the department",
+    "flow": {
+      "steps": [
+        "Department & type",
+        "Request details",
+        "Review & send"
+      ],
+      "headings": [
+        "Which department and service do you need?",
+        "Complete the department’s request form",
+        "Review your request"
+      ],
+      "descriptions": [
+        "Find a recommended department or choose one from the organization chart, then select a work type.",
+        "Complete the department form, add any required schedule and attach files. The request goes to the selected department.",
+        "Review the request, visibility and approval route. The route starts with your own approval."
+      ],
+      "errors": [
+        "Select a department and one of its work types.",
+        "Check the department form, request details and required schedule.",
+        "Check visibility and any selected approval route."
+      ]
+    }
+  },
+  "progress": {
+    "title": "Progress",
+    "flow": "Processing steps",
+    "now": "Now",
+    "state": "State",
+    "receiveApproval": "The department is approving the receipt.",
+    "completeApproval": "Work is finished and the completion approval is in progress.",
+    "received": "Received",
+    "completed": "Completed",
+    "transferred": "Transferred to another department. Check that department's progress as well.",
+    "waiting": "The department has not received it yet.",
+    "summary": "{done} of {total} departments done · {open} in progress",
+    "planTitle": "Plan",
+    "noPlan": "Schedule not set · Dates and staff appear once the department makes a plan.",
+    "noPlanClosed": "No plan.",
+    "noPeople": "Staff not set",
+    "noContact": "No contact",
+    "myRequest": "My request",
+    "resultFiles": "Result files",
+    "etc": "Other (viewers · send approval)"
   }
 }

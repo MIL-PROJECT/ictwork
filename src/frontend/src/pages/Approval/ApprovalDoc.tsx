@@ -228,6 +228,7 @@ function ApprovalDocPage() {
                 {formatSchedule(doc.subject.request) || t("none")}
               </InfoRow>
               <RequestFields
+                departmentIntake={doc.subject.request.departmentIntake ?? !!doc.subject.request.preferences?.length}
                 place={doc.subject.request.place}
                 content={doc.subject.request.content}
                 assignees={doc.subject.request.assignees}

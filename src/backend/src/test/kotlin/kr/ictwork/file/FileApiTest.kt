@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 
@@ -113,6 +114,29 @@ class FileApiTest(
         assertThat(body).isEqualTo(pdf)
         download("f-b", id).andExpect(status().isNotFound)
         download("f-a", id + 1000).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `화면에서 보기는 내려받기 권한 그대로 PDF·그림·txt만 inline으로 주고 형식이 다르면 404`() {
+        val pdfId = uploaded("f-a", "점검 결과.pdf")["id"].asLong()
+        val view = { login: String, id: Long -> mockMvc.perform(get("/api/files/$id/view").with(signedIn(login, accountRepository))) }
+        val body = view("f-a", pdfId).andExpect(status().isOk)
+            .andExpect(header().string("Content-Type", "application/pdf"))
+            .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("inline")))
+            .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+            .andReturn().response.contentAsByteArray
+        assertThat(body).isEqualTo(pdf)
+        view("f-b", pdfId).andExpect(status().isNotFound)
+
+        val txtId = uploaded("f-a", "메모.txt", "회선 점검 메모".toByteArray(Charset.forName("MS949")))["id"].asLong()
+        val text = view("f-a", txtId).andExpect(status().isOk)
+            .andExpect(header().string("Content-Security-Policy", "sandbox"))
+            .andReturn().response.contentAsByteArray
+        assertThat(String(text, StandardCharsets.UTF_8)).isEqualTo("회선 점검 메모")
+
+        // 이름만 그림이고 본문이 다르면 보이지 않는다. HWP 등은 내려받기 본문을 화면이 그린다
+        view("f-a", uploaded("f-a", "사진.png")["id"].asLong()).andExpect(status().isNotFound)
+        view("f-a", uploaded("f-a", "계획.hwp", byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11, 0xE0.toByte(), 0, 0, 0, 0))["id"].asLong()).andExpect(status().isNotFound)
     }
 
     @Test

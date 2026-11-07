@@ -9,6 +9,7 @@ import kr.ictwork.org.PersonnelRepository
 import kr.ictwork.org.RoleAssignment
 import kr.ictwork.org.RoleAssignmentRepository
 import kr.ictwork.signedIn
+import kr.ictwork.testPersonnelId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -17,12 +18,16 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockHttpSession
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -192,5 +197,80 @@ class MeApiTest(
         changePassword(password, password)
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("PASSWORD_SAME_AS_CURRENT"))
+    }
+
+    // 글자 크기 (REQ-008, DEC-124)
+    private fun changeFontSize(body: String, who: String = loginId) = mockMvc.perform(
+        put("/api/me/font-size").with(signedIn(who, accountRepository)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(body),
+    )
+
+    @Test
+    fun `글자 크기 - 처음은 보통이고 크게로 바꾸면 내 정보와 로그인 응답에 나온다 (REQ-008)`() {
+        mockMvc.perform(get("/api/me").with(signedIn(loginId, accountRepository)))
+            .andExpect(status().isOk).andExpect(jsonPath("$.fontSize").value("NORMAL"))
+
+        changeFontSize("""{"fontSize":"LARGE"}""").andExpect(status().isNoContent)
+        mockMvc.perform(get("/api/me").with(signedIn(loginId, accountRepository)))
+            .andExpect(jsonPath("$.fontSize").value("LARGE"))
+        mockMvc.perform(post("/api/auth/login").with(csrf()).param("loginId", loginId).param("password", password))
+            .andExpect(status().isOk).andExpect(jsonPath("$.fontSize").value("LARGE"))
+
+        changeFontSize("""{"fontSize":"NORMAL"}""").andExpect(status().isNoContent)
+        mockMvc.perform(get("/api/me").with(signedIn(loginId, accountRepository)))
+            .andExpect(jsonPath("$.fontSize").value("NORMAL"))
+    }
+
+    @Test
+    fun `글자 크기 - 다른 값·빈 값은 400 FONT_SIZE_INVALID이고 바뀌지 않는다`() {
+        for (body in listOf("""{"fontSize":"HUGE"}""", """{"fontSize":"large"}""", """{"fontSize":null}""", "{}")) {
+            changeFontSize(body).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("FONT_SIZE_INVALID"))
+        }
+        assertThat(accountRepository.findByLoginId(loginId)!!.fontSize).isEqualTo("NORMAL")
+    }
+
+    @Test
+    fun `글자 크기 - 바꿔도 다른 계정과 비밀번호는 그대로다`() {
+        val other = accountRepository.saveAndFlush(
+            Account("tester2", passwordEncoder.encode(password), "다른 사용자", personnelId = testPersonnelId(departmentRepository, personnelRepository, "다른 사용자")),
+        )
+        val hashBefore = accountRepository.findByLoginId(loginId)!!.passwordHash
+        changeFontSize("""{"fontSize":"LARGE"}""").andExpect(status().isNoContent)
+
+        assertThat(accountRepository.findByLoginId(other.loginId)!!.fontSize).isEqualTo("NORMAL")
+        assertThat(accountRepository.findByLoginId(loginId)!!.passwordHash).isEqualTo(hashBefore)
+    }
+
+    @Test
+    fun `글자 크기 - 로그인하지 않으면 401, 초기 비밀번호를 바꾸기 전이면 403`() {
+        mockMvc.perform(put("/api/me/font-size").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""{"fontSize":"LARGE"}"""))
+            .andExpect(status().isUnauthorized)
+
+        accountRepository.saveAndFlush(accountRepository.findByLoginId(loginId)!!.apply { passwordChangeRequired = true })
+        changeFontSize("""{"fontSize":"LARGE"}""")
+            .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"))
+        assertThat(accountRepository.findByLoginId(loginId)!!.fontSize).isEqualTo("NORMAL")
+    }
+
+    @Test
+    fun `글자 크기 - QA 마스터(계정 고르기 중)는 NORMAL이고 바꿀 수 없다 (403)`() {
+        val master = mockMvc.perform(post("/api/auth/login").with(csrf()).param("loginId", MASTER_ID).param("password", MASTER_PASSWORD))
+            .andExpect(status().isOk).andExpect(jsonPath("$.fontSize").value("NORMAL"))
+            .andReturn().request.getSession(false) as MockHttpSession
+        mockMvc.perform(put("/api/me/font-size").session(master).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""{"fontSize":"LARGE"}"""))
+            .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
+    }
+
+    companion object {
+        // QA 마스터 시험용 값(실제 값 아님), QaMasterTest와 같은 방식
+        const val MASTER_ID = "qa-master!"
+        const val MASTER_PASSWORD = "Test-Master-Pw-1"
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun qaMaster(registry: DynamicPropertyRegistry) {
+            registry.add("ictwork.qa-master.login-id") { MASTER_ID }
+            registry.add("ictwork.qa-master.password-hash") { BCryptPasswordEncoder().encode(MASTER_PASSWORD) }
+        }
     }
 }

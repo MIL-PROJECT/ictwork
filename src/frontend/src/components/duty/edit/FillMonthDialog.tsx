@@ -4,7 +4,12 @@ import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/utils";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { addMonths, type DutyWrite, inputClass, labelClass, outlineButton, personOf, primaryButton, useDayLabel, useDutyError, usePersonName } from "../dutyUtil";
+import Checkbox from "@/components/form/input/Checkbox";
+import { addMonths, type DutyWrite, inputClass, labelClass, monthRange, outlineButton, personOf, primaryButton, useDayLabel, useDutyError, usePersonName } from "../dutyUtil";
+
+/** 위험 단추 ([채우기]: 배치를 지우고 다시 채움, slices/19 C1) */
+const dangerButton =
+  "inline-flex items-center justify-center gap-1.5 rounded-lg bg-error-500 px-3 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-error-600 disabled:cursor-not-allowed disabled:opacity-50";
 
 const MONTHS_AHEAD = 12;
 
@@ -13,7 +18,8 @@ type CellSource = "MEMORY" | "SET" | "EDITED";
 /**
  * [월별 채우기] 창 (REQ-404, slices/14 14.4.4·14.8.4, 옛 자동배치 창을 대신함).
  * 달 고르기(이번 달~12달 뒤, 서버 날짜 기준) → 처음 값(fill/defaults)으로 규칙마다 줄: 요일 규칙은 첫 사람(사용 중인 사람만), 교대 규칙은 사람마다 시작 칸(출처 "이어짐/정해 둔 칸"),
- * 건너뛸 규칙은 사유와 회색. [미리 보기]로 채울 기간·덮을 날 수·규칙마다 넣을 날·인원 수 다른 날·빈 공휴일·사용 중지로 빌 칸을 보이고, 확인한 뒤 같은 version으로 [채우기]
+ * 건너뛸 규칙은 사유와 회색. [미리 보기]로 채울 기간·덮을 날 수·규칙마다 넣을 날·인원 수 다른 날·빈 공휴일·사용 중지로 빌 칸·지워질 수동 배치를 보이고,
+ * 확인한 뒤 같은 version으로 [채우기](위험 색, 덮을 배치가 있으면 확인 체크). 채울 첫날을 바꿀 수 있고(G-150 ②), 처음 값의 근거(앞 근무·기억 날)를 보인다(slices/19 S2·C1~C3)
  */
 export default function FillMonthDialog({ detail, initialMonth, today, write, onDone, onClose }: {
   detail: DutyRosterDetail;
@@ -22,7 +28,8 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   /** 서버 날짜 (배치 화면 응답) */
   today: string;
   write: DutyWrite;
-  onDone: (result: DutyFillResult) => void;
+  /** 채운 결과와 채운 달 (배치 탭이 그 달로 옮긴다) */
+  onDone: (result: DutyFillResult, month: string) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "fill" });
@@ -34,6 +41,9 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   const thisMonth = today.slice(0, 7);
   const months = Array.from({ length: MONTHS_AHEAD + 1 }, (_, i) => addMonths(thisMonth, i));
   const [month, setMonth] = useState(() => (months.includes(initialMonth) ? initialMonth : thisMonth));
+  // 채울 첫날: null이면 처음 값 max(그 달 1일, 오늘). 달을 바꾸면 처음 값으로 되돌린다 (설계 재검토 4)
+  const [fromDate, setFromDate] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [defaults, setDefaults] = useState<DutyFillDefaults | null>(null);
   const [first, setFirst] = useState<Record<number, number | null>>({});
   const [cells, setCells] = useState<Record<number, Record<number, { cell: number; source: CellSource }>>>({});
@@ -42,11 +52,14 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   const [busy, setBusy] = useState(false);
   // 입력이 바뀔 때마다 오른다. 미리 보기 응답이 그사이 바뀐 입력의 것이면 버린다
   const inputRev = useRef(0);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const earliest = `${month}-01` > today ? `${month}-01` : today;
+  const monthEnd = monthRange(month).to;
 
-  // 처음 값: 달이 바뀌면 다시 받는다. 늦게 온 이전 달의 응답은 버리고, 응답이 오면 그 전 값으로 본 미리 보기를 지운다
+  // 처음 값: 달·채울 첫날이 바뀌면 다시 받는다(고친 첫 사람·시작 칸도 처음 값으로 돌아감). 늦게 온 이전 응답은 버리고, 응답이 오면 그 전 값으로 본 미리 보기를 지운다
   useEffect(() => {
     let cancelled = false;
-    fetchFillDefaults(detail.id, month).then(
+    fetchFillDefaults(detail.id, month, fromDate ?? undefined).then(
       (d) => {
         if (cancelled) return;
         setDefaults(d);
@@ -69,9 +82,15 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
     return () => {
       cancelled = true;
     };
-  }, [detail.id, month, describeError]);
+  }, [detail.id, month, fromDate, describeError]);
 
-  const loaded = defaults !== null && defaults.month === month;
+  // 미리 보기가 그려지면 읽도록 초점을 요약으로 (slices/19 C1)
+  useEffect(() => {
+    if (preview) summaryRef.current?.focus();
+  }, [preview]);
+
+  // 받은 처음 값이 지금 고른 달·채울 첫날의 것일 때만 (첫날을 처음 값으로 되돌린 직후의 낡은 응답을 쓰지 않음, 코드 재검토 2)
+  const loaded = defaults !== null && defaults.month === month && defaults.from === (fromDate ?? earliest);
   const ruleOf = (ruleId: number) => detail.rules.find((r) => r.id === ruleId);
   const personLabel = (pid: number) => {
     const p = personOf(detail.people, pid);
@@ -82,12 +101,13 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   const shortOf = (ruleId: number, cell: number) => {
     const shift = ruleOf(ruleId)?.shift;
     const typeId = shift?.pattern[cell - 1];
-    return typeId == null ? t("offShort") : (shift?.types.find((x) => x.id === typeId)?.short ?? "?");
+    return shift?.types.find((x) => x.id === typeId)?.short ?? "?";
   };
 
   const filling = (defaults?.rules ?? []).filter((r) => !r.skip);
   const body = (version: number): DutyFillBody => ({
     month,
+    from: fromDate ?? earliest,
     rules: filling.map((r) =>
       r.kind === "WEEKDAY"
         ? { ruleId: r.ruleId, ...(first[r.ruleId] != null ? { firstPersonnelId: first[r.ruleId]! } : {}) }
@@ -102,6 +122,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
     apply();
     inputRev.current += 1;
     setPreview(null);
+    setConfirmed(false);
     setError(null);
   };
 
@@ -112,7 +133,10 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
     const rev = inputRev.current;
     try {
       const result = await previewFill(detail.id, body(detail.version));
-      if (rev === inputRev.current) setPreview(result);
+      if (rev === inputRev.current) {
+        setPreview(result);
+        setConfirmed(false);
+      }
     } catch (err) {
       if (rev === inputRev.current) setError(describeError(err));
     } finally {
@@ -131,7 +155,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
         box.result = await runFill(detail.id, body(version));
         return box.result.detail;
       });
-      if (saved && box.result) onDone(box.result);
+      if (saved && box.result) onDone(box.result, month);
       onClose();
     } catch (err) {
       setError(describeError(err));
@@ -140,35 +164,71 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
   };
 
   const monthLabel = (ym: string) => new Intl.DateTimeFormat(language, { year: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ym}-01T00:00:00Z`));
+  // 지워질 수동 배치의 사람: 미리 보기 표시 값(규칙 밖 사람 포함) → 상세
+  const previewPerson = (pid: number) => {
+    const p = personOf(preview?.people ?? {}, pid) ?? personOf(detail.people, pid);
+    return p ? named(p.rank, p.name) : `#${pid}`;
+  };
+  const cellsMemoryDate = (ruleId: number, pid: number) => defaults?.rules.find((x) => x.ruleId === ruleId)?.cells?.find((c) => c.personnelId === pid)?.memoryDate ?? null;
+  const risky = preview !== null && (preview.overwriteDays > 0 || preview.manualPlacements.length > 0);
   const dates = (list: string[]) => list.map(dayLabel).join(", ");
   const previewOf = (ruleId: number) => preview?.rules.find((r) => r.ruleId === ruleId);
   const selectClass =
     "h-9 rounded-lg border border-gray-300 bg-transparent px-1 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy={`${id}-title`} className="custom-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto p-5 sm:p-8">
+    <Modal isOpen onClose={onClose} labelledBy={`${id}-title`} className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-2xl overflow-y-auto p-5 sm:p-8">
       <div className="space-y-5">
         <h2 id={`${id}-title`} className="pe-12 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {t("title")}
+          {t("titleMonth", { month: monthLabel(month) })}
         </h2>
         <p className="text-sm break-keep text-gray-600 dark:text-gray-400">{t("help")}</p>
 
-        <div className="max-w-xs">
-          <label htmlFor={`${id}-month`} className={labelClass}>
-            {t("month")}
-          </label>
-          <select id={`${id}-month`} value={month} onChange={(e) => change(() => setMonth(e.target.value))} className={inputClass}>
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {monthLabel(m)}
-              </option>
-            ))}
-          </select>
-          {loaded && (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t("period", { from: dayLabel(defaults.from), to: dayLabel(defaults.to) })}
-            </p>
-          )}
+        <div className="grid max-w-lg gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor={`${id}-month`} className={labelClass}>
+              {t("month")}
+            </label>
+            <select
+              id={`${id}-month`}
+              value={month}
+              onChange={(e) =>
+                change(() => {
+                  setMonth(e.target.value);
+                  setFromDate(null);
+                })
+              }
+              className={inputClass}
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${id}-from`} className={labelClass}>
+              {t("from")}
+            </label>
+            <input
+              id={`${id}-from`}
+              type="date"
+              min={earliest}
+              max={monthEnd}
+              value={fromDate ?? earliest}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v >= earliest && v <= monthEnd) change(() => setFromDate(v === earliest ? null : v));
+              }}
+              aria-describedby={`${id}-from-help`}
+              className={inputClass}
+            />
+          </div>
+          <p id={`${id}-from-help`} className="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+            {loaded && `${t("period", { from: dayLabel(defaults.from), to: dayLabel(defaults.to) })} · `}
+            {t("fromHelp")}
+          </p>
         </div>
 
         {loaded && (
@@ -204,6 +264,10 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
                             </option>
                           ))}
                       </select>
+                      {/* 처음 값의 근거 (slices/19 C3) */}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {r.previous ? t("previous", { date: dayLabel(r.previous.date), name: personLabel(r.previous.personnelId) }) : t("previousNone")}
+                      </p>
                     </div>
                   ) : (
                     <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
@@ -231,7 +295,11 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
                                   </option>
                                 ))}
                               </select>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">{t(`source.${value.source}`)}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {value.source === "MEMORY" && cellsMemoryDate(r.ruleId, m.personnelId)
+                                  ? t("memoryAt", { date: dayLabel(cellsMemoryDate(r.ruleId, m.personnelId)!) })
+                                  : t(`source.${value.source}`)}
+                              </span>
                             </span>
                           </li>
                         );
@@ -252,7 +320,7 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
         {loaded && defaults.rules.length > 0 && filling.length === 0 && <p className="text-sm text-warning-700 dark:text-warning-400">{t("nothing")}</p>}
 
         {preview && (
-          <div role="status" className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
+          <div ref={summaryRef} tabIndex={-1} className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-white/5 dark:text-gray-300">
             <p className="font-medium text-gray-800 dark:text-white/90">{t("previewTitle")}</p>
             <p>{t("period", { from: dayLabel(preview.from), to: dayLabel(preview.to) })}</p>
             {preview.overwriteDays > 0 ? (
@@ -295,7 +363,24 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
                 </ul>
               </div>
             )}
+            {preview.manualPlacements.length > 0 && (
+              <div className="text-warning-700 dark:text-warning-400">
+                <p className="font-medium">{t("manualList", { count: preview.manualPlacements.length })}</p>
+                <ul className="ms-4 list-disc">
+                  {preview.manualPlacements.map((m) => (
+                    <li key={`${m.ruleId}-${m.date}-${m.shiftTypeId ?? ""}-${m.personnelId}`}>
+                      {t("manualItem", {
+                        date: dayLabel(m.date),
+                        rule: m.shiftTypeId === null ? ruleName(m.ruleId) : `${ruleName(m.ruleId)}·${typeName(m.ruleId, m.shiftTypeId)}`,
+                        person: previewPerson(m.personnelId),
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p>{t("confirm")}</p>
+            {risky && <Checkbox label={t("confirmCheck")} checked={confirmed} onChange={setConfirmed} />}
           </div>
         )}
 
@@ -308,13 +393,13 @@ export default function FillMonthDialog({ detail, initialMonth, today, write, on
           <button type="button" onClick={onClose} className={outlineButton}>
             {t("cancel")}
           </button>
-          {preview ? (
-            <button type="button" disabled={busy} onClick={() => void run()} className={primaryButton}>
+          {/* [미리 보기]는 늘 이 자리, [채우기]는 미리 보기 뒤에만 오른쪽 끝에 위험 색으로 (같은 자리 단추가 바뀌지 않게, slices/19 C1) */}
+          <button type="button" disabled={!ready || busy} onClick={() => void showPreview()} className={preview ? outlineButton : primaryButton}>
+            {t("preview")}
+          </button>
+          {preview && (
+            <button type="button" disabled={busy || (risky && !confirmed)} onClick={() => void run()} className={dangerButton}>
               {t("run")}
-            </button>
-          ) : (
-            <button type="button" disabled={!ready || busy} onClick={() => void showPreview()} className={primaryButton}>
-              {t("preview")}
             </button>
           )}
         </div>

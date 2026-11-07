@@ -22,11 +22,13 @@ export default function ScheduleFields({
   value,
   onChange,
   invalid = false,
+  requireTimes = false,
 }: {
   idPrefix: string;
   value: ScheduleValue;
   onChange: (patch: Partial<ScheduleValue>) => void;
   invalid?: boolean; // 틀린 계획 칸: 시작일 칸에 aria-invalid (오류 칸으로 초점을 옮길 때 찾음)
+  requireTimes?: boolean;
 }) {
   const { t } = useTranslation("work");
   const field = (key: keyof ScheduleValue, type: "date" | "time", label: string, extra: { min?: string } = {}) => {
@@ -36,11 +38,13 @@ export default function ScheduleFields({
       <div>
         <label htmlFor={id} className={LABEL_CLASS}>
           {label}
+          {requireTimes && key !== "endDate" && <span className="text-error-500"> *</span>}
         </label>
         <div className="relative">
           <input
             id={id}
             type={type}
+            required={requireTimes && key !== "endDate"}
             value={value[key]}
             min={date ? (extra.min ?? MIN_DATE) : extra.min}
             max={date ? MAX_DATE : undefined}
@@ -66,11 +70,11 @@ export default function ScheduleFields({
     <div className="space-y-2">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {field("startDate", "date", t("schedule.startDate"))}
-        {field("startTime", "time", t("schedule.startTime"))}
+        {field("startTime", "time", t(requireTimes ? "guidance.startTime" : "schedule.startTime"))}
         {field("endDate", "date", t("schedule.endDate"), { min: value.startDate || undefined })}
-        {field("endTime", "time", t("schedule.endTime"))}
+        {field("endTime", "time", t(requireTimes ? "guidance.endTime" : "schedule.endTime"))}
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t("schedule.help")}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">{t(requireTimes ? "guidance.exactHelp" : "schedule.help")}</p>
     </div>
   );
 }

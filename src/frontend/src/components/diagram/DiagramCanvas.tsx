@@ -22,9 +22,10 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import type { ClipboardData } from "@excalidraw/excalidraw/clipboard";
-import type { AppState, BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI, PointerDownState } from "@excalidraw/excalidraw/types";
+import type { AppState, BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI, NormalizedZoomValue, PointerDownState } from "@excalidraw/excalidraw/types";
 import { type CandidateItem, diagramFileUrl, diagramPhotoUrl, type EquipmentFieldValue, type EquipmentInfo, type SceneData } from "@/api/diagram";
 import { EQUIPMENT_FIELDS, type EquipmentField, type NetworkItem, type SoftwareItem } from "@/api/equipment";
+import { useAppZoom } from "@/context/AuthContext";
 import { GridIcon, PaperClipIcon } from "@/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -867,7 +868,13 @@ export default function DiagramCanvas({
     if (initial) onReadyRef.current(handle);
   }, [initial, handle]);
 
-  const initialData = useMemo(() => initial && { elements: initial.elements, files: initial.files, scrollToContent: true }, [initial]);
+  // 글자 크기 "크게"(REQ-008)면 캔버스는 배율 밖(index.css .diagram-canvas)이므로 그림을 처음부터 그만큼 확대해 보인다.
+  // 확대는 이 화면에만 쓰고 저장하지 않는다(장면 저장은 elements만)
+  const appZoom = useAppZoom();
+  const initialData = useMemo(
+    () => initial && { elements: initial.elements, files: initial.files, scrollToContent: true, appState: { zoom: { value: appZoom as NormalizedZoomValue } } },
+    [initial, appZoom],
+  );
   const setApi = useCallback((api: ExcalidrawImperativeAPI) => {
     apiRef.current = api;
   }, []);
@@ -1262,11 +1269,11 @@ export default function DiagramCanvas({
     if (!lines.length && !photo) return null;
     const { scrollX, scrollY, zoom, width } = view.appState;
     const [x1, y1, x2] = getCommonBounds([el]);
-    // 상자 오른쪽에 띄우고, 그림판 오른쪽 끝에 걸리면 왼쪽에
+    // 상자 오른쪽에 띄우고, 그림판 오른쪽 끝에 걸리면 왼쪽에 (말풍선 폭 상한 15rem은 글자 크기 "크게"면 배율만큼, REQ-008)
     const right = (x2 + scrollX) * zoom.value + 8;
-    const flip = right + 240 > width;
+    const flip = right + 240 * appZoom > width;
     return { lines, photo, top: Math.max(0, (y1 + scrollY) * zoom.value), left: flip ? (x1 + scrollX) * zoom.value - 8 : right, flip };
-  }, [view, hover, known, te, equipmentOptions, attrs, equipmentFields, photoOf, diagramId]);
+  }, [view, hover, known, te, equipmentOptions, attrs, equipmentFields, photoOf, diagramId, appZoom]);
 
   // 편집 중 표시: 붙는 도형 오른쪽 위 클립, 고른 도형이 붙어 있는 도형의 점선 외곽 (S-51, 보기·PNG에는 없음)
   const attachMarks = useMemo(() => {
@@ -1575,7 +1582,7 @@ export default function DiagramCanvas({
             </span>
           ))}
           {legend && (
-            <div className={`absolute end-3 ${slots.mobile ? "bottom-20" : "bottom-3"} rounded-lg border border-gray-200 bg-white/90 px-2 py-1.5 text-theme-xs text-gray-700 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-300`}>
+            <div className={`diagram-legend absolute end-3 ${slots.mobile ? "bottom-20" : "bottom-3"} rounded-lg border border-gray-200 bg-white/90 px-2 py-1.5 text-theme-xs text-gray-700 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-300`}>
               <div className="mb-1 font-medium">{t("box.legend")}</div>
               {Object.entries(STATUS_COLORS).map(([status, c]) => (
                 <div key={status} className="flex items-center gap-1.5">
@@ -1587,7 +1594,7 @@ export default function DiagramCanvas({
           )}
           {tooltip && (
             <div
-              className={`absolute w-max max-w-60 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-theme-xs break-words text-gray-700 shadow-theme-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 ${tooltip.flip ? "-translate-x-full" : ""}`}
+              className={`diagram-tooltip absolute w-max max-w-[calc(15rem*var(--app-zoom))] rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-theme-xs break-words text-gray-700 shadow-theme-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 ${tooltip.flip ? "-translate-x-full" : ""}`}
               style={{ left: tooltip.left, top: tooltip.top }}
             >
               {tooltip.photo && <img src={tooltip.photo} alt="" className="mb-1 max-h-40 max-w-56 object-contain" />}

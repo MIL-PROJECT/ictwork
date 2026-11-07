@@ -40,6 +40,17 @@ class WorkType(
     @Column(name = "current_form_version_id")
     var currentFormVersionId: Long? = null
 
+    /** 추천 근거가 되는 설명 (1~500자, 만들 때 필수). "기타"와 설명 전에 만든 유형은 비어 있고 추천에 나오지 않는다 */
+    @Column(nullable = false, length = 500)
+    var description: String = ""
+
+    /** 요청할 때 일정 입력 방식(ScheduleModes)과 희망 일자를 받는 개수(PREFERRED일 때 1~3) */
+    @Column(name = "schedule_mode", nullable = false, length = 20)
+    var scheduleMode: String = ScheduleModes.PREFERRED
+
+    @Column(name = "preferred_count", nullable = false)
+    var preferredCount: Int = 1
+
     @Version
     var version: Long = 0
 
@@ -57,6 +68,15 @@ class WorkType(
 
         fun other(departmentId: Long) = WorkType(departmentId, OTHER_NAME, true, OTHER_SORT_ORDER)
     }
+}
+
+/** 업무 유형의 일정 입력 방식: 받지 않음 · 희망 일자(preferredCount개까지, 넣는 것은 선택) · 정확한 날짜와 시작·종료 시각 필수 */
+object ScheduleModes {
+    const val NONE = "NONE"
+    const val PREFERRED = "PREFERRED"
+    const val EXACT_REQUIRED = "EXACT_REQUIRED"
+    val ALL = setOf(NONE, PREFERRED, EXACT_REQUIRED)
+    const val MAX_PREFERRED = 3
 }
 
 /** 양식 판 (REQ-118·808, V18): 양식을 고칠 때마다 새 판을 남기고 지우지 않는다. 들어온 요청은 그때 판으로 보인다(G-37) */

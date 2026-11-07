@@ -168,6 +168,25 @@ class FileService(
     @Transactional(readOnly = true)
     fun body(id: Long): ByteArray? = bodyRepository.dataOf(id)
 
+    /**
+     * 화면에서 바로 보기 (첨부 미리보기): 권한은 내려받기와 같다. PDF·PNG·JPG·txt만, 형식은 이름과 본문 서명을 함께 본다.
+     * HWP·HWPX·DOCX는 내려받기 본문을 화면이 그린다(서버로 보내거나 바꾸지 않음)
+     */
+    @Transactional(readOnly = true)
+    fun inline(loginId: String, id: Long): kr.ictwork.docbox.DocInline {
+        val file = download(loginId, id)
+        val data = file.data
+        val mime = when (file.name.substringAfterLast('.', "").lowercase()) {
+            "pdf" -> if (data.size >= 5 && String(data, 0, 5, Charsets.ISO_8859_1) == "%PDF-") "application/pdf" else null
+            "png" -> if (FileRules.isPng(data)) "image/png" else null
+            "jpg", "jpeg" -> if (FileRules.isJpeg(data)) "image/jpeg" else null
+            "txt" -> "text/plain;charset=UTF-8"
+            else -> null
+        } ?: throw notFound()
+        val body = if (mime.startsWith("text/")) kr.ictwork.docbox.DocBoxService.text(data).toByteArray(Charsets.UTF_8) else data
+        return kr.ictwork.docbox.DocInline(file.name, mime, body)
+    }
+
     /** 내려받기: 볼 수 없으면 404 (DEC-063) */
     @Transactional(readOnly = true)
     fun download(loginId: String, id: Long): FileDownload {

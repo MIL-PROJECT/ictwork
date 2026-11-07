@@ -31,7 +31,7 @@ class JacksonKotlinTest(@Autowired private val objectMapper: ObjectMapper) {
 
         assertThat(json).isEqualTo(
             """{"loginId":"tester","displayName":"시험 사용자","passwordChangeRequired":true,""" +
-                """"features":["ADMIN_ORG"],"managedDepartmentIds":[3],"equipmentDepartmentIds":[3],"equipmentEditDepartmentIds":[3,4],"accountId":7,"departmentId":3}""",
+                """"features":["ADMIN_ORG"],"managedDepartmentIds":[3],"equipmentDepartmentIds":[3],"equipmentEditDepartmentIds":[3,4],"accountId":7,"departmentId":3,"fontSize":"NORMAL"}""",
         )
         assertThat(restored).isEqualTo(original)
     }

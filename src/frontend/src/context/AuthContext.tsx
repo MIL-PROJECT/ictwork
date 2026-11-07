@@ -1,4 +1,4 @@
-import { fetchMe, login, logout, type Me } from "@/api/auth";
+import { fetchMe, login, logout, type FontSize, type Me } from "@/api/auth";
 import { returnToQaPicker } from "@/api/qa";
 import { ApiError, setForbiddenListener, setUnauthorizedListener } from "@/api/client";
 import type React from "react";
@@ -14,6 +14,7 @@ type AuthContextType = {
   signIn: (loginId: string, password: string) => Promise<void>;
   signOut: () => Promise<boolean>; // 로그아웃되면(QA로 고른 계정이면 계정 고르기로 돌아가면) true
   refresh: () => Promise<void>; // 현재 사용자(역할·강제 변경 여부)를 다시 읽음
+  setFontSize: (fontSize: FontSize) => void; // 글자 크기를 화면에 바로 반영(저장은 부르는 쪽이 한다, REQ-008)
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +30,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  // 개인설정 글자 크기 (REQ-008): 크게면 <html data-font-size="large">로 화면 전체 125%(index.css). 로그인 전·로그아웃 뒤는 보통
+  const fontSize = user?.fontSize;
+  useEffect(() => {
+    applyFontSize(fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     setUnauthorizedListener(() => {
@@ -55,6 +62,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const refresh = async () => {
     setUser(await fetchMe());
+  };
+
+  const setFontSize = (fontSize: FontSize) => {
+    setUser((prev) => (prev ? { ...prev, fontSize } : prev));
   };
 
   const signIn = async (loginId: string, password: string) => {
@@ -106,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, signedOutReason, signIn, signOut, refresh }}>
+    <AuthContext.Provider value={{ user, signedOutReason, signIn, signOut, refresh, setFontSize }}>
       {children}
     </AuthContext.Provider>
   );
@@ -119,3 +130,19 @@ export const useAuth = () => {
   }
   return context;
 };
+
+// 글자 크기 "크게"의 화면 배율. index.css의 html[data-font-size="large"] { zoom: 1.25 }와 같은 값 (REQ-008, slices/18)
+const LARGE_ZOOM = 1.25;
+
+// 화면에 적용한다. 보통은 위 효과가 부르고, 업무 현황 인쇄 동안 잠시 보통으로 둘 때도 쓴다 (WorkStatus)
+export function applyFontSize(fontSize: FontSize | undefined) {
+  if (fontSize === "LARGE") document.documentElement.dataset.fontSize = "large";
+  else delete document.documentElement.dataset.fontSize;
+}
+
+// 지금 화면 배율(보통 1, 크게 1.25). 외부 부품을 배율 밖에서 그릴 때 글자·높이를 이만큼 키우고,
+// 화면 좌표(getBoundingClientRect)로 CSS 위치를 정할 때 이 값으로 나눈다. 인쇄할 때는 index.css가 배율을 1로 둔다
+export function useAppZoom() {
+  const { user } = useAuth();
+  return user?.fontSize === "LARGE" ? LARGE_ZOOM : 1;
+}

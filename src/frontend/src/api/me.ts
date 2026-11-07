@@ -1,6 +1,7 @@
+import type { FontSize } from "./auth";
 import { apiFetch } from "./client";
 
-// 개인설정: 내 정보, 본인 비밀번호 변경 (REQ-807 본인)
+// 개인설정: 내 정보, 본인 비밀번호 변경 (REQ-807 본인), 글자 크기 (REQ-008)
 export interface Profile {
   loginId: string;
   displayName: string;
@@ -18,4 +19,12 @@ export const changePassword = (currentPassword: string, newPassword: string) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+// 글자 크기는 계정에 저장한다 (어느 PC에서 로그인해도 같음, REQ-008)
+export const changeFontSize = (fontSize: FontSize) =>
+  apiFetch<void>("/api/me/font-size", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fontSize }),
   });

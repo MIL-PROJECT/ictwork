@@ -347,6 +347,17 @@ a.board-metric:focus-visible {
 .board-band-stats .danger strong {
   color: #d83b40;
 }
+/* 숫자를 누르면 그 목록으로: 오늘 근무자 수 → 근무자 현황 (REQ-910, slices/19 V8) */
+.board-band-stat-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.board-band-stat-link:hover strong,
+.board-band-stat-link:focus-visible strong {
+  text-decoration: underline;
+}
 .board-band-stats > a {
   margin-left: 8px;
 }
@@ -961,6 +972,64 @@ main:has(> .board) {
     display: none;
   }
   main:has(> .board) {
+    padding-bottom: 18px;
+  }
+}
+
+/* 글자 크기 "크게"(REQ-008): 화면이 125%라 같은 창에서 CSS 높이가 1/1.25로 줄어든다. 높이 조건(880px)을 배율만큼(1100px) 늦춰
+   보통일 때와 같은 CSS 높이에서 압축이 걸리게 한다. 규칙은 위 블록과 같다 */
+@media (max-height: 1100px) {
+  html[data-font-size="large"] .board-header {
+    margin-bottom: 10px;
+  }
+  html[data-font-size="large"] .board-header h1 {
+    font-size: 21px;
+    margin: 0;
+  }
+  html[data-font-size="large"] .board-desc {
+    display: none;
+  }
+  html[data-font-size="large"] .board-metrics {
+    margin-bottom: 10px;
+  }
+  html[data-font-size="large"] .board-metric {
+    padding: 10px 14px;
+    gap: 2px;
+  }
+  html[data-font-size="large"] .board-metric-value {
+    font-size: 24px;
+  }
+  html[data-font-size="large"] .board-metric-foot {
+    display: none;
+  }
+  html[data-font-size="large"] .board-grid {
+    gap: 10px;
+  }
+  html[data-font-size="large"] .board-card-head {
+    min-height: 46px;
+  }
+  html[data-font-size="large"] .board-mp {
+    padding-top: 8px;
+  }
+  html[data-font-size="large"] .board-mp-kicker,
+  html[data-font-size="large"] .board-mp-legend {
+    display: none;
+  }
+  html[data-font-size="large"] .board-mp-rate {
+    font-size: 22px;
+  }
+  html[data-font-size="large"] .board-mp-bar {
+    height: 8px;
+    margin: 6px 0 2px;
+  }
+  html[data-font-size="large"] .board-mp-section {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+  html[data-font-size="large"] .board-alert-row:nth-child(n + 2) {
+    display: none;
+  }
+  html[data-font-size="large"] main:has(> .board) {
     padding-bottom: 18px;
   }
 }

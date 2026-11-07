@@ -178,7 +178,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
         {preview ? (
           <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
             <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.previewHelp")}</p>
-            <FormFill definition={def} value={fill} onChange={setFill} idPrefix={`preview-${type.id}`} showRequired={previewSent} />
+            <FormFill guided definition={def} value={fill} onChange={setFill} idPrefix={`preview-${type.id}`} showRequired={previewSent} />
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button size="sm" variant="outline" onClick={() => setPreviewSent(true)}>
                 {t("editor.previewSubmit")}

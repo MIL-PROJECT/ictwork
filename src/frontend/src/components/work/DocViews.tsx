@@ -104,7 +104,7 @@ export function StepTable({ doc }: { doc: DocResponse }) {
 }
 
 /** 처리 건·요청의 결재 이력: 문서마다 종류·상태·기안자와 단계 표 */
-export function DocHistory({ docs }: { docs: DocResponse[] }) {
+export function DocHistory({ docs, showSteps = true }: { docs: DocResponse[]; showSteps?: boolean }) {
   const { t } = useTranslation("work");
   if (docs.length === 0) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("item.noHistory")}</p>;
   return (
@@ -120,7 +120,7 @@ export function DocHistory({ docs }: { docs: DocResponse[] }) {
               {t("doc.drafter")}: {doc.drafterName} · {formatDateTime(doc.createdAt)}
             </span>
           </div>
-          <StepTable doc={doc} />
+          {showSteps && <StepTable doc={doc} />}
         </li>
       ))}
     </ul>

@@ -1,5 +1,5 @@
 import { ApiError } from "@/api/client";
-import type { DayCode, DutyPersonEntry, DutyPersonView, DutyRosterDetail } from "@/api/duty";
+import type { DayCode, DutyCalendarRoster, DutyPersonEntry, DutyPersonView, DutyRosterDetail, DutyShiftMember } from "@/api/duty";
 import type { PersonnelItem } from "@/api/org";
 import type { TFunction } from "i18next";
 import { useCallback } from "react";
@@ -84,6 +84,18 @@ export const mineOnly = (people: DutyPersonEntry[]) => people.filter((p) => p.me
  */
 export type DutyWrite = <T extends { version: number }>(work: (version: number) => Promise<T>) => Promise<T | null>;
 
+/** 근무표 색 8가지 (볼 수 있는 근무표 순서대로 되풀이, 같은 화면 안 구별용, slices/19 V5). 업무 현황 부서 색 변수를 쓴다 */
+export const ROSTER_COLORS = [
+  "bg-(--color-series-1)",
+  "bg-(--color-series-2)",
+  "bg-(--color-series-3)",
+  "bg-(--color-series-4)",
+  "bg-(--color-series-5)",
+  "bg-(--color-series-6)",
+  "bg-(--color-series-7)",
+  "bg-(--color-series-8)",
+];
+
 /** 화면 지역 시각의 이번 달 "YYYY-MM" */
 export const localYm = () => localToday().slice(0, 7);
 
@@ -124,3 +136,48 @@ export function useDaysText() {
   return (days: DayCode[]) => DAY_CODES.filter((c) => days.includes(c)).map((c) => t(`short.${c}`)).join("·");
 }
 
+
+const textLength = (text: string) => Array.from(text).length;
+
+/**
+ * 패턴 글자 → 칸 (slices/19 E2·13.1·14.3): 앞에서부터 근무 종류(쉬는 근무 포함)의 짧은 글자(2자 먼저)로 끊는다. 빈칸은 무시. 모르는 글자면 그 글자를 돌려준다.
+ * 근무 종류는 저장 전의 줄(key)이어도 된다
+ */
+export function parsePattern<K>(text: string, types: { key: K; short: string }[]): { cells: K[] } | { bad: string } {
+  const chars = Array.from(text.replace(/\s+/g, ""));
+  const byShort = types.filter((x) => x.short.trim() !== "").sort((a, b) => textLength(b.short.trim()) - textLength(a.short.trim()));
+  const cells: K[] = [];
+  let i = 0;
+  while (i < chars.length) {
+    const rest = chars.slice(i).join("");
+    const type = byShort.find((x) => rest.startsWith(x.short.trim()));
+    if (type) {
+      cells.push(type.key);
+      i += textLength(type.short.trim());
+    } else {
+      return { bad: chars[i] };
+    }
+  }
+  return { cells };
+}
+
+/**
+ * 한 바퀴 동안 날마다 근무별 인원 검사 (slices/19 E3, 화면 계산): 패턴 n칸이면 n일 동안 d일째에 사람마다 (시작 칸 + d)번째 칸에 선다.
+ * 적용 날이 아닌 날은 모두 같이 멈추므로 한 바퀴만 본다. 정한 인원 수와 다른 (날, 근무)만 돌려준다. 쉬는 근무는 부르는 쪽이 types에서 뺀다
+ */
+export function checkHeadcount<K, T extends { key: K; count: number }>(pattern: (K | null)[], members: DutyShiftMember[], types: T[]) {
+  const n = pattern.length;
+  const out: { day: number; type: T; count: number }[] = [];
+  if (n < 2) return out;
+  const used = types.filter((x) => pattern.includes(x.key));
+  for (let d = 0; d < n; d++) {
+    for (const type of used) {
+      const count = members.filter((m) => m.startCell >= 1 && m.startCell <= n && pattern[(m.startCell - 1 + d) % n] === type.key).length;
+      if (count !== type.count) out.push({ day: d + 1, type, count });
+    }
+  }
+  return out;
+}
+
+/** 근무표 이름: 같은 이름의 근무표가 함께 보이면 "부서 · 이름" (slices/19 V5) */
+export const rosterTitle = (roster: DutyCalendarRoster, dupNames: Set<string>) => (dupNames.has(roster.name) ? `${roster.departmentLabel} · ${roster.name}` : roster.name);

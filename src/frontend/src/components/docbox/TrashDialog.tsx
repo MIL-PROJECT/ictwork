@@ -57,7 +57,7 @@ export default function TrashDialog({ box, onChanged, onClose }: { box: DocBoxIn
   };
 
   return (
-    <Modal isOpen onClose={onClose} labelledBy={titleId} className="m-4 max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6">
+    <Modal isOpen onClose={onClose} labelledBy={titleId} className="m-4 max-h-[calc(90vh/var(--app-zoom))] w-full max-w-4xl overflow-y-auto p-6">
       <h2 id={titleId} className="mb-2 pe-12 text-theme-xl font-bold text-gray-800 dark:text-white/90">
         {t("title", { box: box.name })}
       </h2>

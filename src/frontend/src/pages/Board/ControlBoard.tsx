@@ -317,12 +317,15 @@ export default function ControlBoard() {
               </small>
             </strong>
           </div>
+          {/* 오늘 근무자 수를 누르면 근무자 현황 (REQ-910 "숫자를 누르면 목록", slices/19 V8) */}
           <div>
-            <span>{t("band.duty")}</span>
-            <strong>
-              {n(data.dutyToday)}
-              <small>{t("unit.people")}</small>
-            </strong>
+            <Link to="/duty" className="board-band-stat-link">
+              <span>{t("band.duty")}</span>
+              <strong>
+                {n(data.dutyToday)}
+                <small>{t("unit.people")}</small>
+              </strong>
+            </Link>
           </div>
           <Link to="/ict-status" className="board-link">
             {t("band.toIct")}

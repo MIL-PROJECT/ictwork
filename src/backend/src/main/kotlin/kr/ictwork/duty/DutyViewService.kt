@@ -27,8 +27,17 @@ data class DutyDay(val date: LocalDate, val people: List<DutyPersonEntry>)
 
 data class DutyTodayRoster(val id: Long, val departmentId: Long, val departmentLabel: String, val name: String, val days: List<DutyDay>)
 
-/** 근무자 현황 위쪽 어제·오늘·내일 칸 (slices/14 6장·14.5). serverNow: 0시(서버 시각) 넘김 타이머용 */
-data class DutyTodayView(val serverNow: LocalDateTime, val today: LocalDate, val canEdit: Boolean, val rosters: List<DutyTodayRoster>)
+/** 내 다음 근무의 근무표 하나 (slices/19 3.1). short: 교대 규칙이면 근무 종류 짧은 글자 */
+data class DutyNextItem(val rosterId: Long, val departmentLabel: String, val rosterName: String, val short: String?)
+
+/** 내 다음 근무: 오늘 이후 내가 배치된 가장 이른 날과 그날의 근무표들 */
+data class DutyNext(val date: LocalDate, val items: List<DutyNextItem>)
+
+/**
+ * 근무자 현황 위쪽 어제·오늘·내일 칸 (slices/14 6장·14.5). serverNow: 0시(서버 시각) 넘김 타이머용.
+ * next: 내 다음 근무(없으면 null, slices/19 3.1)
+ */
+data class DutyTodayView(val serverNow: LocalDateTime, val today: LocalDate, val canEdit: Boolean, val rosters: List<DutyTodayRoster>, val next: DutyNext? = null)
 
 data class DutyCalendarRoster(val id: Long, val departmentLabel: String, val name: String)
 
@@ -87,7 +96,23 @@ class DutyViewService(
                 val id = checkNotNull(r.id)
                 DutyTodayRoster(id, r.departmentId, labels.getValue(id), r.name, days.map { d -> DutyDay(d, people[id to d].orEmpty()) })
             },
+            next(actor, rosters, labels, today),
         )
+    }
+
+    /**
+     * 내 다음 근무 (slices/19 3.1): 볼 수 있는 근무표의 오늘 이후 내 배치 가운데 가장 이른 날, 그날 그 근무표들의 내 줄(겹침은 화면과 같이 한 번).
+     * 순서는 위쪽 칸과 같다(근무표 순서 → 규칙 → 근무 종류)
+     */
+    private fun next(actor: Actor, rosters: List<DutyRoster>, labels: Map<Long, String>, today: LocalDate): DutyNext? {
+        val me = actor.account.personnelId
+        val ids = rosters.mapNotNull { it.id }.toSet()
+        val date = placementRepository.findByPersonnelIdAndDutyDateGreaterThanEqualOrderByDutyDateAscIdAsc(me, today)
+            .firstOrNull { it.rosterId in ids }?.dutyDate ?: return null
+        val order = rosters.withIndex().associate { (i, r) -> checkNotNull(r.id) to i }
+        val mine = distinctShown(rows(rosters, date, date).filter { it.personnel.id == me }).sortedBy { order[it.roster.id] }
+        if (mine.isEmpty()) return null
+        return DutyNext(date, mine.map { r -> DutyNextItem(checkNotNull(r.roster.id), labels.getValue(checkNotNull(r.roster.id)), r.roster.name, r.short) })
     }
 
     /** [월]·[연] 달력 자료 (1년 이하). 볼 수 있는 근무표 모두 */
@@ -130,7 +155,7 @@ class DutyViewService(
     }
 
     /**
-     * 배치 줄: 근무표 → 규칙 id(만든 순서, 지운 규칙 포함) → (교대) 근무 종류 id(비번 없음) → 배치 순서.
+     * 배치 줄: 근무표 → 규칙 id(만든 순서, 지운 규칙 포함) → (교대) 근무 종류 id(쉬는 근무는 배치가 없음) → 배치 순서.
      * 이름·계급·근무 종류 이름은 지금 값
      */
     fun rows(rosters: List<DutyRoster>, from: LocalDate, to: LocalDate): List<DutyRow> {

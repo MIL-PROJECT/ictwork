@@ -43,10 +43,14 @@
   },
   "display": {
     "title": "Display",
-    "desc": "Saved in this browser only.",
+    "desc": "Language and theme are saved in this browser; text size is saved to your account.",
     "language": "Language",
     "theme": "Theme",
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "fontSize": "Text size",
+    "fontNormal": "Normal",
+    "fontLarge": "Large",
+    "fontSaveFailed": "Couldn't save the text size. Try again in a moment."
   }
 }

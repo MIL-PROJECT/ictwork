@@ -1,4 +1,4 @@
-import { createWorkType, fetchAdminWorkTypes, fetchWorkTypeDepartments, reorderWorkTypes, updateWorkType, type WorkTypeAdminRow } from "@/api/work";
+import { createWorkType, fetchAdminWorkTypes, fetchWorkTypeDepartments, reorderWorkTypes, updateWorkType, type ScheduleMode, type WorkTypeAdminRow } from "@/api/work";
 import ActionModal from "@/components/admin/ActionModal";
 import DataTable, { RowButton } from "@/components/admin/DataTable";
 import { TextField } from "@/components/admin/FormFields";
@@ -6,7 +6,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Panel } from "@/components/common/Panel";
 import PageMeta from "@/components/common/PageMeta";
 import Button from "@/components/ui/button/Button";
-import { INPUT_CLASS, LABEL_CLASS, useWorkError } from "@/components/work/format";
+import { INPUT_CLASS, LABEL_CLASS, TEXTAREA_CLASS, useWorkError } from "@/components/work/format";
 import FormEditor from "@/components/workform/FormEditor";
 import { ListIcon, PlusIcon } from "@/icons";
 import { cn } from "@/utils";
@@ -15,9 +15,21 @@ import { useTranslation } from "react-i18next";
 
 type Dialog = { kind: "create" } | { kind: "rename"; type: WorkTypeAdminRow } | { kind: "toggle"; type: WorkTypeAdminRow };
 
+// 일정 방식 고르기: 받지 않음 · 희망 일자 1~3개 · 정확한 일정 필수를 한 칸에서 고른다
+const SCHEDULE_CHOICES: { value: string; mode: ScheduleMode; count: number }[] = [
+  { value: "NONE", mode: "NONE", count: 1 },
+  { value: "PREFERRED-1", mode: "PREFERRED", count: 1 },
+  { value: "PREFERRED-2", mode: "PREFERRED", count: 2 },
+  { value: "PREFERRED-3", mode: "PREFERRED", count: 3 },
+  { value: "EXACT_REQUIRED", mode: "EXACT_REQUIRED", count: 1 },
+];
+const scheduleValue = (type: WorkTypeAdminRow) => (type.scheduleMode === "PREFERRED" ? `PREFERRED-${type.preferredCount}` : type.scheduleMode);
+const DESCRIPTION_MAX = 500;
+
 /**
  * 관리 ▸ 업무 유형 (REQ-808 유형 부분, slices/11 3.4.8): 부서 관리자가 역할의 대상 부서(하위 부서 제외)의 유형을
- * 추가·이름 바꾸기·사용 중지·다시 사용·순서 바꾸기 한다. "기타"는 고정(맨 끝, 이름·사용 바꾸지 않음, 양식 없음, G-57).
+ * 추가·이름과 설명 고치기·사용 중지·다시 사용·순서 바꾸기·일정 방식 바꾸기 한다. 설명은 만들 때 필수이고 업무 요청의 유형 추천 근거가 된다.
+ * 일정 방식은 요청할 때 희망 일자를 받지 않음·1~3개까지 받음·정확한 일정 필수 중 하나. "기타"는 고정(맨 끝, 이름·사용·설명·일정 방식 바꾸지 않음, 양식 없음, G-57).
  * 유형마다 양식을 만들고 미리 본다(REQ-808, FormEditor). 편집하는 동안 목록은 감춘다
  */
 export default function WorkTypeManage() {
@@ -32,7 +44,10 @@ export default function WorkTypeManage() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [editing, setEditing] = useState<WorkTypeAdminRow | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
+  const [modeSaving, setModeSaving] = useState<number | null>(null);
 
   useEffect(() => {
     fetchWorkTypeDepartments().then(
@@ -63,7 +78,47 @@ export default function WorkTypeManage() {
 
   const open = (next: Dialog) => {
     setName(next.kind === "rename" ? next.type.name : "");
+    setDescription(next.kind === "rename" ? next.type.description : "");
     setDialog(next);
+  };
+  const canSave = name.trim() !== "" && description.trim() !== "";
+  // 설명: 추천 근거라 1~500자 필수
+  const descriptionField = (
+    <div>
+      <label htmlFor="work-type-description" className={LABEL_CLASS}>
+        {t("admin.description")} <span className="text-error-500">*</span>
+      </label>
+      <textarea
+        id="work-type-description"
+        rows={4}
+        required
+        maxLength={DESCRIPTION_MAX}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder={t("admin.descriptionExample")}
+        className={TEXTAREA_CLASS}
+      />
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {t("admin.descriptionHelp")} ({description.trim().length}/{DESCRIPTION_MAX})
+      </p>
+    </div>
+  );
+
+  // 일정 방식: 고르는 즉시 그 유형만 저장한다(유형의 version으로 동시 수정 검사)
+  const changeSchedule = async (type: WorkTypeAdminRow, value: string) => {
+    const choice = SCHEDULE_CHOICES.find((c) => c.value === value);
+    if (!choice) return;
+    setModeError(null);
+    setModeSaving(type.id);
+    try {
+      const saved = await updateWorkType(type.id, type.version, { scheduleMode: choice.mode, preferredCount: choice.count });
+      setTypes((list) => list?.map((row) => (row.id === saved.id ? saved : row)) ?? list);
+    } catch (err) {
+      setModeError(describeError(err));
+      void load();
+    } finally {
+      setModeSaving(null);
+    }
   };
   const close = () => setDialog(null);
 
@@ -141,6 +196,8 @@ export default function WorkTypeManage() {
                 value={departmentId ?? ""}
                 onChange={(e) => {
                   setTypes(null);
+                  setModeError(null);
+                  setOrderError(null);
                   setDepartmentId(Number(e.target.value));
                 }}
                 className={cn(INPUT_CLASS, "w-auto min-w-60")}
@@ -161,10 +218,15 @@ export default function WorkTypeManage() {
             {orderError}
           </p>
         )}
+        {modeError && (
+          <p role="alert" className="border-b border-error-100 bg-error-50 px-[22px] py-3 text-sm text-error-600 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400">
+            {modeError}
+          </p>
+        )}
         <DataTable
           flush
           caption={title}
-          columns={[t("columns.name"), t("columns.inUse"), t("admin.form"), t("columns.actions")]}
+          columns={[t("columns.name"), t("columns.inUse"), t("admin.scheduleColumn"), t("admin.form"), t("columns.actions")]}
           emptyText={empty ? t("admin.noWorkTypeDepartment") : failed ? t("loadFailed") : types === null ? t("loading") : t("empty")}
           rows={(empty ? [] : (types ?? [])).map((type) => {
             const index = ordinary.findIndex((x) => x.id === type.id);
@@ -172,8 +234,35 @@ export default function WorkTypeManage() {
               key: type.id,
               inactive: !type.active,
               cells: [
-                type.name,
+                <div key="name" className="max-w-md">
+                  <p>{type.name}</p>
+                  {type.isOther ? null : type.description ? (
+                    <p className="mt-0.5 line-clamp-2 text-xs whitespace-pre-line text-gray-500 dark:text-gray-400">{type.description}</p>
+                  ) : (
+                    <p className="mt-0.5 text-xs font-medium text-warning-600 dark:text-warning-400">{t("admin.descriptionMissing")}</p>
+                  )}
+                </div>,
                 type.active ? t("admin.inUse") : t("admin.notInUse"),
+                type.isOther ? (
+                  <span key="schedule" className="text-sm text-gray-500 dark:text-gray-400">
+                    {t(`admin.schedule.${scheduleValue(type)}`)}
+                  </span>
+                ) : (
+                  <select
+                    key="schedule"
+                    aria-label={t("admin.scheduleFor", { name: type.name })}
+                    value={scheduleValue(type)}
+                    disabled={modeSaving === type.id}
+                    onChange={(e) => void changeSchedule(type, e.target.value)}
+                    className={cn(INPUT_CLASS, "w-auto min-w-44 py-1.5 text-sm")}
+                  >
+                    {SCHEDULE_CHOICES.map((choice) => (
+                      <option key={choice.value} value={choice.value}>
+                        {t(`admin.schedule.${choice.value}`)}
+                      </option>
+                    ))}
+                  </select>
+                ),
                 type.isOther ? t("admin.noFormOther") : type.formVersionId !== null ? t("admin.hasForm") : t("admin.noForm"),
                 type.isOther ? (
                   <span key="actions" className="text-sm text-gray-500 dark:text-gray-400">
@@ -182,7 +271,7 @@ export default function WorkTypeManage() {
                 ) : (
                   <span key="actions">
                     <RowButton onClick={() => setEditing(type)}>{t("admin.editForm")}</RowButton>
-                    <RowButton onClick={() => open({ kind: "rename", type })}>{t("admin.renameType")}</RowButton>
+                    <RowButton onClick={() => open({ kind: "rename", type })}>{t("admin.editType")}</RowButton>
                     <RowButton onClick={() => open({ kind: "toggle", type })}>{type.active ? t("admin.deactivate") : t("admin.activate")}</RowButton>
                     {index > 0 && <RowButton onClick={() => void move(index, -1)}>{t("admin.moveUp")}</RowButton>}
                     {index < ordinary.length - 1 && <RowButton onClick={() => void move(index, 1)}>{t("admin.moveDown")}</RowButton>}
@@ -194,15 +283,17 @@ export default function WorkTypeManage() {
         />
       </Panel>
       {dialog?.kind === "create" && departmentId !== null && (
-        <ActionModal title={t("admin.addType")} submitLabel={t("save")} canSubmit={name.trim() !== ""} describeError={describeError}
-          onSubmit={() => createWorkType(departmentId, name)} onClose={close} onDone={load}>
+        <ActionModal title={t("admin.addType")} submitLabel={t("save")} canSubmit={canSave} describeError={describeError}
+          onSubmit={() => createWorkType(departmentId, name, description)} onClose={close} onDone={load}>
           <TextField id="work-type-name" required label={t("columns.name")} value={name} onChange={setName} />
+          {descriptionField}
         </ActionModal>
       )}
       {dialog?.kind === "rename" && (
-        <ActionModal title={t("admin.renameType")} submitLabel={t("save")} canSubmit={name.trim() !== ""} describeError={describeError}
-          onSubmit={() => updateWorkType(dialog.type.id, dialog.type.version, { name })} onClose={close} onDone={load}>
+        <ActionModal title={t("admin.editType")} submitLabel={t("save")} canSubmit={canSave} describeError={describeError}
+          onSubmit={() => updateWorkType(dialog.type.id, dialog.type.version, { name, description })} onClose={close} onDone={load}>
           <TextField id="work-type-rename" required label={t("columns.name")} value={name} onChange={setName} />
+          {descriptionField}
         </ActionModal>
       )}
       {dialog?.kind === "toggle" && (

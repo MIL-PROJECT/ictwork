@@ -1,8 +1,9 @@
+import i18n from "@/i18n";
 import { ApiError } from "@/api/client";
 import type { Department } from "@/api/org";
 import { fetchApprovalAccounts, type PlanInput, type PlanView, type Schedule, type StepKind, type ViewFrom } from "@/api/work";
 import { byName } from "@/components/org/OrgTree";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // 업무·결재 화면 공용 함수·스타일 (B 업무·결재, DEC-060)
@@ -10,10 +11,10 @@ import { useTranslation } from "react-i18next";
 /** 서버 오류 코드를 업무 화면 문구로 바꾼다 */
 export function useWorkError() {
   const { t } = useTranslation("work");
-  return (err: unknown) => {
+  return useCallback((err: unknown) => {
     const code = err instanceof ApiError ? err.code : "";
     return t(`errors.${code}`, { defaultValue: t("errors.default") });
-  };
+  }, [t]);
 }
 
 /** 목록 카드 부제 (OMNIS "조회 52건 · 긴급 5건"): 읽기 전이면 없음, 긴급 수가 0이거나 모르면 건수만 */
@@ -245,7 +246,12 @@ export const toPlanInput = (form: PlanForm): PlanInput => ({
 });
 
 /** 작업 일자 글: "2026-10-20 09:00 ~ 2026-10-21 17:00" (비운 칸은 빼고) */
-export const formatSchedule = (s: { startDate: string | null; startTime: string | null; endDate: string | null; endTime: string | null } | null | undefined) => {
+export const formatSchedule = (s: { startDate: string | null; startTime: string | null; endDate: string | null; endTime: string | null; preferences?: import("@/api/work").PreferredSlot[] } | null | undefined) => {
+  // 희망 일자가 둘 이상이면 지망 순서를 붙인다("1지망: 2026-11-10 14:30 / 2지망: …")
+  if (s?.preferences?.length) {
+    const ranked = s.preferences.length > 1;
+    return s.preferences.map((slot, index) => `${ranked ? i18n.t("work:intake.rank", { n: index + 1 }) : i18n.t("work:intake.date")}: ${[slot.date, slot.time?.slice(0, 5)].filter(Boolean).join(" ")}`).join(" / ");
+  }
   if (!s?.startDate) return "";
   const start = [s.startDate, s.startTime?.slice(0, 5)].filter(Boolean).join(" ");
   const end = [s.endDate && s.endDate !== s.startDate ? s.endDate : null, s.endTime?.slice(0, 5)].filter(Boolean).join(" ");

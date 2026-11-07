@@ -16,7 +16,7 @@ export default function NotFound({ className }: NotFoundProps) {
       <PageMeta titleKey="notFound.pageTitle" />
       <div
         className={cn(
-          "relative z-1 flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gray-100 p-6 dark:bg-gray-900",
+          "relative z-1 flex min-h-[calc(100vh/var(--app-zoom))] flex-col items-center justify-center overflow-hidden bg-gray-100 p-6 dark:bg-gray-900",
           className,
         )}
       >

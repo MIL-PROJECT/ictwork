@@ -19,7 +19,11 @@ export interface Me {
   departmentId: number | null;
   // QA 마스터 상태 (DEC-067): MASTER = 계정 고르기 중, SWITCHED = 마스터가 고른 계정. 일반 로그인이면 없음
   qaMode?: "MASTER" | "SWITCHED";
+  // 개인설정 글자 크기 (REQ-008): LARGE면 화면 전체 125%. QA 마스터는 NORMAL
+  fontSize: FontSize;
 }
+
+export type FontSize = "NORMAL" | "LARGE";
 
 export const fetchMe = () => apiFetch<Me>("/api/me");
 

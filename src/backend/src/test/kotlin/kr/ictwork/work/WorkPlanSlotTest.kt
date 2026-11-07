@@ -230,6 +230,18 @@ class WorkPlanSlotTest : PlanSlotTestBase() {
     }
 
     @Test
+    fun `W-S2b 요청자는 처리 건 상세에서 지원 인원의 계급과 연락처를 본다`() {
+        personnelRepository.findById(personnelIdOf("ps-s1b")!!).get().apply { contact = "군내 1234" }.also { personnelRepository.saveAndFlush(it) }
+        val id = plannedItem(slot("2026-11-03", null, people = listOf("ps-s1b"), startTime = "09:00", endTime = "12:00"))
+        val person = item("ps-req", id)["plan"]["slots"][0]["personnel"][0]
+        assertThat(person["name"].asText()).isEqualTo("사람-ps-s1b")
+        assertThat(person["rankCode"].asText()).isEqualTo("PVT")
+        assertThat(person["contact"].asText()).isEqualTo("군내 1234")
+        // 처리 건을 볼 수 없는 사람에게는 상세가 없다
+        mockMvc.perform(get("/api/work/items/$id").with(signedIn("ps-out", accountRepository))).andExpect(status().isNotFound)
+    }
+
+    @Test
     fun `W-S3 같은 처리 건의 겹치는 두 칸에 같은 장비는 거부하고, 겹치지 않거나 맞닿은 두 칸은 된다`() {
         val id = receivedItem()
         postAs("ps-s1a", "/api/work/items/$id/plan", mapOf("plan" to plan(

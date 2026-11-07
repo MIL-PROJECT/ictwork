@@ -120,6 +120,24 @@ class WorkRequest(
     @Column(name = "work_end_time")
     var workEndTime: LocalTime? = null
 
+    @Column(name = "department_intake", nullable = false)
+    var departmentIntake: Boolean = false
+
+    @Column(name = "approval_requested", nullable = false)
+    var approvalRequested: Boolean = false
+    @Column(name = "requested_start_date") var requestedStartDate: LocalDate? = null
+    @Column(name = "requested_start_time") var requestedStartTime: LocalTime? = null
+    @Column(name = "requested_end_date") var requestedEndDate: LocalDate? = null
+    @Column(name = "requested_end_time") var requestedEndTime: LocalTime? = null
+
+    /** 간편 부서 요청의 희망 일자·시각, 지망 순서대로 3개까지(시각은 선택, V41) */
+    @Column(name = "preferred_date_1") var preferredDate1: LocalDate? = null
+    @Column(name = "preferred_time_1") var preferredTime1: LocalTime? = null
+    @Column(name = "preferred_date_2") var preferredDate2: LocalDate? = null
+    @Column(name = "preferred_time_2") var preferredTime2: LocalTime? = null
+    @Column(name = "preferred_date_3") var preferredDate3: LocalDate? = null
+    @Column(name = "preferred_time_3") var preferredTime3: LocalTime? = null
+
     /** 우선순위 (V12, DEC-065): 업무 등록의 처음 값. 결재가 끝나 처리 건이 생기면 옮긴다. 업무 요청은 늘 일반(처리 쪽이 정함) */
     @Column(nullable = false, length = 10)
     var priority: String = Priorities.NORMAL

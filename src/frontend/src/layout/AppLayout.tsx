@@ -33,14 +33,14 @@ const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   return (
-    <div className="min-h-screen xl:flex">
+    <div className="min-h-[calc(100vh/var(--app-zoom))] xl:flex">
       <AppSidebar />
       <Backdrop />
 
       <div
         className={cn(
           // 세로로 쌓아 본문(main)이 남은 높이를 채운다: 통합상황판이 창 높이에 맞춘다
-          "flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-in-out print:ms-0!",
+          "flex min-h-[calc(100vh/var(--app-zoom))] min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-in-out print:ms-0!",
           // 떠 있는 사이드바(왼쪽 14px + 카드 248px. 본문 안쪽 여백 30px) 옆에 본문을 둔다
           isExpanded || isHovered ? "xl:ms-[262px]" : "xl:ms-[94px]",
           isMobileOpen ? "ms-0" : "",

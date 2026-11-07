@@ -14,7 +14,7 @@ import { useOrgData } from "@/hooks/useOrgData";
 import { CalenderIcon, ChevronLeftIcon, ListIcon } from "@/icons";
 import Forbidden from "@/pages/OtherPage/Forbidden";
 import { cn } from "@/utils";
-import { useCallback, useEffect, useId, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 
@@ -80,6 +80,28 @@ export default function DutyEdit() {
   const roster = dept?.rosters.find((r) => String(r.id) === params.get("roster")) ?? dept?.rosters[0] ?? null;
   const rosterId = roster?.id ?? null;
 
+  // 주소의 부서·근무표가 고칠 수 없는 값이면 실제로 보인 부서·근무표로 주소를 맞춘다 (slices/19 C12 ①)
+  const deptParam = params.get("dept");
+  const rosterParam = params.get("roster");
+  const deptShown = dept ? String(dept.departmentId) : null;
+  const rosterShown = rosterId === null ? null : String(rosterId);
+  useEffect(() => {
+    if (manage === null) return;
+    if ((deptParam !== null && deptParam !== deptShown) || (rosterParam !== null && rosterParam !== rosterShown)) {
+      setParams(
+        (prev) => {
+          const out = new URLSearchParams(prev);
+          if (deptShown === null) out.delete("dept");
+          else out.set("dept", deptShown);
+          if (rosterShown === null) out.delete("roster");
+          else out.set("roster", rosterShown);
+          return out;
+        },
+        { replace: true },
+      );
+    }
+  }, [manage, deptParam, rosterParam, deptShown, rosterShown, setParams]);
+
   // 고른 근무표의 상세. 그사이 지워졌거나 고칠 수 없게 되면 안내하고 목록을 다시 부른다
   useEffect(() => {
     if (rosterId === null) return;
@@ -138,12 +160,15 @@ export default function DutyEdit() {
     [current, loadManage, t],
   ) as DutyWrite;
 
+  // 근무표를 추가하면 그 근무표의 [로테이션 규칙] 탭에서 규칙 편집 창을 바로 연다 (slices/19 13.1)
+  const [addRuleFor, setAddRuleFor] = useState<number | null>(null);
   const create = async (name: string) => {
     if (!dept) return;
     const d = await createRoster({ departmentId: dept.departmentId, name });
     setDetail(d);
     setNotice(null);
     setStatus(t("created", { name: d.name }));
+    setAddRuleFor(d.id);
     await loadManage();
     update({ dept: String(dept.departmentId), roster: String(d.id), tab: null });
   };
@@ -172,11 +197,36 @@ export default function DutyEdit() {
     update({ roster: null, tab: null });
   };
 
+  // 화살표로 옮긴 탭에 초점 (그려진 뒤, slices/19 C12 ②)
+  const tabFocus = useRef(false);
+  const tabInUrl = params.get("tab");
+  useEffect(() => {
+    if (!tabFocus.current) return;
+    tabFocus.current = false;
+    document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+  }, [tabInUrl]);
+
   if (forbidden) return <Forbidden />;
 
   const tabs = current ? tabsOf(current) : [];
   const tabParam = params.get("tab") as Tab | null;
   const tab = tabParam && tabs.includes(tabParam) ? tabParam : tabs[0];
+
+  // 탭 옮기기. focus면 옮긴 탭에 초점(화살표 키)
+  const goTab = (key: Tab, focus = false) => {
+    if (key === tab) return;
+    tabFocus.current = focus;
+    setStatus("");
+    update({ tab: key });
+  };
+  // 탭 줄 ←→·Home·End (고른 탭만 Tab에 듦, slices/19 C12 ②)
+  const onTabKey = (e: KeyboardEvent<HTMLButtonElement>) => {
+    const i = tabs.indexOf(tab);
+    const next = e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length] : e.key === "ArrowLeft" ? tabs[(i - 1 + tabs.length) % tabs.length] : e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1] : null;
+    if (!next) return;
+    e.preventDefault();
+    goTab(next, true);
+  };
   const panelProps = current && { detail: current, departments, personnel, write };
 
   return (
@@ -224,9 +274,10 @@ export default function DutyEdit() {
                 id={selectId}
                 value={dept.departmentId}
                 onChange={(e) => {
+                  const value = e.target.value;
                   setStatus("");
                   setNotice(null);
-                  update({ dept: e.target.value, roster: null, tab: null });
+                  update({ dept: value, roster: null, tab: null });
                 }}
                 className={inputClass}
               >
@@ -246,6 +297,7 @@ export default function DutyEdit() {
             department={dept}
             selectedId={rosterId}
             onSelect={(id) => {
+              setAddRuleFor(null);
               setStatus("");
               setNotice(null);
               update({ dept: String(dept.departmentId), roster: String(id), tab: null });
@@ -286,10 +338,9 @@ export default function DutyEdit() {
                   id={`duty-tab-${key}`}
                   aria-selected={key === tab}
                   aria-controls="duty-tab-panel"
-                  onClick={() => {
-                    setStatus("");
-                    update({ tab: key });
-                  }}
+                  tabIndex={key === tab ? 0 : -1}
+                  onClick={() => goTab(key)}
+                  onKeyDown={onTabKey}
                   className={cn(
                     "h-[28px] shrink-0 rounded-md px-3.5 text-sm font-medium whitespace-nowrap",
                     key === tab
@@ -303,7 +354,7 @@ export default function DutyEdit() {
             </div>
           </div>
           <div id="duty-tab-panel" role="tabpanel" aria-labelledby={`duty-tab-${tab}`} key={`${tab}-${panelKey}`} className="px-[22px] pt-4 pb-5">
-            {tab === "rules" && <RulesPanel {...panelProps} />}
+            {tab === "rules" && <RulesPanel key={current.id} {...panelProps} startAdding={addRuleFor === current.id} onStartedAdding={() => setAddRuleFor(null)} />}
             {tab === "placement" && <PlacementPanel {...panelProps} />}
             {tab === "holidays" && <HolidayPanel detail={current} write={write} />}
             {tab === "shares" && <SharePanel detail={current} departments={departments} write={write} />}

@@ -3,24 +3,25 @@ import { Modal } from "@/components/ui/modal";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { DutyPeople } from "./DutyBoard";
-import { useDayLabel } from "./dutyUtil";
+import { outlineButton, useDayLabel } from "./dutyUtil";
 
 /**
  * [연]에서 날짜를 누르면 여는 그날 상세 (REQ-404, slices/14 7.5·14.8.3): 근무표마다 그날 사람(교대는 짧은 글자). 규칙 이름은 없다.
- * items는 보기 조건(근무표 고르기·내 근무만)을 거친 것
+ * items는 보기 조건(근무표 고르기·내 근무만)을 거친 것. [이 달 보기]는 그 날의 달 [월]로 (slices/19 V7)
  */
-export default function DutyDayDialog({ date, holidayName, items, rosters, onClose }: {
+export default function DutyDayDialog({ date, holidayName, items, rosters, onMonth, onClose }: {
   date: string;
   holidayName: string | null;
   items: DutyCalendarItem[];
   rosters: Map<number, DutyCalendarRoster>;
+  onMonth: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation("duty", { keyPrefix: "calendar" });
   const dayLabel = useDayLabel();
   const id = useId();
   return (
-    <Modal isOpen onClose={onClose} labelledBy={id} className="custom-scrollbar max-h-[90vh] max-w-lg overflow-y-auto p-5 sm:p-8">
+    <Modal isOpen onClose={onClose} labelledBy={id} className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-lg overflow-y-auto p-5 sm:p-8">
       <h2 id={id} className="pe-12 text-lg font-semibold text-gray-800 dark:text-white/90">
         {date.slice(0, 4)}-{dayLabel(date)}
         {holidayName && <span className="ms-2 text-sm font-normal text-error-600 dark:text-error-400">{holidayName}</span>}
@@ -44,7 +45,10 @@ export default function DutyDayDialog({ date, holidayName, items, rosters, onClo
           })}
         </ul>
       )}
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <button type="button" onClick={onMonth} className={outlineButton}>
+          {t("thisMonth")}
+        </button>
         <button
           type="button"
           onClick={onClose}

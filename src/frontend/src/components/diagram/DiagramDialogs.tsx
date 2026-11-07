@@ -32,7 +32,7 @@ const SELECT = "h-9 rounded-lg border border-gray-300 bg-transparent px-2 text-s
 function Dialog({ title, open, onClose, children }: { title: string; open: boolean; onClose: () => void; children: React.ReactNode }) {
   const id = useId();
   return (
-    <Modal isOpen={open} onClose={onClose} labelledBy={id} className="m-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <Modal isOpen={open} onClose={onClose} labelledBy={id} className="m-4 max-h-[calc(90vh/var(--app-zoom))] w-full max-w-2xl overflow-y-auto p-6">
       <h2 id={id} className="mb-4 text-theme-xl font-bold text-gray-800 dark:text-white/90">
         {title}
       </h2>

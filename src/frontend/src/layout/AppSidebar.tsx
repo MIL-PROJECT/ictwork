@@ -576,7 +576,7 @@ const AppSidebar: React.FC = () => {
       className={cn(
         // 좁은 화면에서 연 메뉴는 상단바(z-99999)와 뒤 막보다 위에 둔다 (G-116)
         // OMNIS 셸: 넓은 화면에서는 바탕 위에 14px 띄운 흰 카드(모서리 24, 카드 그림자)
-        "fixed inset-s-0 top-0 z-50 max-xl:z-100001 flex h-screen flex-col print:hidden border-e border-gray-200 bg-white px-4 text-gray-900 transition-all duration-300 ease-in-out xl:top-3.5 xl:inset-s-3.5 xl:h-[calc(100vh-28px)] xl:translate-x-0 xl:rounded-[24px] xl:border-0 xl:shadow-theme-md xl:rtl:translate-x-0 dark:border-gray-800 dark:bg-gray-900",
+        "fixed inset-s-0 top-0 z-50 max-xl:z-100001 flex h-[calc(100vh/var(--app-zoom))] flex-col print:hidden border-e border-gray-200 bg-white px-4 text-gray-900 transition-all duration-300 ease-in-out xl:top-3.5 xl:inset-s-3.5 xl:h-[calc(100vh/var(--app-zoom)_-_28px)] xl:translate-x-0 xl:rounded-[24px] xl:border-0 xl:shadow-theme-md xl:rtl:translate-x-0 dark:border-gray-800 dark:bg-gray-900",
         isExpanded || isMobileOpen ? "w-[248px]" : isHovered ? "w-[248px]" : "w-20",
         isMobileOpen
           ? "translate-x-0"

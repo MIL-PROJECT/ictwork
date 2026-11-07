@@ -38,6 +38,10 @@ class FileController(private val service: FileService, private val bodyWrites: F
     @GetMapping("/{id}")
     fun download(principal: Principal, @PathVariable id: Long): ResponseEntity<ByteArray> = attachmentResponse(service.download(principal.name, id))
 
+    /** 화면에서 바로 보기: PDF·PNG·JPG·txt (그 밖은 404, 내려받기를 쓴다) */
+    @GetMapping("/{id}/view")
+    fun view(principal: Principal, @PathVariable id: Long): ResponseEntity<ByteArray> = kr.ictwork.docbox.inlineResponse(service.inline(principal.name, id))
+
     @DeleteMapping("/{id}")
     fun delete(principal: Principal, @PathVariable id: Long): ResponseEntity<Void> {
         service.deleteTemp(principal.name, id)

@@ -21,6 +21,9 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
+import org.springframework.http.MediaType
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -52,6 +55,9 @@ class WorkRequestFieldsTest(
     @Autowired private val workItemService: WorkItemService,
     @Autowired private val notificationRepository: NotificationRepository,
 ) : AttachmentTestSupport(mockMvc, objectMapper, accountRepository, departmentRepository, personnelRepository, roleAssignmentRepository, workTypeRepository, passwordEncoder) {
+    @Autowired private lateinit var intakeTypes: WorkTypeRepository
+    @Autowired private lateinit var accounts: AccountRepository
+    @Autowired private lateinit var mapper: ObjectMapper
     private lateinit var s1: Department
     private lateinit var s2: Department
     private lateinit var s3: Department
@@ -97,6 +103,188 @@ class WorkRequestFieldsTest(
     private fun itemIds(node: JsonNode) = node["items"].map { it["id"].asLong() }
 
     private fun itemOf(requestId: Long, department: Department) = workItemRepository.findByRequestIdOrderByIdAsc(requestId).first { it.departmentId == department.id }.id!!
+
+    private fun intakeBody() = (body("rf-req", s1) - "title" - "workStartDate" - "steps" - "assigneePersonnelIds") + mapOf(
+        "departmentIntake" to true,
+        "preferredSlots" to listOf(mapOf("date" to "2026-11-10", "time" to "14:30")),
+    )
+
+    @Test
+    fun `department intake sends without assignees or chosen approvers and preserves the preferred date and time`() {
+        val id = create("rf-req", intakeBody())
+        val request = detail("rf-req", id)
+        assertThat(request["phase"].asText()).isEqualTo("SENT")
+        assertThat(request["departmentIntake"].asBoolean()).isTrue()
+        assertThat(request["assignees"].size()).isZero()
+        assertThat(request["title"].asText()).contains("가대대 통신실", "회선 품질 저하")
+        assertThat(request["schedule"]["startDate"].isNull).isTrue()
+        assertThat(request["schedule"]["preferences"].map { it["date"].asText() }).containsExactly("2026-11-10")
+        assertThat(request["schedule"]["preferences"].first()["time"].asText()).startsWith("14:30")
+        assertThat(request["docs"].size()).isEqualTo(1)
+        assertThat(request["docs"].first()["status"].asText()).isEqualTo(kr.ictwork.approval.DocStatuses.DONE)
+        for (member in listOf("rf-s1a", "rf-s1b")) {
+            val receipt = getAs(member, "/api/work/receipts").first { it["requestId"].asLong() == id }
+            assertThat(receipt["requestedSchedule"]["preferences"].size()).isEqualTo(1)
+        }
+        val itemId = itemOf(id, s1)
+        workItemService.receive("rf-s1a", itemId, ReceiveInput())
+        val item = getAs("rf-s1b", "/api/work/items/$itemId")
+        assertThat(item["request"]["schedule"]["preferences"].size()).isEqualTo(1)
+        assertThat(workItemRepository.findById(itemId).get().startDate).isNull()
+    }
+
+    @Test
+    fun `department intake accepts preferred dates up to the largest count of the chosen types in order`() {
+        val dateOnly = mapOf("date" to "2026-11-10")
+        // "기타"는 희망 일자 하나: 둘 이상이나 범위 밖 날짜는 거부, 시각·희망 일자는 비워도 된다
+        listOf(listOf(dateOnly, mapOf("date" to "2026-11-11")), listOf(mapOf("date" to "2100-01-01"))).forEach { slots ->
+            send("POST", "rf-req", "/api/work/requests", intakeBody() + ("preferredSlots" to slots))
+                .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        }
+        val id = create("rf-req", intakeBody() + ("preferredSlots" to listOf(dateOnly)))
+        assertThat(detail("rf-req", id)["schedule"]["preferences"].single()["time"].isNull).isTrue()
+        val without = create("rf-req", intakeBody() - "preferredSlots")
+        assertThat(detail("rf-req", without)["schedule"]["preferences"].size()).isZero()
+
+        // 3개까지 받는 유형과 받지 않는 유형을 함께 고르면 큰 쪽(3개)까지, 지망 순서대로 남는다
+        val three = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "회의 지원", sortOrder = 1).also { it.description = "회의 지원"; it.preferredCount = 3 })
+        val none = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "상시 점검", sortOrder = 2).also { it.description = "상시 점검"; it.scheduleMode = "NONE" })
+        val slots = listOf(mapOf("date" to "2026-11-12", "time" to "09:00"), mapOf("date" to "2026-11-10"), mapOf("date" to "2026-11-11", "time" to "13:30"))
+        val both = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to three.id), mapOf("workTypeId" to none.id)))))
+        val ordered = create("rf-req", intakeBody() + both + ("preferredSlots" to slots))
+        val preferences = detail("rf-req", ordered)["schedule"]["preferences"]
+        assertThat(preferences.map { it["date"].asText() }).containsExactly("2026-11-12", "2026-11-10", "2026-11-11")
+        assertThat(preferences[2]["time"].asText()).startsWith("13:30")
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + both + ("preferredSlots" to slots + listOf(dateOnly)))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        // 받지 않는 유형만 고르면 희망 일자를 보낼 수 없다
+        val onlyNone = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to none.id)))))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + onlyNone)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("PREFERRED_SCHEDULE_INVALID"))
+        assertThat(detail("rf-req", create("rf-req", (intakeBody() - "preferredSlots") + onlyNone))["schedule"]["preferences"].size()).isZero()
+        // 정확한 일정 필수 유형이 하나라도 있으면 희망 일자 대신 정확한 일정을 받는다
+        val exact = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "통역", sortOrder = 3).also { it.description = "통역"; it.scheduleMode = "EXACT_REQUIRED" })
+        val mixed = mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to three.id), mapOf("workTypeId" to exact.id)))))
+        val schedule = mapOf("startDate" to "2026-11-10", "startTime" to "09:00", "endTime" to "11:00")
+        send("POST", "rf-req", "/api/work/requests", (intakeBody() - "preferredSlots") + mixed)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mixed + ("requestedSchedule" to schedule))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_INVALID"))
+        assertThat(detail("rf-req", create("rf-req", (intakeBody() - "preferredSlots") + mixed + ("requestedSchedule" to schedule)))["schedule"]["preferences"].size()).isZero()
+    }
+
+    @Test
+    fun `department admins create work types with a required description and set the preferred date count`() {
+        user("rf-s1admin", s1, "MEMBER", "DEPT_ADMIN" to s1)
+        val create = { body: Map<String, Any?> -> send("POST", "rf-s1admin", "/api/admin/work-types", body) }
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원")).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to "  ")).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to "가".repeat(501))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        val created = json(create(mapOf("departmentId" to s1.id, "name" to "화상회의 지원", "description" to " 회의실 영상·음향 점검 ")).andExpect(status().isCreated))
+        assertThat(created["description"].asText()).isEqualTo("회의실 영상·음향 점검")
+        assertThat(created["scheduleMode"].asText()).isEqualTo("PREFERRED")
+        assertThat(created["preferredCount"].asInt()).isEqualTo(1)
+        val id = created["id"].asLong()
+
+        val patchType = { login: String, body: Map<String, Any?> ->
+            mockMvc.perform(patch("/api/admin/work-types/$id").with(kr.ictwork.signedIn(login, accounts)).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
+        }
+        val version = { intakeTypes.findById(id).get().version }
+        patchType("rf-s1a", mapOf("version" to version(), "preferredCount" to 3)).andExpect(status().isForbidden)
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "SOMETIMES")).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_SCHEDULE_MODE_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "PREFERRED", "preferredCount" to 4)).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_SCHEDULE_MODE_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version(), "description" to "")).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("WORK_TYPE_DESCRIPTION_INVALID"))
+        patchType("rf-s1admin", mapOf("version" to version(), "description" to "화상회의 연결 지원", "scheduleMode" to "PREFERRED", "preferredCount" to 3)).andExpect(status().isOk)
+            .andExpect(jsonPath("$.description").value("화상회의 연결 지원")).andExpect(jsonPath("$.preferredCount").value(3))
+        // 요청 화면의 고르기 목록과 추천에 쓰는 전체 목록에 설정과 설명이 보인다
+        val option = getAs("rf-req", "/api/work/types?departmentId=${s1.id}").first { it["typeId"].asLong() == id }
+        assertThat(option["scheduleMode"].asText()).isEqualTo("PREFERRED")
+        assertThat(option["preferredCount"].asInt()).isEqualTo(3)
+        assertThat(getAs("rf-req", "/api/work/types/all").first { it["typeId"].asLong() == id }["description"].asText()).isEqualTo("화상회의 연결 지원")
+        patchType("rf-s1admin", mapOf("version" to version(), "scheduleMode" to "EXACT_REQUIRED")).andExpect(status().isOk)
+            .andExpect(jsonPath("$.scheduleMode").value("EXACT_REQUIRED"))
+
+        // "기타"는 설명·일정 방식을 바꾸지 않는다(지금 값을 그대로 보내는 것은 된다)
+        val other = intakeTypes.findAll().firstOrNull { it.departmentId == s1.id && it.isOther }
+            ?: intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "기타", true, 99))
+        mockMvc.perform(patch("/api/admin/work-types/${other.id}").with(kr.ictwork.signedIn("rf-s1admin", accounts)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf("version" to other.version, "scheduleMode" to "PREFERRED", "preferredCount" to 1))))
+            .andExpect(status().isOk)
+        val otherVersion = intakeTypes.findById(other.id!!).get().version
+        listOf(mapOf("scheduleMode" to "EXACT_REQUIRED"), mapOf("preferredCount" to 2), mapOf("description" to "그 밖의 요청")).forEach { change ->
+            mockMvc.perform(patch("/api/admin/work-types/${other.id}").with(kr.ictwork.signedIn("rf-s1admin", accounts)).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(change + ("version" to otherVersion))))
+                .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_OTHER_FIXED"))
+        }
+    }
+
+    @Test
+    fun `scheduled support requires an exact request date and both times without creating a confirmed work plan`() {
+        val type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.id!!, "통역 지원", sortOrder = 1).also { it.scheduleMode = "EXACT_REQUIRED" })
+        val base = (intakeBody() - "preferredSlots") + mapOf("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to type.id)))))
+        val date = mapOf("startDate" to "2026-11-10", "startTime" to "09:00", "endTime" to "11:00")
+        send("POST", "rf-req", "/api/work/requests", base).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", base + ("requestedSchedule" to (date - "endTime"))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_REQUIRED"))
+        send("POST", "rf-req", "/api/work/requests", base + ("requestedSchedule" to (date + ("endTime" to "08:00")))).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_SCHEDULE_INVALID"))
+        val id = create("rf-req", base + ("requestedSchedule" to date))
+        val request = detail("rf-req", id)
+        assertThat(request["schedule"]["startTime"].asText()).startsWith("09:00")
+        assertThat(request["schedule"]["endTime"].asText()).startsWith("11:00")
+        val doc = getAs("rf-req", "/api/approvals/docs/${request["docs"][0]["id"].asLong()}")
+        assertThat(doc["subject"]["request"]["startTime"].asText()).startsWith("09:00")
+        val itemId = itemOf(id, s1)
+        workItemService.receive("rf-s1a", itemId, ReceiveInput())
+        assertThat(workItemRepository.findById(itemId).get().startDate).isNull()
+        assertThat(getAs("rf-s1a", "/api/work/items/$itemId")["request"]["departmentIntake"].asBoolean()).isTrue()
+    }
+
+    @Test
+    fun `optional send approval waits for the selected route and then delivers the department request`() {
+        val base = intakeBody() - "preferredSlots"
+        send("POST", "rf-req", "/api/work/requests", base + ("approvalRequested" to true)).andExpect(status().isBadRequest)
+        val id = create("rf-req", base + mapOf("approvalRequested" to true, "steps" to line("rf-req", approve("rf-s3b"))))
+        val waiting = detail("rf-req", id)
+        assertThat(waiting["phase"].asText()).isEqualTo("SEND_APPROVAL")
+        assertThat(waiting["approvalRequested"].asBoolean()).isTrue()
+        assertThat(waiting["items"].size()).isZero()
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/approve").andExpect(status().isNoContent)
+        assertThat(detail("rf-req", id)["phase"].asText()).isEqualTo("SENT")
+        assertThat(detail("rf-req", id)["items"].size()).isEqualTo(1)
+        val direct = create("rf-req", base)
+        assertThat(detail("rf-req", direct)["phase"].asText()).isEqualTo("SENT")
+        assertThat(detail("rf-req", direct)["approvalRequested"].asBoolean()).isFalse()
+    }
+
+    @Test
+    fun `resubmitting keeps the request mode fixed`() {
+        val steps = line("rf-req", approve("rf-s3b"))
+        val intake = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$intake", body("rf-req", s1, steps = steps))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_MODE_FIXED"))
+        send("PUT", "rf-req", "/api/work/requests/$intake", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps)).andExpect(status().isNoContent)
+        val full = create("rf-req", body("rf-req", s1, steps = steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$full", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_MODE_FIXED"))
+    }
+
+    @Test
+    fun `department intake accepts parent destinations but rejects inherited types and register mode`() {
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mapOf("kind" to "REGISTER"))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("REQUEST_KIND_INVALID"))
+        // 받는 부서는 말단으로 한정하지 않는다: 상위 부서(중대)도 자기 유형으로 받는다
+        val c3Type = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(c3.id!!, "중대 접수", sortOrder = 1))
+        val toParent = create("rf-req", intakeBody() + ("targets" to listOf(mapOf("departmentId" to c3.id, "types" to listOf(mapOf("workTypeId" to c3Type.id))))))
+        assertThat(workItemRepository.findByRequestIdOrderByIdAsc(toParent).map { it.departmentId }).containsExactly(c3.id)
+        val parentType = intakeTypes.saveAndFlush(kr.ictwork.worktype.WorkType(s1.parentId!!, "상위 부서 전용", sortOrder = 1))
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + ("targets" to listOf(mapOf("departmentId" to s1.id, "types" to listOf(mapOf("workTypeId" to parentType.id))))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_INVALID"))
+    }
 
     private fun open(loginId: String, path: String) = mockMvc.perform(get(path).with(signedIn(loginId, accountRepository)))
 

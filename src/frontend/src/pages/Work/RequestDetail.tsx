@@ -1,4 +1,4 @@
-import { cancelRequest, fetchRequest, type RequestDetail as Request, updateViewers } from "@/api/work";
+import { cancelRequest, fetchItem, fetchRequest, type ItemDetail, type RequestDetail as Request, updateViewers } from "@/api/work";
 import ActionModal from "@/components/admin/ActionModal";
 import AttachmentList from "@/components/file/AttachmentList";
 import AnswerView from "@/components/workform/AnswerView";
@@ -18,11 +18,12 @@ import {
   WorkStatusBadge,
 } from "@/components/work/common";
 import { DocHistory } from "@/components/work/DocViews";
+import { Folded, PlanCard, ProgressCard } from "@/components/work/RequesterProgress";
 import { formatDateTime, formatPeriod, formatSchedule, idParam, isNotFound, useWorkError, viewFromOf, withFrom } from "@/components/work/format";
 import OrgPicker from "@/components/work/OrgPicker";
 import RequestFields from "@/components/work/RequestFields";
 import { useOrgData } from "@/hooks/useOrgData";
-import { DocsIcon, ListIcon, TimeIcon } from "@/icons";
+import { CalenderIcon, DocsIcon, ListIcon, TaskIcon, TimeIcon } from "@/icons";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -30,7 +31,9 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 /**
  * 요청 상세 (REQ-104·111, DEC-060 4·7번): 요청 칸·신청자 정보(G-2~G-4)·첨부파일(REQ-115), 받는 부서별 처리 상태, 열람 범위(요청자가 바꿈), 발송 결재 이력.
  * 보내기 전에는 취소, 발송이 반려되면 고쳐 다시 올린다.
- * 화면 기준 보기(G-68·G-72): 들어온 화면(?from=)을 서버에 넘긴다. 자기 처리 건만 보이면 요청 전체 상태 대신 처리 건 상태를 보인다
+ * 화면 기준 보기(G-68·G-72): 들어온 화면(?from=)을 서버에 넘긴다. 자기 처리 건만 보이면 요청 전체 상태 대신 처리 건 상태를 보인다.
+ * 요청자 보기: 내가 보낸 요청을 모든 처리 건 기준으로 볼 때는 진행 상황과 계획(지원 인원·연락처)을 위에 두고,
+ * 요청 내용·처리 결과 파일·지시사항·처리 결재 이력·기타 정보는 아래에 접어 둔다
  */
 export default function RequestDetail() {
   // 주소의 번호가 바뀌면(뒤로 가기·알림) 화면을 새로 만든다: 옛 요청·열린 창이 비워지고 옛 번호의 늦은 응답은 버려진다
@@ -52,6 +55,8 @@ function RequestDetailPage() {
   const [dialog, setDialog] = useState<"viewers" | "cancel" | null>(null);
   const [viewerDepartments, setViewerDepartments] = useState<number[]>([]);
   const [viewerPeople, setViewerPeople] = useState<number[]>([]);
+  // 요청자 보기의 처리 건 상세 (진행·계획·첨부·지시사항·결재 이력). 요청을 다시 읽으면 함께 다시 읽는다
+  const [details, setDetails] = useState<ItemDetail[] | null>(null);
 
   const load = useCallback(
     async () => {
@@ -70,9 +75,142 @@ function RequestDetailPage() {
     void load();
   }, [load]);
 
+  const requesterView = request !== null && request.mine && request.viewMode === "ALL" && request.phase === "SENT" && request.items.length > 0;
+  useEffect(() => {
+    if (!requesterView || request === null) return;
+    let active = true;
+    Promise.all(request.items.map((item) => fetchItem(item.id, from))).then(
+      (list) => active && setDetails(list),
+      () => active && setDetails([]),
+    );
+    return () => {
+      active = false;
+    };
+  }, [requesterView, request, from]);
+
   const personName = new Map(personnel.map((p) => [p.id, p.name]));
   const viewersText = (r: Request) =>
     [...r.viewers.departmentIds.map((d) => paths.get(d) ?? ""), ...r.viewers.personnelIds.map((p) => personName.get(p) ?? "")].join(", ") || t("requestDetail.noViewers");
+
+  // 열람 범위 줄 (요청자는 보낸 요청의 열람 범위를 바꾼다)
+  const viewersRow = (request: Request) => (
+    <InfoRow label={t("requestDetail.viewers")}>
+      <span className="flex flex-wrap items-center gap-3">
+        {viewersText(request)}
+        {/* 열람 범위 바꾸기는 보낸 요청만(발송 결재 중·반려·회수·취소는 아님, 명세 2.3·REQ-101). 막는 것은 서버 */}
+        {request.mine && request.phase === "SENT" && (
+          <button
+            type="button"
+            onClick={() => {
+              setViewerDepartments(request.viewers.departmentIds);
+              setViewerPeople(request.viewers.personnelIds);
+              setDialog("viewers");
+            }}
+            className="text-sm font-medium text-brand-600 hover:underline print:hidden dark:text-brand-400"
+          >
+            {t("requestDetail.editViewers")}
+          </button>
+        )}
+      </span>
+    </InfoRow>
+  );
+
+  // 요청자 보기: 진행 상황·계획을 위에, 나머지는 아래에 접어 둔다
+  const requesterSections = (request: Request) => {
+    if (details === null) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>;
+    const single = details.length === 1;
+    const name = (item: ItemDetail) => paths.get(item.departmentId) ?? "";
+    const done = details.filter((item) => item.status === "DONE").length;
+    const open = details.filter((item) => !["DONE", "REJECTED", "TRANSFERRED"].includes(item.status)).length;
+    const files = details.flatMap((item) => item.attachments);
+    const notes = details.flatMap((item) => item.notes.map((note) => ({ note, item })));
+    const docs = details.flatMap((item) => item.docs.map((doc) => ({ doc, item })));
+    return (
+      <>
+        <Section
+          icon={<TaskIcon />}
+          title={t("progress.title")}
+          subtitle={single ? undefined : t("progress.summary", { total: details.length, done, open })}
+          actions={single ? <WorkStatusBadge status={details[0].status} /> : undefined}
+        >
+          {details.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t("loadFailed")}</p>
+          ) : (
+            <div className="space-y-4">
+              {details.map((item) => (
+                <ProgressCard key={item.id} item={item} department={name(item)} single={single} />
+              ))}
+            </div>
+          )}
+        </Section>
+        <Section icon={<CalenderIcon />} title={t("progress.planTitle")}>
+          <div className="space-y-4">
+            {details.map((item) => (
+              <PlanCard key={item.id} item={item} department={name(item)} single={single} />
+            ))}
+          </div>
+        </Section>
+
+        <Folded title={t("progress.myRequest")}>
+          <InfoGrid>
+            <InfoRow label={t("columns.type")}>
+              <TargetTypesList targets={request.targets} paths={paths} />
+            </InfoRow>
+            <InfoRow label={t("columns.targets")}>{request.targetDepartmentIds.map((d) => paths.get(d) ?? "").join(", ")}</InfoRow>
+            <RequestFields departmentIntake={request.departmentIntake} place={request.place} content={request.content} assignees={request.assignees} applicant={request.applicant} sentAt={request.sentAt} />
+            <InfoRow label={tf("title")} wide>
+              <AttachmentList items={request.attachments} />
+            </InfoRow>
+          </InfoGrid>
+          <AnswerView targets={request.targets} forms={request.forms} paths={paths} />
+        </Folded>
+        <Folded title={t("progress.resultFiles")} count={files.length}>
+          {details.map((item) => (
+            <div key={item.id} className="space-y-1">
+              {!single && <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{name(item)}</p>}
+              <AttachmentList items={item.attachments} />
+            </div>
+          ))}
+        </Folded>
+        <Folded title={t("note.title")} count={notes.length}>
+          {notes.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t("note.empty")}</p>
+          ) : (
+            <ul className="space-y-3">
+              {notes.map(({ note, item }) => (
+                <li key={note.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-white/5">
+                  <p className="text-theme-xs text-gray-500 dark:text-gray-400">{[single ? null : name(item), note.authorName, formatDateTime(note.createdAt)].filter(Boolean).join(" · ")}</p>
+                  <p className="mt-1 text-sm break-words whitespace-pre-wrap text-gray-800 dark:text-white/90">{note.content}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Folded>
+        <Folded title={t("item.history")} count={docs.length}>
+          {docs.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{t("item.noHistory")}</p>}
+          {docs.length > 0 && details.map((item) =>
+            item.docs.length === 0 ? null : (
+              <div key={item.id} className="space-y-2">
+                {!single && <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{name(item)}</p>}
+                <DocHistory docs={item.docs} />
+              </div>
+            ),
+          )}
+        </Folded>
+        <Folded title={t("progress.etc")}>
+          <InfoGrid>{viewersRow(request)}</InfoGrid>
+          {request.docs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t(request.departmentIntake && !request.approvalRequested ? "intake.sendHistory" : "requestDetail.sendHistory")}
+              </p>
+              <DocHistory docs={request.docs} showSteps={!request.departmentIntake || request.approvalRequested} />
+            </div>
+          )}
+        </Folded>
+      </>
+    );
+  };
 
   return (
     <div>
@@ -125,6 +263,10 @@ function RequestDetailPage() {
             <InfoRow label={t(request.kind === "REGISTER" ? "schedule.title" : "schedule.requested")}>{formatSchedule(request.schedule) || t("none")}</InfoRow>
           </SummaryBar>
 
+          {requesterView ? (
+            requesterSections(request)
+          ) : (
+            <>
           <Section icon={<DocsIcon />} title={tw("detail.requestInfo")}>
             <InfoGrid>
               <InfoRow label={t("columns.type")}>
@@ -134,26 +276,8 @@ function RequestDetailPage() {
               {request.kind === "REGISTER" && (
                 <InfoRow label={t("requestDetail.origins")}>{request.originDepartmentIds.map((d) => paths.get(d) ?? "").join(", ") || t("none")}</InfoRow>
               )}
-              <InfoRow label={t("requestDetail.viewers")}>
-                <span className="flex flex-wrap items-center gap-3">
-                  {viewersText(request)}
-                  {/* 열람 범위 바꾸기는 보낸 요청만(발송 결재 중·반려·회수·취소는 아님, 명세 2.3·REQ-101). 막는 것은 서버 */}
-                  {request.mine && request.phase === "SENT" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewerDepartments(request.viewers.departmentIds);
-                        setViewerPeople(request.viewers.personnelIds);
-                        setDialog("viewers");
-                      }}
-                      className="text-sm font-medium text-brand-600 hover:underline print:hidden dark:text-brand-400"
-                    >
-                      {t("requestDetail.editViewers")}
-                    </button>
-                  )}
-                </span>
-              </InfoRow>
-              <RequestFields place={request.place} content={request.content} assignees={request.assignees} applicant={request.applicant} sentAt={request.sentAt} />
+              {viewersRow(request)}
+              <RequestFields departmentIntake={request.departmentIntake} place={request.place} content={request.content} assignees={request.assignees} applicant={request.applicant} sentAt={request.sentAt} />
               <InfoRow label={tf("title")} wide>
                 <AttachmentList items={request.attachments} />
               </InfoRow>
@@ -188,9 +312,11 @@ function RequestDetailPage() {
           )}
 
           {request.docs.length > 0 && (
-            <Section icon={<TimeIcon />} title={t("requestDetail.sendHistory")}>
-              <DocHistory docs={request.docs} />
+            <Section icon={<TimeIcon />} title={t(request.departmentIntake && !request.approvalRequested ? "intake.sendHistory" : "requestDetail.sendHistory")}>
+              <DocHistory docs={request.docs} showSteps={!request.departmentIntake || request.approvalRequested} />
             </Section>
+          )}
+            </>
           )}
         </div>
       )}

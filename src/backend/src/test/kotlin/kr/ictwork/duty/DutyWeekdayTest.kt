@@ -428,4 +428,200 @@ class DutyWeekdayTest : DutyTestBase() {
         assertThat(onRule(e, "2026-11-29")).isEqualTo(pid("C"))
         assertThat(onRule(e, "2026-11-28")).isEqualTo(pid("C"))
     }
+
+    // ───────── 사용성 개선 (slices/19 8.1, G-150) ─────────
+
+    private fun fillFrom(rosterId: Long, month: String, from: String, vararg rules: Map<String, Any?>): ResultActions =
+        send("POST", "adm", "/api/duty/rosters/$rosterId/fill", mapOf("month" to month, "from" to from, "rules" to rules.toList(), "version" to version(rosterId)))
+
+    private fun previewFrom(rosterId: Long, month: String, from: String): JsonNode =
+        ok(send("POST", "adm", "/api/duty/rosters/$rosterId/fill/preview", mapOf("month" to month, "from" to from)))
+
+    /** 그 규칙 그날 배치의 수동 표시 (없으면 null) */
+    private fun manual(ruleId: Long, date: String): Boolean? =
+        jdbcTemplate.queryForList("select manual from duty_placement where rule_id = ? and duty_date = ?", Boolean::class.java, ruleId, LocalDate.parse(date)).singleOrNull()
+
+    private fun swapRules(rosterId: Long, ruleA: Long, dateA: String, ruleB: Long, dateB: String): ResultActions =
+        send("POST", "adm", "/api/duty/rosters/$rosterId/placements/swap", mapOf(
+            "ruleId" to ruleA, "ruleIdB" to ruleB, "dateA" to dateA, "dateB" to dateB, "version" to version(rosterId),
+        ))
+
+    /**
+     * 채울 첫날 (G-150 ②): 11월 평일 A·B·C 순번에서 11-20(원래 C)을 D로, 11-24(원래 B)를 A로 수동으로 바꾼 뒤 11-25부터 다시 채우면
+     * 11-24까지는 그대로이고 11-25는 11-24 근무자 A 다음 B. 미리 보기는 [채울 첫날, 끝날]의 수동 배치만 알린다
+     */
+    @Test
+    fun fillFromDate() {
+        val (id, rule) = abc()
+        fill("adm", id, "2026-11", first(rule, "A")).andExpect(status().isOk)
+        assertThat(onRule(rule, "2026-11-25")).isEqualTo(pid("C"))
+        setWeekday("adm", id, rule, "2026-11-20", "D").andExpect(status().isOk)
+        setWeekday("adm", id, rule, "2026-11-24", "A").andExpect(status().isOk)
+
+        val wide = previewFrom(id, "2026-11", "2026-11-15")
+        assertThat(wide["from"].asText()).isEqualTo("2026-11-15")
+        assertThat(wide["manualPlacements"].map { it["date"].asText() to it["personnelId"].asLong() })
+            .containsExactly("2026-11-20" to pid("D"), "2026-11-24" to pid("A"))
+        assertThat(wide["manualPlacements"][0]["ruleId"].asLong()).isEqualTo(rule)
+        assertThat(wide["manualPlacements"][0]["shiftTypeId"].isNull).isTrue()
+        assertThat(previewFrom(id, "2026-11", "2026-11-25")["manualPlacements"]).isEmpty()
+
+        // 처음 값도 채울 첫날 앞 기록에서 이어진다: 11-24 A → B, 근거는 11-24 A
+        val defaults = ok(get("adm", "/api/duty/rosters/$id/fill/defaults?month=2026-11&from=2026-11-25"))
+        assertThat(defaults["from"].asText()).isEqualTo("2026-11-25")
+        val r = ruleOf(defaults, rule)
+        assertThat(r["firstPersonnelId"].asLong()).isEqualTo(pid("B"))
+        assertThat(r["previous"]["date"].asText()).isEqualTo("2026-11-24")
+        assertThat(r["previous"]["personnelId"].asLong()).isEqualTo(pid("A"))
+
+        fillFrom(id, "2026-11", "2026-11-25").andExpect(status().isOk)
+        assertThat(onRule(rule, "2026-11-20")).isEqualTo(pid("D"))
+        assertThat(onRule(rule, "2026-11-24")).isEqualTo(pid("A"))
+        assertThat(onRule(rule, "2026-11-25")).isEqualTo(pid("B"))
+        assertThat(onRule(rule, "2026-11-26")).isEqualTo(pid("C"))
+        assertThat(onRule(rule, "2026-11-30")).isEqualTo(pid("B"))
+        assertThat(manual(rule, "2026-11-20")).isTrue()
+        assertThat(manual(rule, "2026-11-25")).isFalse()
+    }
+
+    /** 채울 첫날은 그 달의 오늘 이후 날만 (G-150 ②). 처음 값은 max(1일, 오늘) */
+    @Test
+    fun fillFromInvalid() {
+        val (id, rule) = abc()
+        clock.now = LocalDateTime.of(2026, 11, 10, 9, 0)
+        assertThat(fillDefaults("adm", id, "2026-11")["from"].asText()).isEqualTo("2026-11-10")
+        fails(fillFrom(id, "2026-11", "2026-11-09", first(rule, "A")), 400, "DUTY_FILL_FROM_INVALID")
+        fails(fillFrom(id, "2026-11", "2026-12-01", first(rule, "A")), 400, "DUTY_FILL_FROM_INVALID")
+        fails(get("adm", "/api/duty/rosters/$id/fill/defaults?month=2026-12&from=2026-11-30"), 400, "DUTY_FILL_FROM_INVALID")
+        fillFrom(id, "2026-11", "2026-11-30", first(rule, "B")).andExpect(status().isOk)
+        assertThat(onRule(rule, "2026-11-27")).isNull()
+        assertThat(onRule(rule, "2026-11-30")).isEqualTo(pid("B"))
+    }
+
+    /** 수동 표시: 바꾸기·넣기·맞바꾸기·옮기기가 넣거나 바꾼 행은 TRUE, 채우기가 넣은 행은 FALSE */
+    @Test
+    fun manualFlag() {
+        val (id, rule) = abc()
+        fill("adm", id, "2026-11", first(rule, "A")).andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-02")).isFalse()
+        setWeekday("adm", id, rule, "2026-11-02", "D").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-02")).isTrue()
+        swap(id, rule, "2026-11-03", "2026-11-04").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-03")).isTrue()
+        assertThat(manual(rule, "2026-11-04")).isTrue()
+        // 빈 날(토요일)로 옮기기
+        swap(id, rule, "2026-11-05", "2026-11-07").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-05")).isNull()
+        assertThat(manual(rule, "2026-11-07")).isTrue()
+        // 빈 날에 넣기
+        setWeekday("adm", id, rule, "2026-11-08", "B").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-08")).isTrue()
+        // 다시 채우면 모두 채우기 배치
+        fill("adm", id, "2026-11", first(rule, "A")).andExpect(status().isOk)
+        assertThat(listOf("2026-11-02", "2026-11-03", "2026-11-04").map { manual(rule, it) }).containsOnly(false)
+        assertThat(manual(rule, "2026-11-07")).isNull()
+    }
+
+    /** 요일 규칙끼리 맞바꾸기 (G-150 ③): 다른 규칙 두 자리, 같은 날도 되고 한쪽이 비면 옮긴다. 교대 규칙이 끼면 400, 다른 근무표 규칙은 404 */
+    @Test
+    fun swapAcrossWeekdayRules() {
+        val id = roster("adm", c1, "야간 당직")
+        val w = weekdayRule("adm", id, "평일", listOf("A"), weekdays)
+        val e = weekdayRule("adm", id, "주말·공휴일", listOf("B"), listOf("SAT", "SUN", "HOLIDAY"))
+        fill("adm", id, "2026-11").andExpect(status().isOk)
+        swapRules(id, w, "2026-11-05", e, "2026-11-08").andExpect(status().isOk)
+        assertThat(onRule(w, "2026-11-05")).isEqualTo(pid("B"))
+        assertThat(onRule(e, "2026-11-08")).isEqualTo(pid("A"))
+        assertThat(manual(w, "2026-11-05")).isTrue()
+        assertThat(manual(e, "2026-11-08")).isTrue()
+        // 같은 날 두 규칙(11-06 금: 평일 A, 주말 규칙은 빔) → 주말 규칙으로 옮김
+        swapRules(id, w, "2026-11-06", e, "2026-11-06").andExpect(status().isOk)
+        assertThat(onRule(w, "2026-11-06")).isNull()
+        assertThat(onRule(e, "2026-11-06")).isEqualTo(pid("A"))
+        // 둘 다 비면 400
+        fails(swapRules(id, w, "2026-11-07", e, "2026-11-09"), 400, "DUTY_SWAP_INVALID")
+        // 교대 규칙과는 맞바꾸지 않는다 (요일 → 교대, 교대 → 요일)
+        val s = shiftRule("adm", id, "교대")
+        fails(swapRules(id, w, "2026-11-09", s, "2026-11-09"), 400, "DUTY_SWAP_INVALID")
+        fails(send("POST", "adm", "/api/duty/rosters/$id/placements/swap", mapOf("ruleId" to s, "ruleIdB" to w, "version" to version(id))), 400, "DUTY_SWAP_INVALID")
+        // 다른 근무표의 규칙은 404
+        val other = roster("adm", c1, "불침번")
+        val o = weekdayRule("adm", other, "평일", listOf("C"), weekdays)
+        swapRules(id, w, "2026-11-09", o, "2026-11-09").andExpect(status().isNotFound)
+        // ruleIdB가 같은 규칙이면 지금처럼 같은 규칙 안 (같은 날은 400)
+        fails(swapRules(id, w, "2026-11-09", w, "2026-11-09"), 400, "DUTY_SWAP_INVALID")
+        swapRules(id, w, "2026-11-09", w, "2026-11-10").andExpect(status().isOk)
+    }
+
+    /** 처음 값 근거 (slices/19 3.3): 요일 규칙 첫 사람을 정한 앞 배치, 배치가 없는 규칙은 null */
+    @Test
+    fun defaultsPrevious() {
+        val (id, rule) = abc()
+        fill("adm", id, "2026-11", first(rule, "A")).andExpect(status().isOk)
+        val fresh = weekdayRule("adm", id, "평일 2", listOf("B", "D"), weekdays)
+        val defaults = fillDefaults("adm", id, "2026-12")
+        val r = ruleOf(defaults, rule)
+        assertThat(r["previous"]["date"].asText()).isEqualTo("2026-11-30")
+        assertThat(r["previous"]["personnelId"].asLong()).isEqualTo(pid("C"))
+        assertThat(ruleOf(defaults, fresh)["previous"].isNull).isTrue()
+    }
+
+    /** 사람이 바뀌지 않은 수동 동작은 수동 표시를 켜지 않는다 (설계 재검토 11) */
+    @Test
+    fun manualOnlyWhenChanged() {
+        val (id, rule) = abc()
+        fill("adm", id, "2026-11", first(rule, "A")).andExpect(status().isOk)
+        setWeekday("adm", id, rule, "2026-11-02", "A").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-02")).isFalse()
+        // 11-02 A·11-05 A: 같은 사람끼리 맞바꾸기
+        swap(id, rule, "2026-11-02", "2026-11-05").andExpect(status().isOk)
+        assertThat(manual(rule, "2026-11-02")).isFalse()
+        assertThat(manual(rule, "2026-11-05")).isFalse()
+    }
+
+    /** 규칙 사이 맞바꾸기의 남은 경우 (설계 재검토 8): 지운 규칙 404, 나중 저장 409, 사람 표시 값 */
+    @Test
+    fun swapAcrossEdgeCases() {
+        val id = roster("adm", c1, "야간 당직")
+        val w = weekdayRule("adm", id, "평일", listOf("A"), weekdays)
+        val e = weekdayRule("adm", id, "주말·공휴일", listOf("B"), listOf("SAT", "SUN", "HOLIDAY"))
+        fill("adm", id, "2026-11").andExpect(status().isOk)
+        val stale = version(id)
+        swapRules(id, w, "2026-11-05", e, "2026-11-08").andExpect(status().isOk)
+        fails(send("POST", "adm", "/api/duty/rosters/$id/placements/swap", mapOf("ruleId" to w, "ruleIdB" to e, "dateA" to "2026-11-06", "dateB" to "2026-11-07", "version" to stale)), 409, "DUTY_CONFLICT")
+        send("DELETE", "adm", "/api/duty/rosters/$id/rules/$e?version=${version(id)}").andExpect(status().isOk)
+        swapRules(id, w, "2026-11-02", e, "2026-11-01").andExpect(status().isNotFound)
+        // 미리 보기는 지워질 수동 배치의 사람 표시 값을 함께 준다
+        val preview = previewFrom(id, "2026-11", "2026-11-01")
+        assertThat(preview["manualPlacements"].map { it["date"].asText() }).containsExactly("2026-11-05")
+        assertThat(preview["people"][pid("B").toString()]["name"].asText()).isEqualTo("나을")
+    }
+
+    /** 코드 재검토 7: 규칙 사이 반대 방향 옮기기(B → 빈 A), 같은 사람끼리 맞바꾸기는 그대로, 미리 보기의 채울 첫날 검사, 건너뛴 규칙의 수동 배치는 알리지 않음 */
+    @Test
+    fun swapAcrossMoreAndPreviewChecks() {
+        val id = roster("adm", c1, "야간 당직")
+        val w = weekdayRule("adm", id, "평일", listOf("A"), weekdays)
+        val e = weekdayRule("adm", id, "주말·공휴일", listOf("A", "B"), listOf("SAT", "SUN", "HOLIDAY"))
+        fill("adm", id, "2026-11", first(w, "A"), first(e, "B")).andExpect(status().isOk)
+        // 11-07(토) 평일 규칙은 비고 주말 규칙에 사람 → A쪽이 빈 자리로 옮김
+        val person = onRule(e, "2026-11-07")
+        swapRules(id, w, "2026-11-07", e, "2026-11-07").andExpect(status().isOk)
+        assertThat(onRule(w, "2026-11-07")).isEqualTo(person)
+        assertThat(onRule(e, "2026-11-07")).isNull()
+        assertThat(manual(w, "2026-11-07")).isTrue()
+        // 같은 사람끼리(11-09 평일 A, 11-08 주말 A) 맞바꾸면 아무것도 바뀌지 않는다
+        setWeekday("adm", id, e, "2026-11-08", "A").andExpect(status().isOk)
+        jdbcTemplate.update("update duty_placement set manual = false where rule_id = ? and duty_date = ?", e, LocalDate.parse("2026-11-08"))
+        swapRules(id, w, "2026-11-09", e, "2026-11-08").andExpect(status().isOk)
+        assertThat(manual(w, "2026-11-09")).isFalse()
+        assertThat(manual(e, "2026-11-08")).isFalse()
+        // 미리 보기도 채울 첫날을 검사한다
+        fails(send("POST", "adm", "/api/duty/rosters/$id/fill/preview", mapOf("month" to "2026-11", "from" to "2026-12-01")), 400, "DUTY_FILL_FROM_INVALID")
+        // 사용 중인 사람이 없어 건너뛰는 규칙의 수동 배치는 지워지지 않으므로 알리지 않는다
+        deactivatePerson("A")
+        val preview = previewFrom(id, "2026-11", "2026-11-02")
+        assertThat(preview["rules"].first { it["ruleId"].asLong() == w }["skip"].asText()).isEqualTo("NO_ACTIVE_MEMBER")
+        assertThat(preview["manualPlacements"].map { it["ruleId"].asLong() }).doesNotContain(w)
+    }
 }

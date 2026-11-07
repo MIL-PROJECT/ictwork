@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { docDownloadUrl, docViewUrl, type DocSearchHit } from "@/api/docbox";
 import { FileIcon, FolderIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
+import FilePreviewDialog from "@/components/file/preview/FilePreviewDialog";
+import { previewKind } from "@/components/file/preview/previewKind";
 import { Link } from "react-router";
 import { formatTime, pathLastId, pathText } from "./docUtil";
 
@@ -23,7 +26,8 @@ function openLink(hit: DocSearchHit) {
 /** 이름 찾기 결과 (REQ-A03): 이름, 있는 곳(문서함 > 폴더), 공유받은 것 표시, 여는 링크·내려받기. 최대 200건(서버) */
 export default function SearchResults({ hits, query }: { hits: DocSearchHit[]; query: string }) {
   const { t } = useTranslation("docbox", { keyPrefix: "search" });
-  const { t: ta } = useTranslation("docbox");
+  // 미리보기 창: PDF·그림·txt·한글·워드·엑셀·파워포인트는 새 탭 대신 체계 안에서 본다
+  const [previewing, setPreviewing] = useState<{ id: number; name: string } | null>(null);
   return (
     // 문서함 내용 카드(Panel) 안에 꽉 차게 둔다: 상자 테두리·모서리 없음
     <div className="relative overflow-x-auto">
@@ -60,11 +64,10 @@ export default function SearchResults({ hits, query }: { hits: DocSearchHit[]; q
                       <Link to={openLink(hit)} className={nameLink}>
                         {hit.node.name}
                       </Link>
-                    ) : hit.node.viewable ? (
-                      <a href={docViewUrl(hit.node.id)} target="_blank" rel="noopener" className={nameLink}>
+                    ) : previewKind(hit.node.name) ? (
+                      <button type="button" onClick={() => setPreviewing({ id: hit.node.id, name: hit.node.name })} className={nameLink}>
                         {hit.node.name}
-                        <span className="sr-only"> {ta("actions.newTab")}</span>
-                      </a>
+                      </button>
                     ) : (
                       <a href={docDownloadUrl(hit.node.id)} className={nameLink}>
                         {hit.node.name}
@@ -94,6 +97,9 @@ export default function SearchResults({ hits, query }: { hits: DocSearchHit[]; q
           })}
         </tbody>
       </table>
+      {previewing && (
+        <FilePreviewDialog key={previewing.id} name={previewing.name} viewUrl={docViewUrl(previewing.id)} downloadUrl={docDownloadUrl(previewing.id)} onClose={() => setPreviewing(null)} />
+      )}
     </div>
   );
 }

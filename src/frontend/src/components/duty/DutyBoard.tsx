@@ -18,21 +18,35 @@ const msToServerMidnight = (serverNow: string) => {
 
 /**
  * 근무표 하나의 그날 사람들 (14.8.3): 사람마다 한 줄 "중위 홍길동", 교대 규칙은 "주 중위 홍길동"(짧은 글자는 회색). 규칙 이름은 없다.
- * 내 이름은 굵게·강조. 위 칸·[월] 날짜 칸·그날 상세가 같이 쓴다
+ * 내 이름은 굵게·강조하고 화면 읽기에 "(나)"를 붙인다(slices/19 V9). 위 칸·[월] 날짜 칸·그날 상세가 같이 쓴다
  */
 export function DutyPeople({ people }: { people: DutyPersonEntry[] }) {
+  const { t } = useTranslation("duty", { keyPrefix: "board" });
   const named = usePersonName();
   return (
     <ul>
       {people.map((p, i) => (
         <li key={`${p.personnelId}-${p.short ?? ""}-${i}`} className="break-keep">
           {p.short && <span className="me-1 text-gray-500 dark:text-gray-400">{p.short}</span>}
-          {p.me ? <strong className="font-bold text-brand-600 dark:text-brand-400">{named(p.rank, p.name)}</strong> : named(p.rank, p.name)}
+          {p.me ? (
+            <strong className="font-bold text-brand-600 dark:text-brand-400">
+              {named(p.rank, p.name)}
+              <span className="sr-only"> {t("meSr")}</span>
+            </strong>
+          ) : (
+            named(p.rank, p.name)
+          )}
         </li>
       ))}
     </ul>
   );
 }
+
+/** 브라우저 시각(ms) → "14:05" */
+const clockText = (ms: number) => {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 
 /**
  * 근무자 현황 위쪽 어제·오늘·내일 칸 (REQ-404, slices/14 7.3·14.8.3). 볼 근무표 고르기(rosterIds, 모두면 null)·[내 근무만](mine)은 화면(DutyStatus)이 정한다.
@@ -98,9 +112,11 @@ export default function DutyBoard({ tick, rosterIds, mine }: { tick: number; ros
   ];
   const shown = (day: DutyDay) => (mine ? mineOnly(day.people) : day.people);
   const noMine = (r: DutyTodayRoster) => mine && r.days.every((d) => mineOnly(d.people).length === 0);
+  // [내 근무만]에서 고른 근무표 모두 3일 안에 내 근무가 없으면 줄마다 되풀이하지 않고 한 줄로 (slices/19 V9)
+  const noMineAll = mine && rosters.length > 0 && rosters.every(noMine);
   const cell = (day: DutyDay) => {
     const people = shown(day);
-    return people.length === 0 ? <span className="text-gray-400 dark:text-gray-500">{t("none")}</span> : <DutyPeople people={people} />;
+    return people.length === 0 ? <span className="text-gray-500 dark:text-gray-400">{t("none")}</span> : <DutyPeople people={people} />;
   };
   const highlightClass = "bg-brand-25 shadow-[inset_3px_0_0_var(--color-brand-500)] dark:bg-brand-500/10";
 
@@ -119,13 +135,21 @@ export default function DutyBoard({ tick, rosterIds, mine }: { tick: number; ros
                 {t("title")}
               </h3>
               <span className={panelSubtitle}>
-                {t("today")} {dayLabel(today)}
+                {t("today")} {dayLabel(today)} · {t("basis")}
               </span>
             </div>
           </div>
+          {/* 다시 불러오기에 실패하면 지난 자료를 둔 채 마지막 갱신 시각을 알린다 (slices/19 V3) */}
+          {failed && (
+            <p role="status" className="text-xs font-medium text-warning-700 dark:text-warning-400">
+              {t("staleAt", { time: clockText(receivedAt) })}
+            </p>
+          )}
         </div>
         {rosters.length === 0 ? (
           <EmptyState icon={<TimeIcon />} title={t("noneSelected")} />
+        ) : noMineAll ? (
+          <p className="px-[22px] pb-5 text-sm text-gray-500 dark:text-gray-400">{t("noMineAll")}</p>
         ) : (
           <>
             {/* 넓은 화면: 표 (줄 머리 부서·근무표 | 어제 | 오늘 | 내일) */}
@@ -156,7 +180,7 @@ export default function DutyBoard({ tick, rosterIds, mine }: { tick: number; ros
                         <span className="font-medium text-gray-800 dark:text-white/90">{r.name}</span>
                       </th>
                       {noMine(r) ? (
-                        <td colSpan={3} className="px-3 py-3 text-gray-400 dark:text-gray-500">
+                        <td colSpan={3} className="px-3 py-3 text-gray-500 dark:text-gray-400">
                           {t("noMine")}
                         </td>
                       ) : (
@@ -184,7 +208,7 @@ export default function DutyBoard({ tick, rosterIds, mine }: { tick: number; ros
                   <p className="text-xs text-gray-500 dark:text-gray-400">{r.departmentLabel}</p>
                   <p className="text-[13.5px] font-semibold text-gray-900 dark:text-white/90">{r.name}</p>
                   {noMine(r) ? (
-                    <p className="mt-2 text-gray-400 dark:text-gray-500">{t("noMine")}</p>
+                    <p className="mt-2 text-gray-500 dark:text-gray-400">{t("noMine")}</p>
                   ) : (
                     <dl className="mt-2 space-y-2">
                       {[r.days[1], r.days[0], r.days[2]].map((day) => (

@@ -25,7 +25,7 @@ import java.security.Principal
  * 바로 보기 응답 (slices/12 4.2 10번): 브라우저 안에서 열고(inline), 내용 추측 금지, 저장하지 않음.
  * 글·그림은 스크립트가 돌지 않게 sandbox로 연다. PDF는 브라우저 PDF 보기가 sandbox에서 열리지 않을 수 있어 넣지 않는다
  */
-private fun inlineResponse(file: DocInline): ResponseEntity<ByteArray> = ResponseEntity.ok()
+fun inlineResponse(file: DocInline): ResponseEntity<ByteArray> = ResponseEntity.ok()
     .contentType(MediaType.parseMediaType(file.mime))
     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(file.name, StandardCharsets.UTF_8).build().toString())
     .header("X-Content-Type-Options", "nosniff")
