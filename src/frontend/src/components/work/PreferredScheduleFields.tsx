@@ -2,9 +2,7 @@ import { CalenderIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
 import { emptyPreference, type PreferredDraft } from "./preferredSchedule";
 import { INPUT_CLASS, LABEL_CLASS } from "./format";
-
-// 자주 쓰는 시각: 한 번 눌러 채운다
-const QUICK_TIMES = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
+import QuickTimeButtons from "./QuickTimeButtons";
 
 /**
  * 희망 일자 칸: 처음에는 하나, [희망 일자 추가]로 고른 유형이 받는 개수(max)까지 늘린다.
@@ -42,9 +40,7 @@ export default function PreferredScheduleFields({ values, max, onChange, invalid
           <div>
             <label htmlFor={timeId} className={LABEL_CLASS}>{t("intake.time")}</label>
             <input id={timeId} type="time" step={600} value={value.time} aria-invalid={invalid || undefined} onClick={() => openPicker(timeId)} onChange={(event) => change(index, { time: event.target.value })} className={`${INPUT_CLASS} cursor-pointer`} />
-            <div role="group" aria-label={t("intake.quickTime")} className="mt-2 flex flex-wrap gap-1.5">
-              {QUICK_TIMES.map((time) => <button key={time} type="button" aria-pressed={value.time === time} onClick={() => change(index, { time })} className={value.time === time ? "rounded-md bg-brand-500 px-2.5 py-1 text-xs font-medium text-white" : "rounded-md border border-gray-200 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"}>{time}</button>)}
-            </div>
+            <QuickTimeButtons label={max > 1 ? label : undefined} value={value.time} onPick={(time) => change(index, { time })} />
           </div>
         </div>
         {index > 0 && <button type="button" onClick={() => onChange(values.filter((_, i) => i !== index))} className="text-sm text-gray-600 underline hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">{t("intake.removeDate", { label })}</button>}

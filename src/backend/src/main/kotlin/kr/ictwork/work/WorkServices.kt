@@ -268,7 +268,8 @@ class WorkRequestService(
             request.targetDepartmentIds = validTargets(actor, input.targets.map { it.departmentId ?: throw badRequest("TARGETS_INVALID", "받는 부서를 고르세요.") }).toMutableSet()
             request.originDepartmentIds = mutableSetOf()
         }
-        request.viewers = validViewers(actor, input.viewers).toMutableSet()
+        // 업무 요청(부서 접수)의 열람 범위는 선택: 요청자·받는 부서는 열람 범위와 관계없이 본다
+        request.viewers = validViewers(actor, input.viewers, required = !input.departmentIntake).toMutableSet()
     }
 
     /** 요청받은 부서: 0~20개, 사용 중인 부서 */
@@ -295,20 +296,20 @@ class WorkRequestService(
         approvalService.docsOfRequest(id).forEach(approvalService::cancel)
     }
 
-    /** 열람 범위는 보낸 뒤에도 요청자가 바꾼다 (DEC-060). 보내기 전에는 고쳐 다시 올릴 때 함께 정한다(REQ-101) */
+    /** 열람 범위는 보낸 뒤에도 요청자나 요청한 부서 소속이 바꾼다 (DEC-060, G-161). 보내기 전에는 고쳐 다시 올릴 때 함께 정한다(REQ-101) */
     fun updateViewers(loginId: String, id: Long, input: ViewerInput) {
         val actor = accessPolicy.actor(loginId)
         val request = ownRequest(actor, id)
         if (request.phase != RequestPhases.SENT) throw conflict("REQUEST_STATE", "보낸 요청만 열람 범위를 바꿀 수 있습니다.")
-        request.viewers = validViewers(actor, input).toMutableSet()
+        request.viewers = validViewers(actor, input, required = !request.departmentIntake).toMutableSet()
         workRequestRepository.saveAndFlush(request)
     }
 
-    /** 요청자만 하는 일(열람 범위 바꾸기). 볼 수 없는 요청은 없는 것처럼 404 */
+    /** 요청자나 요청한 부서 소속이 하는 일(열람 범위 바꾸기, G-161). 볼 수 없는 요청은 없는 것처럼 404 */
     private fun ownRequest(actor: Actor, id: Long): WorkRequest {
         val request = workRequestRepository.findById(id).orElse(null) ?: throw notFound()
         if (!workAccess.canViewRequest(actor, request)) throw notFound()
-        if (request.requesterAccountId != actor.account.id) throw denied()
+        if (request.requesterAccountId != actor.account.id && !workAccess.isRequestingDepartmentMember(actor, request)) throw denied()
         return request
     }
 
@@ -353,9 +354,9 @@ class WorkRequestService(
         return targets
     }
 
-    private fun validViewers(actor: Actor, input: ViewerInput): List<ViewerEntry> {
-        // 열람 범위는 필수 (DEC-061)
-        if (input.departmentIds.isEmpty() && input.personnelIds.isEmpty()) throw badRequest("VIEWERS_REQUIRED", "열람 범위를 하나 이상 정해야 합니다.")
+    private fun validViewers(actor: Actor, input: ViewerInput, required: Boolean = true): List<ViewerEntry> {
+        // 열람 범위는 필수 (DEC-061). 업무 요청(부서 접수)은 선택
+        if (required && input.departmentIds.isEmpty() && input.personnelIds.isEmpty()) throw badRequest("VIEWERS_REQUIRED", "열람 범위를 하나 이상 정해야 합니다.")
         if (input.departmentIds.toSet().size + input.personnelIds.toSet().size > 50) throw badRequest("VIEWERS_INVALID", "열람 범위는 50개까지 정할 수 있습니다.")
         input.departmentIds.toSet().forEach {
             val department = actor.tree.find(it)

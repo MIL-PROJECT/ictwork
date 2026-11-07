@@ -1,7 +1,7 @@
 import { HelmetProvider, Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 
-// 브라우저 탭 제목: "페이지 이름 | 정보통신업무관리체계"
+// 브라우저 탭 제목: "페이지 이름 | OMNIS"
 const PageMeta = ({ titleKey }: { titleKey?: string }) => {
   const { t } = useTranslation();
   const appName = t("common.appName");

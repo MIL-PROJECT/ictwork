@@ -145,24 +145,32 @@ export default function TypeRecommendations({
                       {type.departmentPath}
                     </p>
                   </div>
-                  <dl className="space-y-2 text-sm leading-relaxed">
-                    <div>
+                  <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm leading-relaxed text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                    <p className="font-medium">{t("recommend.reason")}</p>
+                    <p>
+                      {t("recommend.typeMatched", {
+                        names: matched.slice(0, 3).join(" · "),
+                      })}
+                    </p>
+                  </div>
+                  {/* 업무 설명은 원할 때만 펼쳐 본다 (G-156) */}
+                  <details className="text-sm">
+                    <summary
+                      // 후보가 여럿이라 화면낭독기에서 구분되도록 유형 이름과 부서를 붙인다(같은 이름 유형이 여러 부서에 있음)
+                      aria-label={`${type.name} (${type.departmentPath}) · ${t("recommend.details")}`}
+                      className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    >
+                      {t("recommend.details")}
+                    </summary>
+                    <dl className="mt-2 leading-relaxed">
                       <dt className="font-medium text-gray-700 dark:text-gray-300">
                         {t("recommend.description")}
                       </dt>
                       <dd className="whitespace-pre-line text-gray-600 dark:text-gray-400">
                         {short(type.description)}
                       </dd>
-                    </div>
-                    <div className="rounded-lg bg-brand-50 px-3 py-2 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                      <dt className="font-medium">{t("recommend.reason")}</dt>
-                      <dd>
-                        {t("recommend.typeMatched", {
-                          names: matched.slice(0, 3).join(" · "),
-                        })}
-                      </dd>
-                    </div>
-                  </dl>
+                    </dl>
+                  </details>
                   <button
                     type="button"
                     disabled={isChosen(type)}

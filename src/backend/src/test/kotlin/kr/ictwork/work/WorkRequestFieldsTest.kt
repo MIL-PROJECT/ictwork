@@ -110,6 +110,88 @@ class WorkRequestFieldsTest(
     )
 
     @Test
+    fun `department intake viewers are optional but other requests still require them`() {
+        val noViewers = mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>())
+        val id = create("rf-req", intakeBody() + mapOf("viewers" to noViewers))
+        assertThat(detail("rf-req", id)["viewers"]["departmentIds"].size()).isZero()
+        // 보낸 뒤 열람 범위를 비워도 된다(업무 요청만)
+        send("PUT", "rf-req", "/api/work/requests/$id/viewers", noViewers).andExpect(status().isNoContent)
+        send("POST", "rf-req", "/api/work/requests", body("rf-req", s1) + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
+    fun `RF16 열람 범위를 비운 간편 부서 요청은 요청자·받는 부서가 보고 다른 사람은 못 봄, 다시 올릴 때도 비워도 됨, 옛 방식·업무 등록은 필수 (REQ-101·114, G-157)`() {
+        val noViewers = mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>())
+        // 보낸 요청: 요청자·받는 부서 부서원은 보고, 열람 범위에도 받는 부서에도 없는 사람은 404
+        val sent = create("rf-req", intakeBody() + mapOf("viewers" to noViewers))
+        open("rf-req", "/api/work/requests/$sent").andExpect(status().isOk)
+        open("rf-s1a", "/api/work/requests/$sent").andExpect(status().isOk)
+        open("rf-s1a", "/api/work/items/${itemOf(sent, s1)}").andExpect(status().isOk)
+        open("rf-out", "/api/work/requests/$sent").andExpect(status().isNotFound)
+        // 발송 반려 뒤 열람 범위를 비운 채 다시 올리기
+        val steps = line("rf-req", approve("rf-s3b"))
+        val intake = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps, "viewers" to noViewers))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$intake", intakeBody() + mapOf("approvalRequested" to true, "steps" to steps, "viewers" to noViewers))
+            .andExpect(status().isNoContent)
+        // 선택이어도 없는 인원은 거부 (VIEWERS_INVALID 검사는 그대로)
+        send("POST", "rf-req", "/api/work/requests", intakeBody() + mapOf("viewers" to mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to listOf(999_999L))))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_INVALID"))
+        // 결재 차례 문서가 하나만 남도록 다시 올린 요청은 취소
+        send("POST", "rf-req", "/api/work/requests/$intake/cancel").andExpect(status().isNoContent)
+        // 간편 부서 요청 전 방식 요청은 다시 올릴 때 열람 범위가 비면 거부
+        val full = create("rf-req", body("rf-req", s1, steps = steps))
+        send("POST", "rf-s3b", "/api/approvals/docs/${myTurnDoc("rf-s3b")}/reject", mapOf("reason" to "다시 적으세요")).andExpect(status().isNoContent)
+        send("PUT", "rf-req", "/api/work/requests/$full", body("rf-req", s1, steps = steps) + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+        // 업무 등록: 열람 범위 없이 보내기·보낸 뒤 모두 빼기 모두 거부
+        val register = body("rf-s1a", s1, steps = line("rf-s1a", approve("rf-s1lead")), assignees = listOf("rf-s1a")) +
+            mapOf("kind" to "REGISTER", "supportPlan" to supportPlan("rf-s1b"))
+        send("POST", "rf-s1a", "/api/work/requests", register + mapOf("viewers" to noViewers))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+        val registered = create("rf-s1a", register)
+        send("POST", "rf-s1lead", "/api/approvals/docs/${myTurnDoc("rf-s1lead")}/approve").andExpect(status().isNoContent)
+        send("PUT", "rf-s1a", "/api/work/requests/$registered/viewers", noViewers)
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
+    fun `RF17 보낸 요청은 요청한 부서 부서원도 요청한 업무에서 보고 열람 범위를 바꿈, 다른 부서·보내기 전은 못 함, 요청자가 옮겨도 그대로 (REQ-101·104, G-161)`() {
+        val viewers = mapOf("personnelIds" to listOf(personnelIdOf("rf-out")))
+        // 보내기 전(발송 결재 중): 같은 부서원은 회수하려고 볼 수는 있어도(isSendParticipant) 요청한 업무에 없고 열람 범위는 못 바꿈
+        val pending = create("rf-req", intakeBody() + mapOf("approvalRequested" to true, "steps" to line("rf-req", approve("rf-s1lead"))))
+        assertThat(getAs("rf-s3b", "/api/work/requests/mine").map { it["id"].asLong() }).doesNotContain(pending)
+        send("PUT", "rf-s3b", "/api/work/requests/$pending/viewers", viewers).andExpect(status().isForbidden)
+        // 보내기 전 취소는 요청자·기안자만 (그대로)
+        send("POST", "rf-s3b", "/api/work/requests/$pending/cancel").andExpect(status().isForbidden)
+        // 보낸 요청: 같은 부서원은 요청한 업무에서 요청자처럼 보고 열람 범위를 바꿈
+        val sent = create("rf-req", intakeBody())
+        assertThat(getAs("rf-s3b", "/api/work/requests/mine").map { it["id"].asLong() }).contains(sent)
+        assertThat(detail("rf-s3b", sent, "mine")["mine"].asBoolean()).isTrue()
+        open("rf-s3b", "/api/work/items/${itemOf(sent, s1)}").andExpect(status().isOk)
+        send("PUT", "rf-s3b", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        assertThat(workRequestRepository.findById(sent).get().viewers.mapNotNull { it.personnelId }).containsExactly(personnelIdOf("rf-out"))
+        // 다른 부서 사람은 요청한 업무에 없고 바꿀 수 없음(열람 범위에 들어 볼 수는 있어도 403)
+        assertThat(getAs("rf-s1b", "/api/work/requests/mine").map { it["id"].asLong() }).doesNotContain(sent)
+        send("PUT", "rf-out", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isForbidden)
+        open("rf-c3a", "/api/work/requests/$sent").andExpect(status().isNotFound)
+        // 요청자가 다른 부서로 옮겨도: 요청자 본인과 요청할 때 부서(3반) 부서원은 그대로 바꿈, 옮긴 부서는 상관없음
+        people.saveAndFlush(person("rf-req").also { it.departmentId = checkNotNull(s2.id) })
+        send("PUT", "rf-req", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        send("PUT", "rf-s3b", "/api/work/requests/$sent/viewers", viewers).andExpect(status().isNoContent)
+        // 업무 등록: 등록한 부서(1반) 부서원도 요청한 업무에서 보고 열람 범위를 바꿈(빈 열람 범위는 여전히 거부)
+        val register = body("rf-s1a", s1, steps = line("rf-s1a", approve("rf-s1lead")), assignees = listOf("rf-s1a")) +
+            mapOf("kind" to "REGISTER", "supportPlan" to supportPlan("rf-s1b"))
+        val registered = create("rf-s1a", register)
+        send("POST", "rf-s1lead", "/api/approvals/docs/${myTurnDoc("rf-s1lead")}/approve").andExpect(status().isNoContent)
+        assertThat(getAs("rf-s1b", "/api/work/requests/mine").map { it["id"].asLong() }).contains(registered)
+        send("PUT", "rf-s1b", "/api/work/requests/$registered/viewers", viewers).andExpect(status().isNoContent)
+        send("PUT", "rf-s1b", "/api/work/requests/$registered/viewers", mapOf("departmentIds" to emptyList<Long>(), "personnelIds" to emptyList<Long>()))
+            .andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("VIEWERS_REQUIRED"))
+    }
+
+    @Test
     fun `department intake sends without assignees or chosen approvers and preserves the preferred date and time`() {
         val id = create("rf-req", intakeBody())
         val request = detail("rf-req", id)

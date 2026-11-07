@@ -625,9 +625,6 @@
       "Review your details, preferred dates and visibility before sending."
     ],
     "stepOf": "Step {step} of {total}",
-    "summary": "Request summary",
-    "destination": "Departments · Work types",
-    "help": "Use the selected departments’ guidance and forms. Your entries are kept when you move between steps.",
     "footer": "Your request is sent after the final review.",
     "previous": "Back",
     "next": "Next",
@@ -641,9 +638,6 @@
       "Check the preferred date and time.",
       "Check who can view this request."
     ],
-    "destinationEmpty": "No department selected yet.",
-    "typePending": "Choose a work type.",
-    "contactLater": "You can add a contact number in the preferred dates step.",
     "noForm": "This work type has no additional form. Enter the request details below.",
     "reviewTitle": "Request to send",
     "editContent": "Edit details",
@@ -655,22 +649,22 @@
     "retry": "Retry"
   },
   "recommend": {
-    "issue": "Which system needs help, and what is the issue?",
+    "issue": "How can we help?",
     "placeholder": "For example: I cannot connect to the tactical network.",
-    "basis": "Recommends up to 3 work types from the names and descriptions each department wrote.",
+    "basis": "Finds up to 3 departments and work types to handle it, based on the names and descriptions each department wrote for its work types. You can also press Enter.",
     "loading": "Loading work types…",
-    "search": "Find recommended work",
+    "search": "Find the handling department",
     "failed": "Could not load work types.",
-    "changed": "The text changed. Press ‘Find recommended work’ again.",
-    "results": "{count} recommendations",
+    "changed": "Your input changed. Press ‘Find the handling department’ again.",
+    "results": "{count} assignment candidates",
     "limit": "Up to 3 · choose one",
-    "empty": "No matching work type. Find the department directly in the org chart below.",
+    "empty": "No matching department. Pick one directly from the organization chart below.",
     "systems": "Registered responsibilities",
     "guide": "Department form guidance",
     "guideLoading": "Loading guidance…",
     "guideFailed": "Could not load guidance. Check the form after selecting the department.",
     "noGuide": "No separate guidance is registered. Check the responsibilities before selecting.",
-    "reason": "Why this work type",
+    "reason": "Assignment reason",
     "matched": "Your description includes this department’s registered work type: {names}.",
     "select": "Request this work",
     "selected": "Selected",
@@ -678,10 +672,11 @@
     "manualHelp": "Expand the organization tree. Only departments with available receiving staff can be added.",
     "fields": "This work form asks about: {names}.",
     "description": "Description",
-    "typeMatched": "‘{names}’ in the description matches what you entered."
+    "typeMatched": "‘{names}’ in the description matches what you entered.",
+    "details": "Show department details"
   },
   "intake": {
-    "typeHelp": "Choose the selected department’s work type before completing its form in the next step.",
+    "typeHelp": "Choose a work type for each selected department. Its form appears below.",
     "context": "Request location and details",
     "place": "Request location",
     "details": "Details",
@@ -697,7 +692,9 @@
     "scheduleHelpRanked": "You can enter up to {count} preferred dates in order of preference. The receiving department uses them to set the actual schedule. Time is optional.",
     "rank": "Choice {n}",
     "addDate": "Add preferred date ({count}/{max})",
-    "removeDate": "Remove {label}"
+    "removeDate": "Remove {label}",
+    "viewersOptional": "Viewers (optional)",
+    "viewersHelp": "Choose departments or people who should also see this request. The requester and receiving departments can always see it, and you can change this later."
   },
   "guidance": {
     "startTime": "Start time",
@@ -710,24 +707,20 @@
     "noSchedule": "No preferred dates · coordinate with the department",
     "flow": {
       "steps": [
-        "Department & type",
-        "Request details",
+        "Write request",
         "Review & send"
       ],
       "headings": [
-        "Which department and service do you need?",
-        "Complete the department’s request form",
+        "Find the handling department and write your request",
         "Review your request"
       ],
       "descriptions": [
-        "Find a recommended department or choose one from the organization chart, then select a work type.",
-        "Complete the department form, add any required schedule and attach files. The request goes to the selected department.",
-        "Review the request, visibility and approval route. The route starts with your own approval."
+        "Describe what you need to find the handling department, then choose the work type and fill in the form and any required schedule. The request goes to the whole department.",
+        "Check the content and approval route. The route starts with your own approval. Add viewers if others should see the request."
       ],
       "errors": [
-        "Select a department and one of its work types.",
-        "Check the department form, request details and required schedule.",
-        "Check visibility and any selected approval route."
+        "Check the department, work type, form, details and required schedule.",
+        "Check the viewers and approval route."
       ]
     }
   },

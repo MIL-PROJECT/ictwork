@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- 정보통신업무관리체계 아이콘: 신호(정보통신) + 점검 표시(업무 관리) -->
+  <!-- OMNIS 아이콘: 신호(정보통신) + 점검 표시(업무 관리) -->
   <rect width="32" height="32" rx="8" fill="#256ef4"/>
   <circle cx="16" cy="21" r="2.4" fill="#fff"/>
   <path d="M11 16a7 7 0 0 1 10 0" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>

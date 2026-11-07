@@ -22,17 +22,25 @@ export default function AuthLayout({
     <div className="relative z-1 bg-white dark:bg-gray-900">
       <div className="relative grid min-h-screen w-full lg:grid-cols-[minmax(0,7fr)_minmax(440px,3fr)]">
         <div className="relative hidden flex-col justify-center gap-10 overflow-hidden bg-linear-155 from-brand-500 via-brand-700 to-brand-900 px-[clamp(40px,6vw,88px)] py-14 text-white lg:flex">
-          {/* 장식: 옅은 빛 + 가장자리로 사라지는 가는 격자 + 레이더 동심원 */}
+          {/* 장식: 옅은 빛 + 가장자리로 사라지는 가는 격자 + 레이더 동심원·회전 스윕 */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_12%_8%,rgba(110,128,255,0.3),transparent_70%),radial-gradient(45%_40%_at_95%_100%,rgba(125,110,255,0.18),transparent_70%)]" />
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-size-[48px_48px] [mask-image:radial-gradient(70%_60%_at_30%_40%,#000_20%,transparent_80%)]"
           />
           <svg aria-hidden viewBox="0 0 600 600" className="pointer-events-none absolute -end-[170px] -bottom-[190px] size-[620px] fill-none stroke-[rgba(170,182,255,0.14)]">
+            <defs>
+              <linearGradient id="login-radar-sweep" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#8fa0ff" stopOpacity="0" />
+                <stop offset="1" stopColor="#8fa0ff" stopOpacity="0.35" />
+              </linearGradient>
+            </defs>
             {[80, 150, 220, 290].map((r) => (
               <circle key={r} cx="300" cy="300" r={r} />
             ))}
             <path d="M300 300 10 300M300 10 300 590" />
+            {/* 레이더 스윕: 9초에 한 바퀴 (OMNIS .login-radar-sweep, 움직임 줄이기 설정이면 멈춤) */}
+            <path className="login-radar-sweep" d="M300 300 L590 300 A290 290 0 0 0 505 95 Z" fill="url(#login-radar-sweep)" stroke="none" />
           </svg>
 
           <Link to="/" className="absolute top-11 left-[clamp(40px,6vw,88px)] flex items-center gap-4">
