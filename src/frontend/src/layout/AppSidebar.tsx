@@ -18,7 +18,6 @@ import {
   GroupIcon,
   HorizontaLDots,
   PaperPlaneIcon,
-  SettingsAltIcon,
   TaskIcon,
   TimeIcon,
 } from "../icons";
@@ -147,17 +146,6 @@ const menuGroups: MenuGroup[] = [
         name: "AI 질의응답",
         key: "aiChat",
         path: "/ai",
-      },
-    ],
-  },
-  {
-    key: "settings",
-    items: [
-      {
-        icon: <SettingsAltIcon fontSize={24} />,
-        name: "개인설정",
-        key: "mySettings",
-        path: "/settings/me",
       },
     ],
   },
