@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import type { Department } from "@/api/org";
+import { useAuth } from "@/context/AuthContext";
 import {
   fetchDepartmentServices,
   type DepartmentService,
@@ -24,6 +25,8 @@ export default function DepartmentRecommendations({
   onNoResults: () => void;
 }) {
   const { t } = useTranslation("work");
+  const { user } = useAuth();
+  const canManage = user?.features.includes("ADMIN_WORK_TYPE") ?? false;
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<DepartmentService[] | null>(null);
@@ -115,12 +118,15 @@ export default function DepartmentRecommendations({
             </button>
           </p>
         )}
-        <Link
-          to="/department/services"
-          className="mt-3 block text-xs text-brand-700 underline dark:text-brand-300"
-        >
-          {t("service.manageLink")}
-        </Link>
+        {/* 안내는 부서 관리자가 관리 ▸ 부서 업무 안내에서 고친다 */}
+        {canManage && (
+          <Link
+            to="/admin/department-services"
+            className="mt-3 block text-xs text-brand-700 underline dark:text-brand-300"
+          >
+            {t("service.manageLink")}
+          </Link>
+        )}
       </div>
       {searched !== null && (
         <div aria-live="polite" className="space-y-3">

@@ -25,10 +25,6 @@ const put = (value: DepartmentService) => ({
 });
 export const fetchDepartmentServices = () =>
   apiFetch<DepartmentService[]>("/api/work/department-services");
-export const fetchOwnDepartmentService = () =>
-  apiFetch<DepartmentService>("/api/work/department-services/own");
-export const saveOwnDepartmentService = (value: DepartmentService) =>
-  apiFetch<DepartmentService>("/api/work/department-services/own", put(value));
 // 관리 ▸ 부서 업무 안내: 역할 대상 부서(업무 유형 관리와 같은 범위)
 export const fetchAdminDepartmentService = (departmentId: number) =>
   apiFetch<DepartmentService>(`/api/admin/department-services/${departmentId}`);

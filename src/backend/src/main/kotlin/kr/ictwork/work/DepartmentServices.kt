@@ -29,9 +29,9 @@ data class DepartmentServiceView(val departmentId: Long, val systems: String, va
 data class DepartmentServiceInput(val systems: String = "", val responsibilities: String = "", val symptoms: String = "", val exclusions: String = "", val version: Long)
 
 /**
- * 부서 업무 안내. 소속 부서원은 자기 부서 안내 문구를 고친다(대상 부서는 본문이 아니라 로그인한 인원의 현재 소속).
- * 부서 관리자는 관리 ▸ 부서 업무 안내에서 역할 대상 부서의 안내 문구를 고친다(업무 유형 관리와 같은 범위).
- * 업무 유형별 일정 방식은 업무 유형 관리(PATCH /api/admin/work-types/{id})에서만 바꾼다
+ * 부서 업무 안내. 부서 관리자가 관리 ▸ 부서 업무 안내에서 역할 대상 부서의 안내 문구를 고친다(업무 유형 관리와 같은 범위).
+ * 모든 사용자는 업무 요청의 담당 부서 추천에서 목록(list)을 읽는다.
+ * 업무 유형별 일정 방식은 업무 유형 관리(PATCH /api/admin/work-types/{id})에서 바꾼다
  */
 @Service
 @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -42,11 +42,6 @@ class DepartmentServiceService(private val access: AccessPolicy, private val dep
         val allTypes = types.findAll()
         return profiles.findAll().filter { tree.find(it.departmentId)?.active == true }.map { view(it, allTypes) }
     }
-    @Transactional(readOnly = true)
-    fun own(login: String): DepartmentServiceView = read(ownId(login))
-
-    fun update(login: String, input: DepartmentServiceInput): DepartmentServiceView = save(ownId(login), input)
-
     /** 관리 화면: 그 부서의 사용 중인 부서 관리자 역할이 있어야 한다(하위 부서 제외, 업무 유형 관리와 같음) */
     @Transactional(readOnly = true)
     fun adminGet(login: String, departmentId: Long): DepartmentServiceView = read(adminId(login, departmentId))
@@ -55,7 +50,7 @@ class DepartmentServiceService(private val access: AccessPolicy, private val dep
 
     private fun read(id: Long) = view(profiles.findById(id).orElse(null) ?: DepartmentServiceProfile(id))
 
-    /** 부서원·관리자가 같은 판(revision)을 보고 고친다: 먼저 저장한 사람이 있으면 409 */
+    /** 같은 판(revision)을 보고 고친다: 먼저 저장한 사람이 있으면 409 */
     private fun save(id: Long, input: DepartmentServiceInput): DepartmentServiceView {
         departments.lockForServiceProfile(id) ?: throw denied()
         val profile = profiles.findById(id).orElse(null) ?: DepartmentServiceProfile(id)
@@ -66,12 +61,6 @@ class DepartmentServiceService(private val access: AccessPolicy, private val dep
         profile.revision++
         profiles.saveAndFlush(profile)
         return view(profile)
-    }
-    private fun ownId(login: String): Long {
-        val actor = access.actor(login)
-        val id = actor.personnelDepartmentId ?: throw denied()
-        if (actor.tree.find(id)?.active != true) throw denied()
-        return id
     }
     private fun adminId(login: String, departmentId: Long): Long {
         val actor = access.actor(login)
@@ -86,8 +75,6 @@ class DepartmentServiceService(private val access: AccessPolicy, private val dep
 @RequestMapping("/api/work/department-services")
 class DepartmentServiceController(private val service: DepartmentServiceService) {
     @GetMapping fun list(principal: Principal) = service.list(principal.name)
-    @GetMapping("/own") fun own(principal: Principal) = service.own(principal.name)
-    @PutMapping("/own") fun update(principal: Principal, @RequestBody body: DepartmentServiceInput) = service.update(principal.name, body)
 }
 
 /** 관리 ▸ 부서 업무 안내: 안내 문구 (업무 유형은 /api/admin/work-types) */

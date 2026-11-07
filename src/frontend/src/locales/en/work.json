@@ -704,7 +704,7 @@
     "saving": "Saving…",
     "saved": "Saved. Recommendations and new requests will use this information.",
     "reload": "Reload latest information",
-    "manageLink": "Register or edit my department’s service information",
+    "manageLink": "Edit department services (admin)",
     "scheduleColumn": "Schedule",
     "scheduleFor": "Schedule for {name}",
     "scheduleReadonly": "Shows how a preferred schedule is requested for each work type. Ask a department admin to change it (Admin ▸ Department Services)."
