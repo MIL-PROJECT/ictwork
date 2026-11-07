@@ -201,7 +201,7 @@
   "tasks": {
     "title": "등록된 업무",
     "tabs": {
-      "department": "우리 부서 업무",
+      "department": "업무등록대장",
       "mine": "요청한 업무",
       "viewable": "공유받은 업무"
     },

@@ -122,7 +122,7 @@ export default function TaskList() {
       <PageMeta titleKey={tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus"} />
       <PageBreadcrumb
         pageTitle={tc(tab === "department" ? "sidebar.items.departmentTasks" : "sidebar.items.requestStatus")}
-        description={tw("tasks.desc")}
+        description={tw(tab === "department" ? "tasks.departmentDesc" : "tasks.desc")}
         actions={tab === "department" ? (
           <Link to={withListReturn("/approvals/new", "/tasks?" + params.toString())}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">

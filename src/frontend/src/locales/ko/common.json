@@ -159,7 +159,7 @@
       "mySettings": "개인설정",
       "equipmentManage": "장비관리",
       "taskReceipt": "접수 대기",
-      "workTypes": "업무 유형",
+      "workTypes": "업무 유형 관리",
       "approvalRoutes": "결재 경로",
       "taskRequest": "업무 요청",
       "dutyDirectives": "근무·지시사항",
@@ -182,7 +182,7 @@
       "myTurn": "내 차례",
       "handledApprovals": "처리한 결재",
       "schedule": "일정",
-      "departmentTasks": "우리 부서 업무",
+      "departmentTasks": "업무등록대장",
       "departmentInfo": "관리",
       "personnelAttributes": "인원 추가 특성",
       "equipmentAttributes": "장비 추가 특성"
@@ -290,10 +290,10 @@
     "empty": "표시할 업무 유형이 없습니다.",
     "failed": "업무 안내를 불러오지 못했습니다.",
     "retry": "다시 시도"
-},
+  },
   "workflow": {
-  "actions": "화면 작업",
-  "mainNav": "주 메뉴",
-  "toggle": "{{name}} 메뉴 펼치기·접기"
-}
+    "actions": "화면 작업",
+    "mainNav": "주 메뉴",
+    "toggle": "{{name}} 메뉴 펼치기·접기"
+  }
 }

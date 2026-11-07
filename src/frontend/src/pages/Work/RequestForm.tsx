@@ -52,6 +52,8 @@ import {
 } from "@/api/work";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import WorkGuidanceContent from "@/components/work/WorkGuidanceContent";
+import { Modal } from "@/components/ui/modal";
 import {
   InfoGrid,
   InfoRow,
@@ -209,6 +211,8 @@ export default function RequestForm({
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("workform");
   const { t: ts } = useTranslation("scope");
+  const { t: tc } = useTranslation();
+  const [guideOpen, setGuideOpen] = useState(false);
   const { id } = useParams();
   const location = useLocation();
   const returnList = safeListReturn(new URLSearchParams(location.search).get("returnTo"));
@@ -1920,6 +1924,12 @@ export default function RequestForm({
           <Link to={registrationList} className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3">
             {t("back")}
           </Link>
+        ) : !register ? (
+          <button type="button" onClick={() => setGuideOpen(true)} disabled={submitting}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+            <DocsIcon className="size-4" aria-hidden="true" />
+            {tc("sidebar.items.departmentService")}
+          </button>
         ) : undefined}
         back={
           editId !== null ? withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine") : undefined
@@ -2057,6 +2067,15 @@ export default function RequestForm({
           </Link>
         </div>
       )}
+      {guideOpen && <Modal isOpen onClose={() => setGuideOpen(false)} labelledBy="request-guidance-title" describedBy="request-guidance-description"
+        className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-3xl overflow-y-auto">
+        <h2 id="request-guidance-title" className="px-6 pt-6 pe-20 text-lg font-bold text-gray-900 dark:text-white">{tc("sidebar.items.departmentService")}</h2>
+        <p id="request-guidance-description" className="px-6 pt-2 text-sm text-gray-500">{tc("workGuidance.description")}</p>
+        <div className="px-6 py-5"><WorkGuidanceContent /></div>
+        <div className="sticky bottom-0 flex justify-end border-t border-gray-100 bg-gray-50 px-6 py-3 dark:border-gray-800 dark:bg-gray-900">
+          <button type="button" onClick={() => setGuideOpen(false)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{tc("common.close")}</button>
+        </div>
+      </Modal>}
     </div>
   );
 }

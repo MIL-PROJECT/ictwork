@@ -1,10 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { navigationContext, listPathOf, matchesTarget, safeListReturn, safeDepartmentListReturn, withListReturn, screens, visibleLinks, topMenus, contextualActions, menuTrail } from "../src/layout/navigationSections.ts";
+import { navigationContext, listPathOf, matchesTarget, safeListReturn, safeDepartmentListReturn, withListReturn, screens, visibleLinks, topMenus, contextualActions, menuTrail, screenPath } from "../src/layout/navigationSections.ts";
 
 test("six top-level menus resolve to accessible destinations", () => {
   assert.deepEqual(topMenus.map(menu => menu.key), ["overview","requests","processing","schedule","departmentInfo","aiChat"]);
   for (const menu of topMenus) assert.ok(screens.some(screen => screen.key === menu.screen));
+});
+
+test("overview and statistics are independent pages under one sidebar group", () => {
+  assert.equal(screenPath(topMenus[0].screen,[]),"/board");
+  assert.ok(topMenus[0].children.includes("workStatus"));
+  for(const path of ["/board","/status"]) {
+    const context=navigationContext(path)!;
+    assert.equal(context.screen.owner,"overview");
+    assert.equal(context.screen.tabs.length,1);
+  }
+  assert.equal(screenPath("workStatus",[]),undefined);
+  assert.equal(screenPath("workStatus",["WORK_DASHBOARD"]),"/status");
+});
+
+test("work type editing belongs to management and retains its own feature gate", () => {
+  assert.ok(topMenus.find(menu=>menu.key==="departmentInfo")!.children.includes("workTypes"));
+  assert.equal(navigationContext("/admin/work-types")?.screen.owner,"departmentInfo");
+  assert.equal(screenPath("workTypes",[]),undefined);
+  assert.equal(screenPath("workTypes",["ADMIN_SYSTEM"]),undefined);
+  assert.equal(screenPath("workTypes",["ADMIN_WORK_TYPE"]),"/admin/work-types");
+});
+
+test("request guidance stays public and contextual without a global action bar", () => {
+  const request=screens.find(screen=>screen.key==="newRequest")!;
+  assert.deepEqual(contextualActions(request,"otherDepartmentRequest"),[]);
+  assert.equal(visibleLinks(request.actions!,[])[0].path,"/department/services");
+  assert.equal(navigationContext("/department/services")?.screen.owner,"requests");
 });
 
 test("query-only changes select the correct owner and tab", () => {

@@ -201,7 +201,7 @@
   "tasks": {
     "title": "Registered Tasks",
     "tabs": {
-      "department": "Our department",
+      "department": "Work Register",
       "mine": "Requested tasks",
       "viewable": "Shared Requests"
     },

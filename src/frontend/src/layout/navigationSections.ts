@@ -1,8 +1,8 @@
 export type NavigationLink = { key: string; path: string; feature?: string; tabKey?: string; inPage?: boolean };
 type Screen = { key: string; owner: string; tabs: NavigationLink[]; actions?: NavigationLink[] };
 export const screens: Screen[] = [
-  { key: "overviewPanels", owner: "overview", tabs: [
-    { key: "situation", path: "/board" },
+  { key: "overview", owner: "overview", tabs: [{ key: "overview", path: "/board" }] },
+  { key: "workStatus", owner: "overview", tabs: [
     { key: "workStatus", path: "/status", feature: "WORK_DASHBOARD" },
   ] },
   { key: "directives", owner: "overview", tabs: [{ key: "directives", path: "/directives" }] },
@@ -11,8 +11,7 @@ export const screens: Screen[] = [
   { key: "newRequest", owner: "requests", tabs: [
     { key: "otherDepartmentRequest", path: "/approvals/request" },
   ], actions: [
-    { key: "departmentService", path: "/department/services" },
-    { key: "workTypes", path: "/admin/work-types", feature: "ADMIN_WORK_TYPE" },
+    { key: "departmentService", path: "/department/services", inPage: true },
   ] },
   { key: "requestStatus", owner: "requests", tabs: [
     { key: "requestedTasks", path: "/tasks?tab=mine" },
@@ -44,15 +43,16 @@ export const screens: Screen[] = [
     { key: "equipmentAttributes", path: "/admin/attributes/equipment", feature: "ADMIN_ATTRIBUTE", tabKey: "equipment" },
   ] },
   { key: "docs", owner: "departmentInfo", tabs: [{ key: "docs", path: "/department/docs" }] },
+  { key: "workTypes", owner: "departmentInfo", tabs: [{ key: "workTypes", path: "/admin/work-types", feature: "ADMIN_WORK_TYPE" }] },
   { key: "aiChat", owner: "aiChat", tabs: [{ key: "aiChat", path: "/ai" }] },
 ];
 
 export const topMenus = [
-  { key: "overview", screen: "overviewPanels", children: ["directives", "duty", "ictStatus"] },
+  { key: "overview", screen: "overview", children: ["workStatus", "directives", "duty", "ictStatus"] },
   { key: "requests", screen: "newRequest", children: ["newRequest", "requestStatus"] },
   { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "approvals"] },
   { key: "schedule", screen: "calendar", children: [] },
-  { key: "departmentInfo", screen: "organizationPeople", children: ["organizationPeople", "equipmentDiagrams", "docs"] },
+  { key: "departmentInfo", screen: "organizationPeople", children: ["organizationPeople", "equipmentDiagrams", "docs", "workTypes"] },
   { key: "aiChat", screen: "aiChat", children: [] },
 ];
 
@@ -147,7 +147,7 @@ export function menuTrail(pathname: string, search = ""): MenuTrail | null {
   if (!context) return null;
   const { screen, active } = context;
   return {
-    group: screen.owner === screen.key || screen.key === "overviewPanels" ? "home" : screen.owner,
+    group: screen.owner === screen.key ? "home" : screen.owner,
     item: screen.key,
     sub: screen.tabs.length > 1 || context.action ? active.key : undefined,
   };

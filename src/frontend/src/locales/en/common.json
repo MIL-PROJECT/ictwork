@@ -159,7 +159,7 @@
       "inboxDetails": "Details",
       "equipmentManage": "Equipment",
       "taskReceipt": "Awaiting Receipt",
-      "workTypes": "Work Types",
+      "workTypes": "Work Type Management",
       "approvalRoutes": "Approval Routes",
       "taskRequest": "Task Request",
       "dutyDirectives": "Duty & Directives",
@@ -182,7 +182,7 @@
       "myTurn": "My Turn",
       "handledApprovals": "Handled Approvals",
       "schedule": "Schedule",
-      "departmentTasks": "Department Work",
+      "departmentTasks": "Work Register",
       "departmentInfo": "Management",
       "personnelAttributes": "Personnel Attributes",
       "equipmentAttributes": "Equipment Attributes"
@@ -290,10 +290,10 @@
     "empty": "No matching work types.",
     "failed": "Could not load work guidance.",
     "retry": "Retry"
-},
+  },
   "workflow": {
-  "actions": "Page Actions",
-  "mainNav": "Main Navigation",
-  "toggle": "Expand or collapse {{name}} menu"
-}
+    "actions": "Page Actions",
+    "mainNav": "Main Navigation",
+    "toggle": "Expand or collapse {{name}} menu"
+  }
 }

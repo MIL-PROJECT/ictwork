@@ -28,7 +28,7 @@ module.exports = async function verifyMainFeatures(page,origin,evidence) {
   await page.locator('main').getByRole('link',{name:'우리 부서 업무 등록',exact:true}).click();
   await page.getByRole('heading',{level:1,name:'우리 부서 업무 등록',exact:true}).waitFor();
   await panel.waitFor();
-  await page.locator('aside').first().getByRole('link',{name:'우리 부서 업무',exact:true}).locator('xpath=self::*[@aria-current="page"]').waitFor();
+  await page.locator('aside').first().getByRole('link',{name:'업무등록대장',exact:true}).locator('xpath=self::*[@aria-current="page"]').waitFor();
   await page.waitForTimeout(300);
   const crumbs=page.locator('header nav').first();
   const box=await crumbs.boundingBox();
