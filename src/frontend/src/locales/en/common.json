@@ -8,7 +8,7 @@
     "delete": "Delete",
     "filter": "Filter",
     "seeAll": "See all",
-    "appName": "ICT Work Management System",
+    "appName": "OMNIS",
     "preparing": "This screen is being prepared.",
     "notSupported": "This feature is not supported on this server.",
     "required": "Required",
@@ -158,14 +158,18 @@
       "approvalRoutes": "Approval Routes",
       "taskRequest": "Task Request",
       "departmentService": "Department services",
-      "departmentServiceManage": "Department Services"
+      "dutyDirectives": "Duty & Directives",
+      "organizationPeople": "Organization & People",
+      "equipmentDiagrams": "Equipment & Diagrams",
+      "organizationPersonnelManage": "Organization & Personnel Admin",
+      "departmentServiceManage": "Department Services & Work Types"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",
       "description": "Leading Tailwind CSS Admin Template with 500+ UI Component and Pages.",
       "purchasePlan": "Purchase Plan"
     },
-    "brandSub": "Integrated ICT work management",
+    "brandSub": "Integrated ICT Operations & Maintenance",
     "foot": {
       "aiOn": "AI Q&A on",
       "aiOff": "AI Q&A off"

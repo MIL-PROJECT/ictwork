@@ -1,0 +1,7 @@
+{
+  "name": "ictwork-omnis-desktop",
+  "version": "0.0.1",
+  "productName": "OMNIS",
+  "main": "main.cjs",
+  "private": true
+}

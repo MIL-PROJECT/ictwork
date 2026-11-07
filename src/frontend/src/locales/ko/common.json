@@ -10,7 +10,7 @@
     "seeAll": "전체 보기",
     "preparing": "화면 준비 중입니다.",
     "notSupported": "현재 이 서버에서는 지원하지 않는 기능입니다.",
-    "appName": "정보통신업무관리체계",
+    "appName": "OMNIS",
     "required": "필수",
     "back": "이전으로"
   },
@@ -158,14 +158,18 @@
       "approvalRoutes": "결재 경로",
       "taskRequest": "업무 요청",
       "departmentService": "부서 업무 안내",
-      "departmentServiceManage": "부서 업무 안내"
+      "dutyDirectives": "근무·지시사항",
+      "organizationPeople": "조직·인원",
+      "equipmentDiagrams": "장비·구성도",
+      "organizationPersonnelManage": "조직·인원 관리",
+      "departmentServiceManage": "부서 안내·업무 유형 관리"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",
       "description": "500개 이상의 UI 컴포넌트와 페이지를 갖춘 Tailwind CSS 관리자 템플릿",
       "purchasePlan": "요금제 구매"
     },
-    "brandSub": "정보통신 업무 통합 관리",
+    "brandSub": "정보통신 운용·정비 통합체계",
     "foot": {
       "aiOn": "AI 질의응답 켜짐",
       "aiOff": "AI 질의응답 꺼짐"

@@ -19,14 +19,13 @@ import {
   GroupIcon,
   HorizontaLDots,
   LayoutIcon,
-  PageIcon,
   PaperPlaneIcon,
   SettingsAltIcon,
   TaskIcon,
   TimeIcon,
-  UserIcon,
 } from "../icons";
 import { cn } from "../utils";
+import { matchesMenuPath, sectionLinks, visibleSectionLinks, type SectionKey } from "./navigationSections";
 import SidebarFoot from "./SidebarFoot";
 
 type NavItem = {
@@ -35,6 +34,7 @@ type NavItem = {
   feature?: string; // 이 기능 코드가 있는 사용자에게만 보인다 (/api/me features, REQ-002)
   icon: React.ReactNode;
   path?: string;
+  section?: SectionKey;
   new?: boolean;
   target?: string;
   subItems?: {
@@ -68,23 +68,9 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    // 일반 묶음 (G-146·G-147, slices/13 14.5·slices/14 14.8.1): 업무 묶음 앞. 로그인한 모두. 지시사항 → 근무자 현황 → 정보통신 현황
     key: "general",
     items: [
-      {
-        // 부대 지시사항 (REQ-601)
-        icon: <PageIcon fontSize={24} />,
-        name: "지시사항",
-        key: "directives",
-        path: "/directives",
-      },
-      {
-        // 근무자 현황 (REQ-404): /duty/ 아래(근무표 수정)도 강조 (isActive)
-        icon: <TimeIcon fontSize={24} />,
-        name: "근무자 현황",
-        key: "duty",
-        path: "/duty",
-      },
+      { icon: <TimeIcon fontSize={24} />, name: "근무·지시사항", key: "dutyDirectives", section: "dutyDirectives" },
       {
         // 정보통신 현황 (REQ-503·602, slices/15 13.1)
         icon: <BoxIcon fontSize={24} />,
@@ -143,31 +129,8 @@ const menuGroups: MenuGroup[] = [
   {
     key: "department",
     items: [
-      {
-        icon: <GridIcon fontSize={24} />,
-        name: "조직도",
-        key: "orgChart",
-        path: "/department/org-chart",
-      },
-      { icon: <DocsIcon fontSize={24} />, name: "부서 업무 안내", key: "departmentService", path: "/department/services" },
-      {
-        icon: <GroupIcon fontSize={24} />,
-        name: "인원",
-        key: "people",
-        path: "/department/people",
-      },
-      {
-        icon: <BoxCubeIcon fontSize={24} />,
-        name: "장비",
-        key: "equipment",
-        path: "/department/equipment",
-      },
-      {
-        icon: <DashboardAltIcon fontSize={24} />,
-        name: "구성도",
-        key: "diagrams",
-        path: "/department/diagrams",
-      },
+      { icon: <GroupIcon fontSize={24} />, name: "조직·인원", key: "organizationPeople", section: "organizationPeople" },
+      { icon: <DashboardAltIcon fontSize={24} />, name: "장비·구성도", key: "equipmentDiagrams", section: "equipmentDiagrams" },
       {
         icon: <FolderIcon fontSize={24} />,
         name: "문서함",
@@ -203,20 +166,7 @@ const menuGroups: MenuGroup[] = [
   {
     key: "admin",
     items: [
-      {
-        icon: <LayoutIcon fontSize={24} />,
-        name: "조직관리",
-        key: "orgManage",
-        path: "/admin/organization",
-        feature: "ADMIN_ORG",
-      },
-      {
-        icon: <UserIcon fontSize={24} />,
-        name: "인원관리",
-        key: "personnelManage",
-        path: "/admin/personnel",
-        feature: "ADMIN_PERSONNEL",
-      },
+      { icon: <LayoutIcon fontSize={24} />, name: "조직·인원 관리", key: "organizationPersonnelManage", section: "organizationPersonnelManage" },
       {
         icon: <BoxCubeIcon fontSize={24} />,
         name: "장비관리",
@@ -226,7 +176,7 @@ const menuGroups: MenuGroup[] = [
       },
       {
         icon: <DocsIcon fontSize={24} />,
-        name: "부서 업무 안내",
+        name: "부서 안내·업무 유형 관리",
         key: "departmentServiceManage",
         path: "/admin/department-services",
         feature: "ADMIN_WORK_TYPE",
@@ -248,20 +198,16 @@ export function menuItemPath(trail: { item: string; sub?: string }): string | un
     for (const nav of group.items) {
       if ((nav.key ?? nav.name) !== trail.item) continue;
       if (!trail.sub) return nav.path;
+      if (nav.section) return sectionLinks[nav.section].find((link) => link.key === trail.sub)?.path;
       return nav.subItems?.find((s) => (s.key ?? s.name) === trail.sub)?.path;
     }
   return undefined;
 }
 
-/** 앱 엠블럼: 로고(신호 + 점검)를 남색 단색 선으로, 밝은 남색 타일 위에 (OMNIS .brand-mark 46×40) */
 function BrandMark() {
   return (
-    <span aria-hidden className="grid h-10 w-[46px] shrink-0 place-items-center rounded-xl bg-brand-100 text-brand-500 dark:bg-white/10 dark:text-white">
-      <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
-        <circle cx="16" cy="21" r="2.4" fill="currentColor" stroke="none" />
-        <path d="M11 16a7 7 0 0 1 10 0" />
-        <path d="M7.5 12.5a12 12 0 0 1 17 0" />
-      </svg>
+    <span aria-hidden className="grid h-10 w-[46px] shrink-0 place-items-center rounded-xl bg-brand-100 text-brand-600 dark:bg-white/10 dark:text-white">
+      <img src="/images/logo/logo-icon.svg" alt="" width={30} height={30} />
     </span>
   );
 }
@@ -269,6 +215,7 @@ function BrandMark() {
 /** 지금 경로의 메뉴 위치: 묶음 이름 키와 항목(하위 항목) 이름 키. 상단 경로 표시와 페이지 제목 위 구역명에 쓴다 (OMNIS crumbs) */
 /** 메뉴 주소 밖의 상세 화면(처리 건·요청·결재 문서)이 들어온 목록. 상단 경로와 [이전으로]가 이 목록으로 돌아간다 */
 export function listPathOf(pathname: string, search = ""): string | null {
+  if (pathname === "/department/services") return "/approvals/request";
   const from = new URLSearchParams(search).get("from");
   if (/^\/work\/(items|requests)\/\d+/.test(pathname))
     return from === "receipts" ? "/approvals/receipts" : from === "mine" || from === "viewable" ? `/tasks?tab=${from}` : "/tasks";
@@ -278,9 +225,11 @@ export function listPathOf(pathname: string, search = ""): string | null {
 
 export function menuTrail(pathname: string, search = ""): { group: string; item: string; sub?: string } | null {
   pathname = listPathOf(pathname, search)?.split("?")[0] ?? pathname;
-  const hit = (path?: string) => !!path && (pathname === path || pathname.startsWith(`${path}/`));
+  const hit = (path?: string) => !!path && matchesMenuPath(pathname, path);
   for (const group of menuGroups) {
     for (const nav of group.items) {
+      const sectionLink = nav.section && sectionLinks[nav.section].find((link) => hit(link.path));
+      if (sectionLink) return { group: group.key, item: nav.key ?? nav.name, sub: sectionLink.key };
       const sub = nav.subItems?.find((s) => hit(s.path));
       if (sub) return { group: group.key, item: nav.key ?? nav.name, sub: sub.key ?? sub.name };
       if (hit(nav.path)) return { group: group.key, item: nav.key ?? nav.name };
@@ -298,7 +247,15 @@ const AppSidebar: React.FC = () => {
   // 기능 코드가 없는 메뉴는 숨기고, 항목이 모두 숨겨진 그룹은 그룹째 숨긴다
   const features = user?.features ?? [];
   const visibleGroups = menuGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => !item.feature || features.includes(item.feature)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.flatMap((item) => {
+        if (item.feature && !features.includes(item.feature)) return [];
+        if (!item.section) return [item];
+        const [first] = visibleSectionLinks(item.section, features);
+        return first ? [{ ...item, path: first.path }] : [];
+      }),
+    }))
     .filter((group) => group.items.length > 0);
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: string;
@@ -359,11 +316,9 @@ const AppSidebar: React.FC = () => {
     if (isMobileOpen) setIsMobileOpen(false);
   };
 
-  // const isActive = (path: string) => location.pathname === path;
-  // "/duty/" 아래(근무표 수정, slices/14 14.8.1)에서도 "근무자 현황"을 강조한다
   const isActive = useCallback(
-    (path: string) => location.pathname === path || (path === "/duty" && location.pathname.startsWith("/duty/")),
-    [location.pathname],
+    (path: string) => matchesMenuPath(listPathOf(location.pathname, location.search)?.split("?")[0] ?? location.pathname, path),
+    [location.pathname, location.search],
   );
 
   useEffect(() => {
@@ -419,6 +374,11 @@ const AppSidebar: React.FC = () => {
   const showText = isExpanded || isHovered || isMobileOpen;
   const label = (nav: { key?: string; name: string }) => (nav.key ? t(`sidebar.items.${nav.key}`) : nav.name);
 
+  const isItemActive = (item: NavItem) =>
+    item.section
+      ? visibleSectionLinks(item.section, features).some(({ path }) => isActive(path))
+      : !!item.path && isActive(item.path);
+
   const renderMenuItems = (items: NavItem[], menuType: string) => (
     <ul className="flex flex-col gap-0.5">
       {items.map((nav, index) => (
@@ -426,6 +386,7 @@ const AppSidebar: React.FC = () => {
           {nav.subItems ? (
             <button
               onClick={() => handleSubmenuToggle(index, menuType)}
+              aria-expanded={openSubmenu?.type === menuType && openSubmenu.index === index}
               aria-label={showText ? undefined : label(nav)}
               className={`group menu-item ${
                 openSubmenu?.type === menuType && openSubmenu?.index === index
@@ -477,14 +438,15 @@ const AppSidebar: React.FC = () => {
                 to={nav.path}
                 target={nav.target}
                 onClick={closeMobile}
+                aria-current={isItemActive(nav) ? "location" : undefined}
                 aria-label={showText ? undefined : label(nav)}
                 className={`group menu-item ${
-                  isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                  isItemActive(nav) ? "menu-item-active" : "menu-item-inactive"
                 }`}
               >
                 <span
                   className={`menu-item-icon-size ${
-                    isActive(nav.path)
+                    isItemActive(nav)
                       ? "menu-item-icon-active"
                       : "menu-item-icon-inactive"
                   }`}
