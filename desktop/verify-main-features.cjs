@@ -30,11 +30,19 @@ module.exports = async function verifyMainFeatures(page,origin,evidence) {
   await panel.waitFor();
   await page.locator('aside').first().getByRole('link',{name:'우리 부서 업무',exact:true}).locator('xpath=self::*[@aria-current="page"]').waitFor();
   await page.waitForTimeout(300);
+  const crumbs=page.locator('header nav').first();
+  const box=await crumbs.boundingBox();
+  assert.ok(box&&box.height<=30,'Breadcrumbs must stay on one line with the AI panel open');
+  assert.equal((await crumbs.innerText()).trim(),'우리 부서 업무 등록','The compact header must show the current location');
+  const panelBox=await panel.boundingBox();
+  const buttons=await page.locator('header button').evaluateAll(elements=>elements.map(element=>element.getBoundingClientRect()).filter(rect=>rect.width>0&&rect.height>0).map(rect=>({left:rect.left,right:rect.right})));
+  assert.ok(panelBox&&buttons.every(button=>button.right<=panelBox.x+1),'AI panel must not cover header controls');
   await page.screenshot({animations:'disabled',path:path.join(evidence,'latest-main-assist-and-registration.png')});
   await page.locator('header').getByRole('button',{name:'AI 업무지원',exact:true}).click();
   await panel.waitFor({state:'hidden'});
   fs.writeFileSync(path.join(evidence,'latest-main-ui-result.json'),JSON.stringify({
     visits,assistPanelPersistsAcrossRegistrationNavigation:true,aiOffStateVerified:true,realModelInferenceTested:false,
+    breadcrumbSingleLine:true,headerControlsUncovered:true,compactCurrentLocation:true,
   },null,2));
   console.log('PASS latest-main support-screen routes, AI support header/panel and integrated registration navigation');
 };

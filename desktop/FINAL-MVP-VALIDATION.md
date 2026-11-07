@@ -26,6 +26,8 @@
 
 Electron 검사에서는 포함된 Java/MySQL과 별도 합성 프로필을 사용했다. 실제 등록 폼 제출, 한글 검색어·필터·페이지 복귀, 새로 고침, 안전하지 않은 복귀 주소의 기본 목록 처리, 본인 결재·다인 결재 대기·담당자 승인·차례가 아닌 승인 거부, 일반 사용자 등록과 관리 API 접근 거부를 확인했다. 좁은 화면·큰 글자·영문·다크 테마도 확인했다. 두 실행의 외부 브라우저 요청과 잡히지 않은 렌더러 오류는 모두 0이었다.
 
+AI 패널을 열었을 때 상단 경로가 여러 줄로 꺾이거나 사용자·알림 버튼이 패널에 가려지는 통합 UI 문제도 보완했다. 패널이 열리면 현재 위치를 간결하게 표시하고 전체 경로는 툴팁으로 유지한다. 헤더의 폭 배분과 생략 표시를 수정한 후 전체 실행 회귀를 다시 통과했고, 마지막 표시 보완 후에는 지원 화면 14개·현재 위치·한 줄 높이·상단 버튼 비가림을 집중 재검증했다. 이 UI 수정 전후 WAR의 프런트엔드 외 클래스·리소스 1,102개가 동일함을 확인했다.
+
 ## 검증 한계와 기존 사항
 
 - 전체 프런트엔드 lint는 기존 오류 3개와 경고 14개로 성공하지 않는다. 오류 파일 CalendarEventModal.tsx·ThemeContext.tsx·svg.d.ts는 이번 통합에서 최신 main 대비 변경하지 않았다.
@@ -36,7 +38,7 @@ Electron 검사에서는 포함된 Java/MySQL과 별도 합성 프로필을 사�
 ## 산출물과 재현 자료
 
 - 폴더형 실행본: `output/OMNIS-Final-MVP-Windows-x64/OMNIS.exe`.
-- 로컬 증거: `output/final-mvp/` 아래 merge-audit.json, frontend-tests.log, backend-final-summary.json, backend-final-build.log, desktop-verified1, upgrade-verified2.
+- 로컬 증거: `output/final-mvp/` 아래 merge-audit.json, frontend-tests.log, backend-final-summary.json, backend-final-build.log, desktop-verified3, header-final-verified, upgrade-verified2.
 - 시험 소스: setup-smoke.cjs, verify-navigation.cjs, verify-registration.cjs, verify-main-features.cjs, verify-upgrade.cjs 및 저장소의 기존 서버·화면 시험.
 
 실행본·로컬 런타임·사용자 DB·시험용 비밀번호·로그는 Git에서 제외한다. 새 실행본은 기존 앱의 정상 종료 후 실행한다. 최신 초기 시연 데이터를 별도로 보려면 README의 새 사용자 프로필 실행 방법을 사용한다.
