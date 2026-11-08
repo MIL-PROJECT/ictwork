@@ -15,7 +15,8 @@ import { InboxAltIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { withListReturn } from "@/layout/navigationSections";
+import { Link, useLocation } from "react-router";
 
 /**
  * 결재함 ▸ 업무 접수 (REQ-105·106, DEC-060 5번): 내 소속 부서로 들어온 접수 대기 처리 건.
@@ -25,6 +26,7 @@ import { Link } from "react-router";
  */
 export default function Receipts() {
   const { t } = useTranslation("work");
+  const location = useLocation();
   const { t: tc } = useTranslation();
   const { t: tw } = useTranslation("frameWork");
   const countText = useCountText();
@@ -89,7 +91,7 @@ export default function Receipts() {
               <span key="title" className="flex flex-col gap-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <PriorityBadge priority={item.priority} />
-                  <Link to={`/work/items/${item.id}?from=receipts`} className="min-w-0 wrap-break-word font-medium text-brand-600 hover:underline dark:text-brand-400">
+                  <Link to={withListReturn(`/work/items/${item.id}?from=receipts`, location.pathname + location.search)} className="min-w-0 wrap-break-word font-medium text-brand-600 hover:underline dark:text-brand-400">
                     {item.title}
                   </Link>
                 </span>

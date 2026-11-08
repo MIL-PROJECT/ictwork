@@ -1,678 +1,136 @@
-import type { BoxCard, BoxColor } from "@/api/ictStatus";
-import type { ItemListItem, WorkStatus as ItemStatus } from "@/api/work";
+import type { ItemListItem } from "@/api/work";
 import PageMeta from "@/components/common/PageMeta";
 import { useGuides } from "@/context/AuthContext";
 import "@/components/board/board.css";
-import {
-  ArrowRight,
-  Card,
-  ChevronRight,
-  Meter,
-  Paged,
-  Pill,
-  type Tone,
-} from "@/components/board/ui";
+import { Card, Meter, Paged, Pill } from "@/components/board/ui";
 import { useBoardData } from "@/components/board/useBoardData";
-import {
-  AlertIcon,
-  BoxIcon,
-  CheckCircleIcon,
-  PageIcon,
-  RegenerateIcon,
-  TaskIcon,
-  TimeIcon,
-} from "@/icons";
-import type { ReactNode } from "react";
+import { useBoardViewport } from "@/components/board/useBoardViewport";
+import type { Resource } from "@/components/board/boardState";
+import { operationStates, operationStats, operationTone } from "@/components/board/operationModel";
+import BoardResourceNote from "@/components/board/BoardResourceNote";
+import BoardRiskPanel from "@/components/board/BoardRiskPanel";
+import { AlertIcon, BoxIcon, CheckCircleIcon, PageIcon, RegenerateIcon, TaskIcon, TimeIcon } from "@/icons";
+import type { CSSProperties, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
-// 통합상황판 (OMNIS 통합상황판 역설계 시제품, 역설계명세.md 4장). 칸 구성은 OMNIS 그대로, 값은 우리 기능
-const ROW = 36; // 표 행·머리글 높이 (board.css와 맞춤)
-const TASK_ROW = 38;
-const NOTICE_ROW = 42;
-
-const BOX_TONE: Record<BoxColor, Tone> = {
-  GREEN: "green",
-  YELLOW: "yellow",
-  ORANGE: "orange",
-  RED: "red",
-  BLUE: "sky",
-  GRAY: "gray",
-};
-const ALERT_RANK: Partial<Record<BoxColor, number>> = {
-  RED: 0,
-  ORANGE: 1,
-  YELLOW: 2,
-};
-const ITEM_TONE: Record<ItemStatus, Tone> = {
-  RECEIVED: "orange",
-  IN_APPROVAL: "lavender",
-  APPROVED: "sky",
-  PLANNED: "sky",
-  DONE: "green",
-  REJECTED: "red",
-  TRANSFERRED: "gray",
-};
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const shortTime = (iso: string) => {
-  const d = new Date(iso);
-  return `${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-const shortDate = (date: string | null) =>
-  date ? date.slice(5).replace("-", ".") : "";
-
-// 계획 기간 중 지난 비율 (오늘 기준). 기간이 없으면 null
+const shortDate = (date: string | null) => date ? date.slice(5).replace("-", ".") : "—";
+const n = (value: number | null | undefined) => value ?? "—";
 function elapsed(item: ItemListItem, today: string): number | null {
   if (!item.startDate) return null;
-  const end = item.endDate ?? item.startDate;
-  const s = Date.parse(item.startDate);
-  const e = Date.parse(end) + 86_400_000;
-  const n = Date.parse(today) + 86_400_000;
-  if (n <= s) return 0;
-  if (n >= e) return 100;
-  return Math.round(((n - s) / (e - s)) * 100);
+  const start = Date.parse(item.startDate);
+  const end = Date.parse(item.endDate ?? item.startDate) + 86_400_000;
+  return Math.max(0, Math.min(100, Math.round(((Date.parse(today) + 86_400_000 - start) / (end - start)) * 100)));
 }
 
-function Metric({
-  label,
-  value,
-  unit,
-  icon,
-  tone,
-  foot,
-  to,
-}: {
-  label: string;
-  value: number | null;
-  unit: string;
-  icon: ReactNode;
-  tone?: Tone;
-  foot: ReactNode;
-  to: string;
+function Metric({ label, value, icon, foot, to, resource, unit }: {
+  label: string; value: number | null; icon: ReactNode; foot: ReactNode; to?: string; resource: Resource<unknown>; unit?: string;
 }) {
-  const { t } = useTranslation("board");
-  return (
-    <Link
-      to={to}
-      className="board-metric"
-      aria-label={t("openList", { label, value: value ?? "—", unit })}
-    >
-      <span className="board-metric-top">
-        <span className="board-metric-label">{label}</span>
-        <span className={`board-metric-icon tone-${tone ?? "sky"}`} aria-hidden>
-          {icon}
-        </span>
-      </span>
-      <span className="board-metric-value">
-        {value ?? "—"}
-        <small>{unit}</small>
-      </span>
-      <span className="board-metric-foot">{foot}</span>
-    </Link>
-  );
+  const { t, i18n } = useTranslation("board");
+  const actualUnit = unit ?? t("unit.items");
+  const content = <>
+    <span className="board-metric-top"><span className="board-metric-label">{label}</span><span className="board-metric-icon tone-sky" aria-hidden>{icon}</span></span>
+    <span className="board-metric-value">{n(value)}<small>{actualUnit}</small></span>
+    <div className="board-metric-foot" title={typeof foot === "string" ? foot : undefined}>
+      {["error", "stale", "unavailable", "loading"].includes(resource.state) ? <BoardResourceNote resource={resource} compact /> : foot}
+    </div>
+  </>;
+  const checked = resource.checkedAt ? new Date(resource.checkedAt).toLocaleString(i18n.language) : t("risk.unverified");
+  return to ? <Link className="board-metric" to={to} title={`${label} · ${checked}`} aria-label={t("openList", { label, value: n(value), unit: actualUnit })}>{content}</Link> :
+    <div className="board-metric">{content}</div>;
 }
 
 export default function ControlBoard() {
+  const guides = useGuides(); // 설명만 하는 툴팁은 설명 글 보이기를 끄면 뺀다 (REQ-009)
   const { t, i18n } = useTranslation("board");
+  const { t: to } = useTranslation("operations");
   const { t: tw } = useTranslation("work");
-  const { t: ti } = useTranslation("ictStatus");
   const { t: td } = useTranslation("directive");
-  const guides = useGuides();
-  const navigate = useNavigate();
-  const { data, error, updatedAt, refresh } = useBoardData();
+  const { resources: r, refreshing, refresh } = useBoardData();
+  const { ref: boardRef, height: boardHeight, fit: boardFit } = useBoardViewport();
+  const short = boardFit && boardHeight < 730;
+  const status = r.status.value;
+  const cards = status?.cards;
+  const perf = status?.perf;
+  const systems = r.operations.value?.items;
+  const ops = systems ? operationStats(systems) : null;
   const today = new Date();
-  const todayYmd = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const issueCount = Object.values(r).filter(resource => ["error", "stale"].includes(resource.state)).length;
+  const planned = [...(r.planned.value ?? [])].sort((a, b) => (a.endDate ?? a.startDate ?? "").localeCompare(b.endDate ?? b.startDate ?? "") || a.id - b.id);
+  const scope = r.scope.value;
+  const scopeLabel = scope?.nodes.filter(node => scope.initialIds.includes(node.id)).map(node => node.name).join(" · ");
+  const scopeDescription = t("risk.workScope", { scope: scopeLabel || t("noData"), from: status?.from ?? "—", to: status?.to ?? "—" });
+  const tasks = (filter: string | null, extra = ""): string | undefined => status ?
+    `/tasks?tab=department&d=${status.departmentIds.join(",")}${filter ? `&fb=${filter}` : ""}${extra || `&closedFrom=${status.from}&closedTo=${status.to}`}` : undefined;
+  const segments = cards ? (["done", "ongoing", "waiting", "rejected", "transferred"] as const).map(key => ({ key, count: cards[key] })) : [];
 
-  const header = (
+  return <div ref={boardRef} className="board board-control omnis-classic" data-fit={boardFit} data-density={short ? "short" : "normal"} style={{ "--board-height": `${boardHeight}px` } as CSSProperties}>
+    <PageMeta titleKey="sidebar.items.board" />
     <div className="board-header">
-      <div>
-        <span className="board-eyebrow">{t("section")}</span>
-        <h1>{t("title")}</h1>
-        <p className="board-desc">
-          {t("desc", {
-            date: today.toLocaleDateString(i18n.language, {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            }),
-          })}
-        </p>
-      </div>
-      <div className="board-actions">
-        <span
-          className={`board-updated${error ? "error" : ""}`}
-          role={error ? "status" : undefined}
-        >
-          {error
-            ? t("refreshFailed")
-            : updatedAt
-              ? t("updated", {
-                  time: `${pad(updatedAt.getHours())}:${pad(updatedAt.getMinutes())}`,
-                })
-              : ""}
-        </span>
-        <button
-          type="button"
-          className="board-btn"
-          onClick={() => void refresh()}
-        >
-          <RegenerateIcon aria-hidden />
-          {error ? t("retry") : t("refresh")}
-        </button>
-      </div>
+      <div className="board-heading"><span className="board-eyebrow">{t("classic.section")}</span><h1>{t("title")}</h1><span className="board-date">{t("classic.desc", { date: today.toLocaleDateString(i18n.language,{year:"numeric",month:"long",day:"numeric",weekday:"long"}) })}</span></div>
+      <div className="board-actions"><span className={`board-updated${issueCount ? " error" : ""}`} title={t(issueCount ? "risk.partial" : "risk.perSource")}>{t(refreshing ? "risk.checking" : issueCount ? "oneScreen.partial" : "oneScreen.sourceTimes")}</span>
+        <button type="button" className="board-btn" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing}><RegenerateIcon aria-hidden />{t("refresh")}</button></div>
     </div>
-  );
 
-  if (!data) {
-    return (
-      <div className="board">
-        <PageMeta titleKey="sidebar.items.board" />
-        {header}
-        <p role="status" className="text-sm text-gray-500">
-          {error ? t("loadFailed") : t("loading")}
-        </p>
-      </div>
-    );
-  }
-
-  // 숫자 눌러 목록 열기: 업무 현황과 같은 주소 형식(같은 부서 d·끝난 건 기간)이라 목록 건수가 숫자와 맞는다 (WorkStatus.tsx 3.5)
-  const tasks = (fb: string | null, extra = "") => {
-    const st = data.status;
-    if (!st) return "/tasks";
-    const closed = `&closedFrom=${st.from}&closedTo=${st.to}`;
-    return `/tasks?tab=department&d=${st.departmentIds.join(",")}${fb ? `&fb=${fb}` : ""}${extra || closed}`;
-  };
-  const cards = data.status?.cards ?? null;
-  const perf = data.status?.perf ?? null;
-  const urgent = data.urgent?.length ?? null;
-  const overdue = data.overdue?.length ?? null;
-  const planned = [...(data.planned ?? [])].sort((a, b) =>
-    (a.endDate ?? a.startDate ?? "").localeCompare(
-      b.endDate ?? b.startDate ?? "",
-    ),
-  );
-  const alerts: BoxCard[] = (data.boxes ?? [])
-    .filter((b) => ALERT_RANK[b.shownColor] !== undefined)
-    .sort(
-      (a, b) =>
-        ALERT_RANK[a.shownColor]! - ALERT_RANK[b.shownColor]! ||
-        b.updatedAt.localeCompare(a.updatedAt),
-    );
-  const n = (v: number | null | undefined) =>
-    v === null || v === undefined ? "—" : v;
-  const segments = cards
-    ? ([
-        ["done", cards.done, "var(--c-done)"],
-        ["ongoing", cards.ongoing, "var(--c-ongoing)"],
-        ["waiting", cards.waiting, "var(--c-waiting)"],
-        ["rejected", cards.rejected, "var(--c-rejected)"],
-        ["transferred", cards.transferred, "var(--c-transferred)"],
-      ] as const)
-    : [];
-
-  return (
-    <div className="board">
-      <PageMeta titleKey="sidebar.items.board" />
-      {header}
-
+    <section className="board-work" aria-labelledby="board-work-title">
+      <div className="board-section-head"><h2 id="board-work-title" className="sr-only">{t("classic.summary")}</h2><p className="board-work-scope" title={scopeDescription}>{scopeDescription}</p><BoardResourceNote resource={r.scope} compact />{scope && <Link className="board-link" to="/status">{t("risk.statistics")} ↗</Link>}</div>
       <div className="board-metrics">
-        <Metric
-          label={t("kpi.total")}
-          value={cards?.total ?? null}
-          unit={t("unit.items")}
-          icon={<TaskIcon />}
-          to={tasks(null)}
-          foot={
-            cards
-              ? t("kpi.totalFoot", {
-                  waiting: cards.waiting,
-                  ongoing: cards.ongoing,
-                  done: cards.done,
-                  rejected: cards.rejected + cards.transferred,
-                })
-              : t("noData")
-          }
-        />
-        <Metric
-          label={t("kpi.done")}
-          value={cards?.done ?? null}
-          unit={t("unit.items")}
-          icon={<CheckCircleIcon />}
-          to={tasks("DONE")}
-          foot={
-            <span className="board-metric-meter">
-              <span>{t("kpi.doneRate")}</span>
-              {perf?.completionRate === null ||
-              perf?.completionRate === undefined ? (
-                <span className="board-meter-val">—</span>
-              ) : (
-                <Meter value={perf.completionRate} tone="green" />
-              )}
-            </span>
-          }
-        />
-        <Metric
-          label={t("kpi.urgent")}
-          value={urgent}
-          unit={t("unit.items")}
-          icon={<AlertIcon />}
-          tone="red"
-          to={tasks(null, "&urgent=1")}
-          foot={
-            cards
-              ? t("kpi.urgentFoot", { open: cards.waiting + cards.ongoing })
-              : t("noData")
-          }
-        />
-        <Metric
-          label={t("kpi.ongoing")}
-          value={cards?.ongoing ?? null}
-          unit={t("unit.items")}
-          icon={<TimeIcon />}
-          to={tasks("ONGOING")}
-          foot={t("kpi.ongoingFoot", {
-            overdue: n(overdue),
-            waiting: n(cards?.waiting),
-          })}
-        />
+        <Metric label={t("classic.total")} value={ops?.total ?? null} icon={<BoxIcon />} resource={r.operations} to="/operations" unit={t("unit.boxes")}
+          foot={ops ? operationStates.map(state => `${to(`status.${state}`)} ${ops.counts[state]}`).join(" · ") : t("noData")} />
+        <Metric label={t("classic.normal")} value={ops?.normal ?? null} icon={<CheckCircleIcon />} resource={r.operations} to="/operations?status=NORMAL" unit={t("unit.boxes")}
+          foot={<span className="board-metric-meter" title={guides ? t("classic.normalHelp") : undefined}><span>{t("classic.normalRate")}</span>{ops?.normalRate == null ? "—" : <Meter value={ops.normalRate} tone="green" />}</span>} />
+        <Metric label={t("kpi.urgent")} value={r.urgent.value?.length ?? null} icon={<AlertIcon />} resource={r.urgent} to={tasks(null, "&urgent=1")}
+          foot={cards ? t("kpi.urgentFoot", { open: cards.waiting + cards.ongoing }) : t("noData")} />
+        <Metric label={t("kpi.ongoing")} value={cards?.ongoing ?? null} icon={<TimeIcon />} resource={r.status} to={tasks("ONGOING")}
+          foot={["error", "stale", "unavailable"].includes(r.overdue.state) ? <BoardResourceNote resource={r.overdue} compact /> : t("kpi.ongoingFoot", { overdue: n(r.overdue.value?.length), waiting: n(cards?.waiting) })} />
       </div>
+    </section>
 
-      <section className="board-band" aria-label={t("band.label")}>
-        <div className="board-band-stats">
-          <div>
-            <span>{t("band.receipts")}</span>
-            <strong>
-              {n(data.receipts?.length)}
-              <small>{t("unit.items")}</small>
-            </strong>
-          </div>
-          <div>
-            <span>{t("band.myTurn")}</span>
-            <strong>
-              {n(data.myTurn)}
-              <small>{t("unit.items")}</small>
-            </strong>
-          </div>
-          <div className={alerts.length ? "warn" : ""}>
-            <span>{t("band.alerts")}</span>
-            <strong>
-              {data.boxes ? alerts.length : "—"}
-              <small>{t("unit.items")}</small>
-            </strong>
-          </div>
-          <div className={overdue ? "danger" : ""}>
-            <span>{t("band.overdue")}</span>
-            <strong>
-              {n(overdue)}
-              <small>{t("unit.items")}</small>
-            </strong>
-          </div>
-          <div>
-            <span>{t("band.requests")}</span>
-            <strong>
-              {n(perf?.requests)}
-              <small>
-                {" "}
-                / {t("band.completed", { count: perf?.completed ?? 0 })}
-              </small>
-            </strong>
-          </div>
-          {/* 오늘 근무자 수를 누르면 근무자 현황 (REQ-910 "숫자를 누르면 목록", slices/19 V8) */}
-          <div>
-            <Link to="/duty" className="board-band-stat-link">
-              <span>{t("band.duty")}</span>
-              <strong>
-                {n(data.dutyToday)}
-                <small>{t("unit.people")}</small>
-              </strong>
-            </Link>
-          </div>
-          <Link to="/ict-status" className="board-link">
-            {t("band.toIct")}
-            <ArrowRight />
-          </Link>
-        </div>
-        {alerts.length > 0 && (
-          <div className="board-alerts">
-            <div className="board-alerts-caption">
-              <strong>
-                {t("alerts.caption")}
-                <small>{t("alerts.count", { count: alerts.length })}</small>
-              </strong>
-              {alerts.some((b) => b.shownColor === "RED") && (
-                <span>
-                  {t("alerts.check", {
-                    count: alerts.filter((b) => b.shownColor === "RED").length,
-                  })}
-                </span>
-              )}
-            </div>
-            <div className="board-alerts-rows">
-              {alerts.length === 0 ? (
-                <span className="board-alerts-empty">{t("alerts.none")}</span>
-              ) : (
-                alerts.slice(0, 2).map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    className="board-alert-row"
-                    onClick={() => navigate(`/ict-status?box=${b.id}`)}
-                  >
-                    <Pill
-                      tone={BOX_TONE[b.shownColor]}
-                      alert={b.shownColor === "RED"}
-                    >
-                      {b.shownSummary || ti(`colors.${b.shownColor}`)}
-                    </Pill>
-                    <span className="board-alert-title">{b.title}</span>
-                    <span className="board-alert-scope">
-                      {b.departmentLabel}
-                    </span>
-                    <time dateTime={b.updatedAt}>{shortTime(b.updatedAt)}</time>
-                    <ChevronRight />
-                  </button>
-                ))
-              )}
-            </div>
-            <Link to="/ict-status" className="board-link">
-              {t("viewAll")}
-            </Link>
-          </div>
-        )}
-      </section>
+    <BoardRiskPanel resource={r.boxes} short={short} summary={<>
+      <Link className="board-band-value" to="/operations?attention=1"><span>{t("classic.systemAttention")}</span><strong>{ops ? ops.counts.WATCH + ops.counts.FAULT : "—"}<small>{t("unit.boxes")}</small></strong>{["error","stale","unavailable"].includes(r.operations.state) && <BoardResourceNote resource={r.operations} compact />}</Link>
+      <Link className="board-band-value" to={tasks(null,"&overdue=1") ?? "/tasks?tab=department"}><span>{t("band.overdue")}</span><strong>{n(r.overdue.value?.length)}<small>{t("unit.items")}</small></strong>{["error","stale","unavailable"].includes(r.overdue.state) && <BoardResourceNote resource={r.overdue} compact />}</Link>
+      <Link className="board-band-value" to="/duty" title={guides ? t("risk.dutyHelp") : undefined}><span>{t("band.duty")}</span><strong>{n(r.dutyToday.value)}<small>{t("unit.people")}</small></strong>{["error","stale","unavailable"].includes(r.dutyToday.state) && <BoardResourceNote resource={r.dutyToday} compact />}</Link>
+    </>} />
 
-      <div className="board-grid">
-        <Card
-          icon={<BoxIcon />}
-          title={t("cards.ict")}
-          subtitle={t("cards.ictSub", { count: data.boxes?.length ?? 0 })}
-          to="/ict-status"
-        >
-          <Paged
-            rows={data.boxes ?? []}
-            rowHeight={ROW}
-            reserved={ROW + 2}
-            unit={t("unit.boxes")}
-          >
-            {(rows) => (
-              <table className="board-table">
-                <colgroup>
-                  <col />
-                  <col style={{ width: "24%" }} />
-                  <col style={{ width: "22%" }} />
-                  <col style={{ width: 104 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">{t("cols.box")}</th>
-                    <th scope="col">{t("cols.department")}</th>
-                    <th scope="col">{t("cols.state")}</th>
-                    <th scope="col">{t("cols.updated")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((b) => (
-                    <tr
-                      key={b.id}
-                      tabIndex={0}
-                      role="link"
-                      onClick={() => navigate(`/ict-status?box=${b.id}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/ict-status?box=${b.id}`);
-                        }
-                      }}
-                    >
-                      <td className="board-cell-strong">{b.title}</td>
-                      <td className="board-cell-muted">{b.departmentLabel}</td>
-                      <td>
-                        <Pill tone={BOX_TONE[b.shownColor]}>
-                          {b.shownSummary || ti(`colors.${b.shownColor}`)}
-                        </Pill>
-                      </td>
-                      <td className="board-cell-muted">
-                        {shortTime(b.updatedAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Paged>
-        </Card>
-
-        <Card
-          icon={<TaskIcon />}
-          title={t("cards.progress")}
-          subtitle={t("cards.progressSub", { count: planned.length })}
-          to={tasks("ONGOING")}
-        >
-          <div className="board-mp">
-            <div className="board-mp-hero">
-              <div>
-                <div className="board-mp-kicker">{t("progress.kicker")}</div>
-                <div className="board-mp-rate">
-                  {perf?.completionRate ?? "—"}
-                  <span>%</span>
-                </div>
-              </div>
-              <div className="board-mp-sub">
-                {perf
-                  ? t("progress.sub", {
-                      total: perf.total,
-                      done: perf.completed,
-                    })
-                  : t("noData")}
-              </div>
-            </div>
-            <div
-              className="board-mp-bar"
-              role="img"
-              aria-label={segments
-                .map(([k, v]) => `${t(`progress.${k}`)} ${v}`)
-                .join(", ")}
-            >
-              {segments
-                .filter(([, v]) => v > 0)
-                .map(([k, v, color]) => (
-                  <span
-                    key={k}
-                    className="board-mp-seg"
-                    style={{ flexGrow: v, background: color }}
-                  />
-                ))}
-            </div>
-            <div className="board-mp-legend">
-              {segments.map(([k, v, color]) => (
-                <span key={k}>
-                  <i style={{ background: color }} />
-                  {t(`progress.${k}`)} <strong>{v}</strong>
-                  <small>
-                    {cards && cards.total
-                      ? Math.round((v / cards.total) * 100)
-                      : 0}
-                    %
-                  </small>
-                </span>
-              ))}
-            </div>
-            <div className="board-mp-section">{t("progress.section")}</div>
-            <Paged rows={planned} rowHeight={TASK_ROW} unit={t("unit.items")}>
-              {(rows) =>
-                rows.map((item) => {
-                  const pct = elapsed(item, todayYmd);
-                  const late = item.endDate !== null && item.endDate < todayYmd;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="board-mp-task"
-                      onClick={() => navigate(`/work/items/${item.id}?from=department`)}
-                    >
-                      <span className="board-mp-task-head">
-                        <Pill
-                          tone={late ? "red" : ITEM_TONE[item.status]}
-                          alert={item.priority === "URGENT"}
-                        >
-                          {item.priority === "URGENT"
-                            ? tw("priority.URGENT")
-                            : tw(`status.work.${item.status}`)}
-                        </Pill>
-                        <span className="board-mp-task-title">
-                          {item.title}
-                        </span>
-                        <span className="board-mp-task-no">#{item.id}</span>
-                        <span className="board-mp-task-date">
-                          {shortDate(item.endDate ?? item.startDate)}
-                        </span>
-                      </span>
-                      <span
-                        className="board-mp-task-track"
-                        title={guides ? t("progress.elapsedHelp") : undefined}
-                      >
-                        <span className="board-mp-track">
-                          <span
-                            className="board-mp-fill"
-                            style={{
-                              width: `${pct ?? 0}%`,
-                              background: late
-                                ? "var(--c-rejected)"
-                                : pct === 100
-                                  ? "var(--c-done)"
-                                  : "var(--c-progress)",
-                            }}
-                          />
-                        </span>
-                        <span className="board-mp-task-pct">
-                          {pct === null ? "—" : `${pct}%`}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              }
-            </Paged>
-          </div>
-        </Card>
-
-        <Card
-          icon={<AlertIcon />}
-          title={t("cards.receipts")}
-          subtitle={t("cards.receiptsSub", {
-            count: data.receipts?.length ?? 0,
-          })}
-          to="/approvals/receipts"
-        >
-          <Paged
-            rows={data.receipts ?? []}
-            rowHeight={ROW}
-            reserved={ROW + 2}
-            unit={t("unit.items")}
-          >
-            {(rows) => (
-              <table className="board-table">
-                <colgroup>
-                  <col style={{ width: 118 }} />
-                  <col />
-                  <col style={{ width: "18%" }} />
-                  <col style={{ width: 84 }} />
-                  <col style={{ width: 72 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">{t("cols.no")}</th>
-                    <th scope="col">{t("cols.title")}</th>
-                    <th scope="col">{t("cols.requester")}</th>
-                    <th scope="col">{t("cols.priority")}</th>
-                    <th scope="col">{t("cols.wanted")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((item) => (
-                    <tr
-                      key={item.id}
-                      tabIndex={0}
-                      role="link"
-                      onClick={() => navigate(`/work/items/${item.id}?from=receipts`)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/work/items/${item.id}?from=receipts`);
-                        }
-                      }}
-                    >
-                      <td>
-                        <span className="board-cell-code">#{item.id}</span>
-                      </td>
-                      <td className="board-cell-strong">{item.title}</td>
-                      <td className="board-cell-muted">{item.requesterName}</td>
-                      <td>
-                        <Pill
-                          tone={item.priority === "URGENT" ? "red" : "gray"}
-                          alert={item.priority === "URGENT"}
-                        >
-                          {tw(`priority.${item.priority}`)}
-                        </Pill>
-                      </td>
-                      <td className="board-cell-muted">
-                        {shortDate(item.requestedSchedule?.startDate ?? null) ||
-                          "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Paged>
-        </Card>
-
-        <Card
-          icon={<PageIcon />}
-          title={t("cards.directives")}
-          subtitle={t("cards.directivesSub", {
-            count: data.directives?.length ?? 0,
-          })}
-          to="/directives"
-        >
-          <Paged
-            rows={data.directives ?? []}
-            rowHeight={NOTICE_ROW}
-            unit={t("unit.items")}
-          >
-            {(rows) =>
-              rows.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className="board-notice"
-                  onClick={() => navigate(`/directives?id=${d.id}`)}
-                >
-                  <Pill
-                    tone={
-                      d.positionName === "BATTALION"
-                        ? "red"
-                        : d.positionName === "COMPANY"
-                          ? "lavender"
-                          : "sky"
-                    }
-                  >
-                    {d.positionName
-                      ? td(`position.${d.positionName}`)
-                      : d.departmentName}
-                  </Pill>
-                  <span>
-                    {d.departmentName} · {d.content.split("\n")[0]}
-                  </span>
-                  <small>{d.directiveDate}</small>
-                </button>
-              ))
-            }
-          </Paged>
-        </Card>
-      </div>
-    </div>
-  );
+    <section className="board-panels" aria-label={t("oneScreen.panels")}>
+      <Card icon={<BoxIcon />} title={t("classic.operations")} subtitle={t("classic.systemCount",{count:n(ops?.total)})} to="/operations">
+        <BoardResourceNote resource={r.operations} compact />
+        {systems && <Paged rows={systems} rowHeight={short ? 28 : 32} reserved={short ? 22 : 28} unit={t("unit.boxes")}>{rows => <>
+          <div className="board-operation-columns"><span>{to("name")}</span><span>{to("state")}</span><span title={to("manualRate")}>{to("uptime")}</span></div>
+          {rows.map(item => <Link key={item.id} className="board-operation-row" to={`/operations?system=${item.id}`} title={`${item.code} · ${item.name} · ${item.departmentLabel} · ${to(`status.${item.status}`)} · ${to("uptime")} ${item.uptimePct}%`}>
+            <strong>{item.name}</strong><Pill tone={operationTone[item.status]}>{to(`status.${item.status}`)}</Pill><Meter value={item.uptimePct} /></Link>)}
+        </>}</Paged>}
+      </Card>
+      <Card icon={<TaskIcon />} title={t("cards.progress")} subtitle={`${perf?.completionRate ?? "—"}% · ${t("progress.kicker")}`} to={tasks("ONGOING")}>
+        <BoardResourceNote resource={["error","stale","unavailable"].includes(r.status.state) ? r.status : r.planned} compact />
+        {!short && <div className="board-progress-summary" title={scopeDescription}>
+          <div><span>{t("progress.kicker")}</span><strong>{perf?.completionRate ?? "—"}<small>%</small></strong><span>{t("progress.sub",{done:n(perf?.completed),total:n(perf?.total)})}</span></div>
+          <div className="board-progress-segments" aria-label={scopeDescription}>{segments.map(({key,count}) => <span key={key} className={`segment-${key}`} style={{width:`${cards?.total ? count*100/cards.total : 0}%`}} />)}</div>
+          <div className="board-progress-legend">{segments.map(({key,count}) => <span key={key}><i className={`segment-${key}`} />{t(`progress.${key}`)} <b>{count}</b></span>)}</div>
+        </div>}
+        {r.planned.value !== null && <Paged rows={planned} rowHeight={short ? 28 : 32} unit={t("unit.items")}>{rows => rows.map(item => {
+          const percent = elapsed(item, todayYmd);
+          const late = item.endDate !== null && item.endDate < todayYmd;
+          return <Link key={item.id} className="board-planned-item" to={`/work/items/${item.id}?from=department`} title={`${item.title} · #${item.id} · ${shortDate(item.endDate ?? item.startDate)} · ${t("progress.elapsedHelp")}: ${percent ?? "—"}%`}>
+            <Pill tone={late ? "red" : item.priority === "URGENT" ? "orange" : "sky"}>{late ? t("oneScreen.overdue") : item.priority === "URGENT" ? tw("priority.URGENT") : tw(`status.work.${item.status}`)}</Pill>
+            <strong>{item.title}</strong><small>{shortDate(item.endDate ?? item.startDate)} · {percent === null ? "—" : `${percent}%`}</small>
+            <span className="board-planned-track" aria-hidden><span style={{ width: `${percent ?? 0}%` }} /></span>
+          </Link>;
+        })}</Paged>}
+      </Card>
+      <Card icon={<AlertIcon />} title={t("cards.receipts")} subtitle={t("risk.receiptScope", { count: n(r.receipts.value?.length) })} to="/approvals/receipts">
+        <BoardResourceNote resource={r.receipts} compact />
+        {r.receipts.value !== null && <Paged rows={r.receipts.value} rowHeight={short ? 28 : 32} unit={t("unit.items")}>{rows => rows.map(item =>
+          <Link key={item.id} className="board-receipt-item" to={`/work/items/${item.id}?from=receipts`} title={`#${item.id} · ${item.title} · ${item.requesterName} · ${tw(`priority.${item.priority}`)} · ${shortDate(item.requestedSchedule?.startDate ?? null)}`}>
+            <Pill tone={item.priority === "URGENT" ? "orange" : "gray"}>{tw(`priority.${item.priority}`)}</Pill><strong>{item.title}</strong><small>{item.requesterName} · {shortDate(item.requestedSchedule?.startDate ?? null)}</small>
+          </Link>)}</Paged>}
+      </Card>
+      <Card icon={<PageIcon />} title={t("cards.directives")} subtitle={t("cards.directivesSub", { count: n(r.directives.value?.length) })} to="/directives">
+        <BoardResourceNote resource={r.directives} compact />
+        {r.directives.value !== null && <Paged rows={r.directives.value} rowHeight={short ? 28 : 32} unit={t("unit.items")}>{rows => rows.map(item =>
+          <Link key={item.id} className="board-directive-item" to={`/directives?id=${item.id}`} title={`${item.departmentName} · ${item.content} · ${item.directiveDate}`}><Pill tone="lavender">{item.positionName ? td(`position.${item.positionName}`) : item.departmentName}</Pill><strong>{item.departmentName} · {item.content.split("\n")[0]}</strong><small>{item.directiveDate}</small></Link>)}</Paged>}
+      </Card>
+    </section>
+  </div>;
 }
