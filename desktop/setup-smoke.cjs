@@ -30,6 +30,8 @@ async function csrfHeaders(context, origin) {
       timeout: 60000,
     });
     const page = await electron.firstWindow();
+    // Keep native export downloads inside this owned evidence folder.
+    await electron.evaluate(({session},file)=>session.defaultSession.on('will-download',(_event,item)=>item.setSavePath(file)),path.join(evidence,'statistics.xlsx'));
     page.on('pageerror',error=>result.rendererErrors.push(String(error)));
     let shutdownAt;
     let serviceOrigin;

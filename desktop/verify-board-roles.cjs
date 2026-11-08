@@ -64,7 +64,9 @@ const [installed, evidence] = process.argv.slice(2);
       await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
       await page.evaluate(()=>window.scrollTo(0,0));await page.waitForTimeout(150);
       await page.screenshot({path:path.join(evidence,'board-role-'+user+'.png'),fullPage:true,animations:'disabled'});
-      results.push({user,operationIds:operations.items.map(item=>item.id),visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true});
+      const statistics=await require('./verify-layout-polish.cjs').checkScope(page,origin,evidence,user);
+      await page.goto(origin+'/board');await page.locator('.board-attention:not([data-state=loading])').waitFor();
+      results.push({user,operationIds:operations.items.map(item=>item.id),visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true,statistics});
     }
     // The same mounted board clears department values when its certified scope disappears.
     const scopeEndpoint='**/api/work-status/scope';

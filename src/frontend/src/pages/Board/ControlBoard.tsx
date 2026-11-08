@@ -66,7 +66,7 @@ export default function ControlBoard() {
   return <div ref={boardRef} className="board board-control omnis-classic" data-fit={boardFit} data-density={short ? "short" : boardFit && boardHeight < 780 ? "medium" : "normal"} style={{ "--board-height": `${boardHeight}px` } as CSSProperties}>
     <PageMeta titleKey="sidebar.items.board" />
     <div className="board-header">
-      <div className="board-heading"><span className="board-eyebrow">{t("classic.section")}</span><h1>{t("title")}</h1><span className="board-date">{t("classic.desc", { date: today.toLocaleDateString(i18n.language,{year:"numeric",month:"long",day:"numeric",weekday:"long"}) })}</span></div>
+      <div className="board-heading"><h1>{t("title")}</h1><span className="board-date">{t("classic.desc", { date: today.toLocaleDateString(i18n.language,{year:"numeric",month:"long",day:"numeric",weekday:"long"}) })}</span></div>
       <div className="board-actions"><span className={`board-updated${issueCount ? " error" : ""}`} title={t(issueCount ? "risk.partial" : "risk.perSource")}>{t(refreshing ? "risk.checking" : issueCount ? "oneScreen.partial" : "oneScreen.sourceTimes")}</span>
         <button type="button" className="board-btn" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing}><RegenerateIcon aria-hidden />{t("refresh")}</button>{scope && <Link className="board-link" to="/status">{t("risk.statistics")} ↗</Link>}</div>
     </div>

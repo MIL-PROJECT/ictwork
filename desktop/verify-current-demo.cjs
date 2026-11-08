@@ -23,13 +23,24 @@ const [bundle,evidence]=process.argv.slice(2).map(p=>path.resolve(p));
     assert.equal((await page.locator('.board-metric-value').allTextContents())[1],'30개');
     await page.waitForFunction(()=>!document.querySelector('.board-actions button')?.disabled&&!document.querySelector('.board-control .board-resource-note[data-state=loading]'));
     await page.screenshot({path:path.join(evidence,'board-1600x900.png'),animations:'disabled'});
+    assert.equal(await page.locator('.board-eyebrow').count(),0);
+    await page.goto(origin+'/status');
+    await page.locator('.status-content[aria-busy=false]').waitFor();
+    await page.locator('main a[href^="/tasks?tab=department"]').first().waitFor();
+    const layout=await page.evaluate(()=>{
+      const panel=document.querySelector('#status-panel').getBoundingClientRect();
+      const content=document.querySelector('.status-content').getBoundingClientRect();
+      return {panelBottom:panel.bottom,contentTop:content.y,panelWidth:panel.width,contentWidth:content.width};
+    });
+    assert.ok(layout.panelBottom<=layout.contentTop+1&&Math.abs(layout.panelWidth-layout.contentWidth)<2);
+    await page.screenshot({path:path.join(evidence,'statistics-top-1600x900.png'),animations:'disabled'});
     await page.goto(origin+'/operations');await page.locator('.ops-table tbody tr').first().waitFor();
     assert.equal(await page.locator('.ops-table tbody tr').count(),10);
     await page.screenshot({path:path.join(evidence,'operations.png'),animations:'disabled'});
     const first=data.items[0];await page.goto(origin+'/operations?system='+first.id);await page.locator('.ops-chart').waitFor();
     const detail=await(await page.request.get(origin+'/api/operations/'+first.id)).json();assert.equal(detail.history.length,3);
     await page.screenshot({path:path.join(evidence,'history.png'),animations:'disabled'});
-    fs.writeFileSync(path.join(evidence,'result.json'),JSON.stringify({success:true,actualUserProfile:true,profile,executable:path.join(bundle,'OMNIS.exe'),loginId:me.loginId,departmentId:me.departmentId,total:38,counts,normalRate:79,history:detail.history.length,existingSettingsPreserved:{fontSize:me.fontSize},readOnlyUiVerification:true,allBoardSourcesSettled:true},null,2));
+    fs.writeFileSync(path.join(evidence,'result.json'),JSON.stringify({success:true,actualUserProfile:true,profile,executable:path.join(bundle,'OMNIS.exe'),loginId:me.loginId,departmentId:me.departmentId,total:38,counts,normalRate:79,history:detail.history.length,existingSettingsPreserved:{fontSize:me.fontSize},readOnlyUiVerification:true,allBoardSourcesSettled:true,statisticsTopLayout:layout},null,2));
     console.log('PASS actual user profile: 38 systems, 30 normal, 79%, history and fully loaded board; no data/settings writes');
   }catch(error){await page.screenshot({path:path.join(evidence,'failure.png')}).catch(()=>{});throw error;}finally{await app.close();}
 })().catch(error=>{console.error(String(error));process.exitCode=1;});

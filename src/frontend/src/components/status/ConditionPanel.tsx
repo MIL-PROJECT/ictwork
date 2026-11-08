@@ -1,6 +1,5 @@
 import type { StatusNode, StatusView } from "@/api/status";
 import OrgTree, { type OrgTreeNode } from "@/components/org/OrgTree";
-import { useFocusTrap } from "@/components/ui/modal/useFocusTrap";
 import { SliderHorizontalIcon } from "@/icons";
 import { cn } from "@/utils";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -57,10 +56,11 @@ function PanelBody({ nodes, showTree, state, onChange }: {
   const canSeparate = state.selected.length >= 2;
 
   return (
-    <div className="space-y-5">
+    <div className="status-condition-fields">
       {showTree && (
-        <section>
+        <section className="status-condition-range">
           <h3 className={sectionHead}>{t("range")}</h3>
+          <div className="status-condition-tree">
           <OrgTree
             nodes={treeNodes}
             label={t("treeLabel")}
@@ -72,10 +72,11 @@ function PanelBody({ nodes, showTree, state, onChange }: {
             checkedNote={ts("scope.withChildren")}
             emptyText={ts("empty.noSelection")}
           />
+          </div>
         </section>
       )}
       {showTree && (
-        <section>
+        <section className="status-condition-view">
           <h3 className={sectionHead}>{t("view")}</h3>
           <div role="radiogroup" aria-label={t("view")} className={segmentGroup}>
             <button type="button" role="radio" aria-checked={state.view === "TOTAL"} className={segment(state.view === "TOTAL")} onClick={() => onChange({ view: "TOTAL" })}>
@@ -100,7 +101,7 @@ function PanelBody({ nodes, showTree, state, onChange }: {
           )}
         </section>
       )}
-      <section>
+      <section className="status-condition-period">
         <h3 className={sectionHead}>{t("period")}</h3>
         <div role="radiogroup" aria-label={t("period")} className={segmentGroup}>
           {(["week", "month", "custom"] as Period[]).map((p) => (
@@ -175,10 +176,9 @@ export function CustomPeriod({ from, to, onApply, errorId = "status-period-error
   );
 }
 
-// 넓은 화면은 본문 옆 칸, 좁은 화면은 겹쳐 열리는 서랍(포커스 가두기·Esc로 닫기) (REQ-909)
-export default function ConditionPanel({ open, wide, onClose, nodes, showTree, state, onChange, children }: {
+// 모든 화면에서 본문 위에 표시한다. 조건을 접어도 선택 값과 조회 결과는 유지한다.
+export default function ConditionPanel({ open, onClose, nodes, showTree, state, onChange, children }: {
   open: boolean;
-  wide: boolean;
   onClose: () => void;
   nodes: StatusNode[];
   showTree: boolean;
@@ -187,57 +187,22 @@ export default function ConditionPanel({ open, wide, onClose, nodes, showTree, s
   children?: ReactNode;
 }) {
   const { t } = useTranslation("status", { keyPrefix: "panel" });
-  const drawer = useRef<HTMLDivElement>(null);
-  useFocusTrap(drawer, open && !wide);
-  useEffect(() => {
-    if (!open || wide) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, wide, onClose]);
   if (!open) return null;
-  const body = (
-    <>
-      {/* OMNIS 카드 머리: 아이콘 타일 + 제목 */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="grid size-[34px] shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-500 [&_svg]:size-[18px] dark:bg-white/10 dark:text-brand-300">
-            <SliderHorizontalIcon />
-          </span>
-          <h2 id="status-panel-title" className="text-[15.5px] font-bold tracking-[-0.3px] text-gray-900 dark:text-white/90">
-            {t("title")}
-          </h2>
-        </div>
-        {!wide && (
-          <button type="button" onClick={onClose} className="rounded-lg px-2.5 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-white/5">
-            {t("close")}
-          </button>
-        )}
+  return (
+    <section id="status-panel" aria-labelledby="status-panel-title" data-tree={showTree} className="status-conditions omnis-panel rounded-[20px] bg-white print:hidden dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/3">
+      <div className="status-condition-heading flex items-center gap-3">
+        <span aria-hidden className="grid size-[34px] shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-500 [&_svg]:size-[18px] dark:bg-white/10 dark:text-brand-300">
+          <SliderHorizontalIcon />
+        </span>
+        <h2 id="status-panel-title" className="text-[15.5px] font-bold tracking-[-0.3px] text-gray-900 dark:text-white/90">
+          {t("title")}
+        </h2>
       </div>
       <PanelBody nodes={nodes} showTree={showTree} state={state} onChange={onChange} />
+      <button type="button" onClick={onClose} className="status-condition-close rounded-lg px-2.5 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-white/5">
+        {t("close")}
+      </button>
       {children}
-    </>
-  );
-  if (wide) {
-    return (
-      <aside id="status-panel" aria-labelledby="status-panel-title" className="omnis-panel w-72 shrink-0 self-start rounded-[20px] bg-white px-5 pt-4 pb-5 print:hidden dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/3">
-        {body}
-      </aside>
-    );
-  }
-  return (
-    <div className="fixed inset-0 z-99999 print:hidden">
-      <div className="absolute inset-0 bg-gray-900/50" onClick={onClose} aria-hidden="true" />
-      <div
-        ref={drawer}
-        id="status-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="status-panel-title"
-        className="absolute inset-y-0 end-0 w-80 max-w-full overflow-y-auto bg-white px-5 py-4 shadow-theme-lg dark:bg-gray-900"
-      >
-        {body}
-      </div>
-    </div>
+    </section>
   );
 }

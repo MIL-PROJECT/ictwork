@@ -30,6 +30,7 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   await require('./verify-demo-seed.cjs')(page, origin, evidence);
   await require('./verify-legacy-ui.cjs')(page, origin, evidence);
   await require('./verify-board.cjs')(page, origin, evidence);
+  await require('./verify-layout-polish.cjs')(page, origin, evidence);
   const expected = ['통합상황판','업무요청','업무 처리','일정','관리','AI 질의응답'];
   const labels = await aside.locator('nav > ul > li > div > a').allTextContents();
   assert.deepEqual(labels,expected);

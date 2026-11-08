@@ -20,12 +20,12 @@ import { CompareTrend, MetricBars, TrendChart, TypeBars } from "@/components/sta
 import { type CompareLine, CompareTable, PeopleSection } from "@/components/status/StatusTables";
 import { dash, hasChildren, isDescendant, percent, type Period, periodError, periodRange, SERIES_LIMIT, seriesColors } from "@/components/status/statusUtil";
 import { applyFontSize, useAuth } from "@/context/AuthContext";
-import { useSidebar } from "@/context/SidebarContext";
 import { ChartAltIcon, DownloadIcon, GroupIcon, InfoIcon, ListIcon, PageIcon, PieChartIcon, SliderHorizontalIcon, TableIcon } from "@/icons";
 import { cn } from "@/utils";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
+import "@/components/status/statusLayout.css";
 
 // 지표 하나 골라 보기의 지표 (3.4)
 const METRICS = ["total", "completed", "open", "completionRate", "urgent", "overdue", "late", "receiveDays", "completeDays", "rejectRate", "transferRate"] as const;
@@ -65,8 +65,6 @@ function MetricGroup({ title, subtitle, children }: { title: string; subtitle: s
 const outline =
   "inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/5 dark:text-gray-300 dark:ring-gray-700 [&_svg]:size-4";
 
-const WIDE = "(min-width: 1280px)";
-
 /**
  * 업무 ▸ 업무 현황 (REQ-901~909, slices/9_업무현황.md 3장): 첫 화면.
  * 보기 조건(고른 부서·보기·기간·지표)은 주소에 담아 뒤로 가기·새로 고침에도 남긴다(3.1). 조건을 바꾸면 주소만 바꾸고(replace) 이력은 쌓지 않는다
@@ -76,7 +74,6 @@ export default function WorkStatus() {
   const { t: tc } = useTranslation();
   const { t: tf } = useTranslation("frameGeneral");
   const [params, setParams] = useSearchParams();
-  const { isMobileOpen, setIsMobileOpen } = useSidebar();
   const [scope, setScope] = useState<StatusScope | null>(null);
   const [scopeFailed, setScopeFailed] = useState(false);
   // 읽은 결과는 조건 열쇠와 함께 둔다. 다시 읽는 동안 앞 결과를 흐리게 보인다
@@ -86,25 +83,12 @@ export default function WorkStatus() {
   const [notice, setNotice] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [live, setLive] = useState("");
-  const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches);
-  const [open, setOpen] = useState(() => window.matchMedia(WIDE).matches);
+  const [open, setOpen] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
-  // 넓은 화면은 처음 펼침, 좁은 화면은 처음 접힘 (REQ-909)
-  useEffect(() => {
-    const query = window.matchMedia(WIDE);
-    const onChange = () => {
-      setWide(query.matches);
-      setOpen(query.matches);
-    };
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-  // 좁은 화면에서 메인 메뉴 서랍과 보기 조건 서랍은 하나만 연다 (3.2): 메뉴가 열리면 서랍을 닫는다
-  if (isMobileOpen && !wide && open) setOpen(false);
   const panelOpen = open;
   const [printing, setPrinting] = useState(false);
   const scopeRetried = useRef(false);
@@ -416,10 +400,7 @@ export default function WorkStatus() {
         type="button"
         aria-expanded={panelOpen}
         aria-controls={panelOpen ? "status-panel" : undefined}
-        onClick={() => {
-          if (!panelOpen && !wide) setIsMobileOpen(false);
-          setOpen(!panelOpen);
-        }}
+        onClick={() => setOpen(!panelOpen)}
         className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-600 [&_svg]:size-4"
       >
         <SliderHorizontalIcon aria-hidden />
@@ -429,7 +410,7 @@ export default function WorkStatus() {
   );
 
   return (
-    <div>
+    <div className="work-status">
       {header(actions)}
       {/* 고른 부서 (머리 아래 알약 한 줄) */}
       {(scopeLine || downloadError) && (
@@ -483,8 +464,18 @@ export default function WorkStatus() {
         </div>
       )}
 
-      <div className="flex items-start gap-5">
-        <div className={cn("min-w-0 flex-1 space-y-5 transition-opacity", loading && data && "opacity-50")} aria-busy={loading}>
+        <ConditionPanel
+          open={panelOpen && !noDepartment}
+          onClose={() => {
+            setOpen(false);
+            toggleRef.current?.focus();
+          }}
+          nodes={nodes}
+          showTree={scope.showTree}
+          state={panelState}
+          onChange={(next) => write(next)}
+        />
+      <div className={cn("status-content min-w-0 w-full space-y-5 transition-opacity", loading && data && "opacity-50")} aria-busy={loading}>
           {noDepartment ? (
             <Panel>
               <EmptyState icon={<InfoIcon />} title={t("empty.noDepartment")} />
@@ -560,19 +551,6 @@ export default function WorkStatus() {
               {peopleSection}
             </>
           )}
-        </div>
-        <ConditionPanel
-          open={panelOpen && !noDepartment}
-          wide={wide}
-          onClose={() => {
-            setOpen(false);
-            toggleRef.current?.focus();
-          }}
-          nodes={nodes}
-          showTree={scope.showTree}
-          state={panelState}
-          onChange={(next) => write(next)}
-        />
       </div>
     </div>
   );
