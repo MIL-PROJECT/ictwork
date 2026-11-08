@@ -6,7 +6,7 @@ import { Card, Meter, Paged, Pill } from "@/components/board/ui";
 import { useBoardData } from "@/components/board/useBoardData";
 import { useBoardViewport } from "@/components/board/useBoardViewport";
 import type { Resource } from "@/components/board/boardState";
-import { operationStates, operationStats, operationTone } from "@/components/board/operationModel";
+import { operationStates, operationStats, operationTone, prioritizeOperations } from "@/components/board/operationModel";
 import BoardResourceNote from "@/components/board/BoardResourceNote";
 import BoardRiskPanel from "@/components/board/BoardRiskPanel";
 import { AlertIcon, BoxIcon, CheckCircleIcon, RegenerateIcon, LegacyHubIcon, LegacyBuildIcon, LegacyCampaignIcon } from "@/icons";
@@ -52,7 +52,7 @@ export default function ControlBoard() {
   const status = r.status.value;
   const cards = status?.cards;
   const perf = status?.perf;
-  const systems = r.operations.value?.items;
+  const systems = r.operations.value ? prioritizeOperations(r.operations.value.items) : null;
   const ops = systems ? operationStats(systems) : null;
   const today = new Date();
   const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -105,7 +105,7 @@ export default function ControlBoard() {
           <div className="board-progress-segments" aria-label={scopeDescription}>{segments.map(({key,count}) => <span key={key} className={`segment-${key}`} style={{width:`${cards?.total ? count*100/cards.total : 0}%`}} />)}</div>
           <div className="board-progress-legend">{segments.map(({key,count}) => <span key={key}><i className={`segment-${key}`} />{t(`progress.${key}`)} <b>{count}</b></span>)}</div>
         </div>}
-        {r.planned.value !== null && <Paged rows={planned} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 36} unit={t("unit.items")}>{rows => rows.map(item => {
+        {r.planned.value !== null && <Paged rows={planned} pageSize={3} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 36} unit={t("unit.items")}>{rows => rows.map(item => {
           const percent = elapsed(item, todayYmd);
           const late = item.endDate !== null && item.endDate < todayYmd;
           return <Link key={item.id} className="board-planned-item" to={`/work/items/${item.id}?from=department`} title={`${item.title} · #${item.id} · ${shortDate(item.endDate ?? item.startDate)} · ${t("progress.elapsedHelp")}: ${percent ?? "—"}%`}>

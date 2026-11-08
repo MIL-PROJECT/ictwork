@@ -291,6 +291,7 @@ export default function TaskFilterPanel({
   hasConditions,
   onApply,
   onClear,
+  overdueControl,
 }: {
   tab: FilterTab;
   value: TaskFilter;
@@ -298,6 +299,7 @@ export default function TaskFilterPanel({
   hasConditions: boolean; // 걸러 보기나 업무 현황 조건이 있음
   onApply: (next: TaskFilter) => void;
   onClear: () => void;
+  overdueControl?: { active: boolean; onChange: (active: boolean) => void };
 }) {
   const { t } = useTranslation("work", { keyPrefix: "tasks.filter" });
   const { t: tw } = useTranslation("work");
@@ -347,7 +349,14 @@ export default function TaskFilterPanel({
   return (
     // 목록 카드(Panel)의 toolbar 안에 들어가므로 따로 카드 모양을 두지 않는다 (OMNIS .ui-toolbar)
     <section className="w-full space-y-3">
-      {isItems && <BucketButtons value={value.bucket} onChange={(bucket) => applyKeeping({ ...value, bucket })} />}
+      {isItems && <div className="flex flex-wrap items-center gap-2">
+        <BucketButtons value={value.bucket} onChange={(bucket) => applyKeeping({ ...value, bucket })} />
+        {overdueControl && <button type="button" aria-pressed={overdueControl.active} title={t("overdueHelp")}
+          onClick={() => overdueControl.onChange(!overdueControl.active)}
+          className={cn(button, "h-8 border py-0", overdueControl.active ? "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-400" : "border-gray-200 text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5")}>
+          {t("overdue")}
+        </button>}
+      </div>}
       <QuickFilters tab={tab} value={value} onApply={applyKeeping} />
       <div className="flex flex-wrap items-center gap-3">
         <button

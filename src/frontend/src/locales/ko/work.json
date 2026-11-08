@@ -280,7 +280,9 @@
       "targetDepartments": "받는 부서",
       "departmentSearch": "부서 찾기",
       "departmentNone": "부서가 없습니다.",
-      "ownItemNote": "우리 부서 업무는 그 처리 건의 유형·양식 답·첨부로만 거릅니다."
+      "ownItemNote": "우리 부서 업무는 그 처리 건의 유형·양식 답·첨부로만 거릅니다.",
+      "overdue": "지연",
+      "overdueHelp": "선택한 부서 범위에서 확정 종료기한이 지난 미완료 업무만 표시합니다."
     }
   },
   "receipts": {

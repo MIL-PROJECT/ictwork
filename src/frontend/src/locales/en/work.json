@@ -281,7 +281,9 @@
       "targetDepartments": "Receiving department",
       "departmentSearch": "Search departments",
       "departmentNone": "No departments.",
-      "ownItemNote": "Our department tasks are filtered only by that job's work types, form answers, and attachments."
+      "ownItemNote": "Our department tasks are filtered only by that job's work types, form answers, and attachments.",
+      "overdue": "Overdue",
+      "overdueHelp": "Show unfinished work past its confirmed deadline within the selected department scope."
     }
   },
   "receipts": {

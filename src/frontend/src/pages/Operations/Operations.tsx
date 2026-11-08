@@ -3,7 +3,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
 import { Modal } from "@/components/ui/modal";
 import { Meter, Pill } from "@/components/board/ui";
-import { operationStates, operationStats, operationTone, filterOperations } from "@/components/board/operationModel";
+import { operationStates, operationStats, operationTone, filterOperations, prioritizeOperations } from "@/components/board/operationModel";
 import "@/components/board/board.css";
 import "./operations.css";
 import { useAuth } from "@/context/AuthContext";
@@ -65,7 +65,7 @@ function OperationsContent() {
   }, [form,selected]);
 
   const stats = data ? operationStats(data.items) : null;
-  const filtered = filterOperations(data?.items ?? [],query,status,attention);
+  const filtered = prioritizeOperations(filterOperations(data?.items ?? [],query,status,attention));
   const pages = Math.max(1,Math.ceil(filtered.length / 10));
   const page = Math.min(pages,Math.max(1,Math.floor(Number(params.get("page"))) || 1));
   const openForm = (item?: OperationItem, statusOnly = false) => {

@@ -114,6 +114,13 @@ export default function TaskList() {
   };
   // 조건 지우기: 업무 현황에서 가져온 조건도 푼다 (REQ-117)
   const clearAll = () => setParams({ tab });
+  const toggleOverdue = (active: boolean) => {
+    const out = new URLSearchParams(params);
+    if (active) out.set("overdue", "1");
+    else out.delete("overdue");
+    out.delete("page");
+    setParams(out);
+  };
   // 카드 부제: 조회 건수(+ 우리 부서 업무는 긴급 건수). 읽는 중·실패면 없음
   const subtitle = loading || error !== null ? undefined : tab === "department" ? countText(paging.total, items?.filter((i) => i.priority === "URGENT").length) : countText(paging.total);
 
@@ -150,7 +157,8 @@ export default function TaskList() {
         icon={<TaskIcon />}
         title={t(`tasks.tabs.${tab}`)}
         subtitle={subtitle}
-        toolbar={<TaskFilterPanel tab={tab} value={filter} departments={departments} hasConditions={filtered || drill !== null} onApply={applyFilter} onClear={clearAll} />}
+        toolbar={<TaskFilterPanel tab={tab} value={filter} departments={departments} hasConditions={filtered || drill !== null} onApply={applyFilter} onClear={clearAll}
+          overdueControl={drill ? { active: drill.overdue, onChange: toggleOverdue } : undefined} />}
         flush
         footer={paging.total > 0 ? <PagingFooter paging={paging} /> : undefined}
       >
