@@ -1,5 +1,17 @@
 # OMNIS Desktop
 
+## 최신 오프라인 설치본 (2026-11-09)
+
+표시 이름·시작 메뉴·바로가기·설치창은 **OMNIS**, 새 설치의 기본 프로그램 폴더는 `%LOCALAPPDATA%\Programs\OMNIS`다. 기존 Final 설치의 내부 등록 ID와 `%APPDATA%\OMNIS Desktop Final\service` 데이터 경로를 유지해 이름 변경으로 DB가 분리되거나 초기화되지 않게 한다. 기존 설치가 등록돼 있으면 그 설치 경로를 사용한다. 다른 기존 OMNIS 바탕화면 바로가기는 `OMNIS Desktop Final\shortcut-backups\<버전>`에 보관한다.
+
+현재 소스의 WAR와 검증한 기존 Final DB 복사본을 `Package-Windows.ps1 -FinalDatabase`로 패키징한 뒤 `Build-Setup.ps1`을 실행한다. 기본 출력 파일명은 `OMNIS-Setup.exe`다. 기존 프로필이 있으면 SQL을 다시 가져오지 않고, 새 PC의 빈 프로필에만 포함 데이터를 복원한다. LOCAL AI와 모든 기본 런타임을 포함하며 외부 AI 모델/서비스는 별도로 설정한다.
+
+`prepare-release-data.cjs`는 명시한 원본의 파일 해시와 복사본을 준비한 뒤 복사본에만 새 마이그레이션을 적용해 기존 행·첨부·FK 보존을 검증하고 설치용 SQL을 내보낸다. 실행 중인 원본 MySQL 데이터를 복사해서 사용하지 않는다.
+
+`start-installed-validation.cjs <설치폴더> <증거폴더> <격리프로필>`은 설치된 프로세스를 실행하고 로컬 HTTP 검증용 fixture를 제공한다. UI는 CUA로 검증한다. 표준입력 `fixture`는 격리된 테스트 DB의 sysadmin 암호만 일시 변경하고, `quit`는 복원 후 정상 종료한다. `verify-source-api.cjs`와 `verify-ai-analysis.cjs`에 fixture 경로를 전달해 설치본 API를 확인할 수 있다. 실제 배포 DB나 원본 계정의 암호를 바꾸지 않는다.
+
+`Build-DvdImage.ps1 -Directory <DVD폴더> -Output <새ISO경로>`는 Windows IMAPI2FS로 ISO를 만든다. 검증 후 DVD 폴더 내용과 ISO를 함께 제공하며, ISO를 디스크 이미지로 구우면 된다. 설치·재설치·데이터 보존·제거 및 동일 PC 검증과 실제 다른 PC/물리 DVD 검증은 구분해 기록한다.
+
 ## UI 개발 모드 (HMR)
 
 저장소 루트에서 `pnpm --dir desktop dev`를 실행하면 현재 `src/frontend/src`의 React·CSS를 Vite로 제공하는 Electron 창이 열린다. 저장한 UI 변경은 HMR로 반영되며, 브라우저에서도 `http://127.0.0.1:5173`으로 볼 수 있다. 종료는 Electron 창 닫기 또는 실행 터미널의 Ctrl+C다.

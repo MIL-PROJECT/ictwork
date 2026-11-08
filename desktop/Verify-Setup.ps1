@@ -8,7 +8,7 @@ $buildEvidence = Join-Path $root 'evidence'
 $evidence = (New-Item -ItemType Directory -Path (Join-Path $buildEvidence $TestRun) -Force).FullName
 $installed = Join-Path $evidence '설치 시험 OMNIS'
 if (Test-Path -LiteralPath $installed) { throw "Use a fresh install test directory: $installed" }
-$setup = Join-Path $root 'DVD/Setup.exe'
+$setup = (Get-Content -LiteralPath (Join-Path $buildEvidence 'build-result.json') -Raw | ConvertFrom-Json).setup
 $process = Start-Process -FilePath $setup -ArgumentList @('/S', '/TESTMODE', "/D=$installed") -WindowStyle Hidden -Wait -PassThru
 if ($process.ExitCode -ne 0) { throw "Setup failed: $($process.ExitCode)" }
 $manifest = Get-Content -LiteralPath (Join-Path $buildEvidence 'payload-manifest.json') -Raw | ConvertFrom-Json

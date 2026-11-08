@@ -2,9 +2,9 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const { request } = require('playwright');
 const { Database } = require('./final-db-tools.cjs');
 const root = path.resolve(__dirname, '..');
-const latest = JSON.parse(fs.readFileSync(path.join(root, 'output/source-validation/latest.json'), 'utf8'));
-const fixture = JSON.parse(fs.readFileSync(latest.fixture, 'utf8'));
-const db = new Database({ bundle: path.join(root, 'output/OMNIS-Final-Database-Windows-x64'), service: path.join(fixture.profile, 'service'), evidence: fixture.evidence });
+const latest = process.argv[2] ? null : JSON.parse(fs.readFileSync(path.join(root, 'output/source-validation/latest.json'), 'utf8'));
+const fixture = JSON.parse(fs.readFileSync(process.argv[2] ? path.resolve(process.argv[2]) : latest.fixture, 'utf8'));
+const db = new Database({ bundle: fixture.installed || path.join(root, 'output/OMNIS-Final-Database-Windows-x64'), service: path.join(fixture.profile, 'service'), evidence: fixture.evidence });
 db.port = fixture.mysqlPort;
 const checks = [];
 const contexts = [];
@@ -27,7 +27,7 @@ const input = suffix => ({ loginId: 'source-' + token + '-' + suffix, password: 
   await expect(await anon.get('/api/admin/system/summary'), 401, 'Anonymous system API');
   const me = await login(admin, fixture.adminLogin, fixture.adminPassword);
   assert.ok(me.features.includes('ADMIN_SYSTEM'));
-  const ordinary = await login(regular, 'bn1-co1-admin', fixture.adminPassword);
+  const ordinary = await login(regular, 'bn1-co1-admin', fixture.regularPassword || fixture.adminPassword);
   assert.ok(!ordinary.features.includes('ADMIN_SYSTEM'));
   for (const endpoint of ['summary', 'accounts', 'registrations', 'security', 'audit', 'ai']) await expect(await regular.get('/api/admin/system/' + endpoint), 403, 'Non-super access ' + endpoint);
   checks.push('anonymous and department users cannot access any system administration endpoint');

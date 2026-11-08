@@ -5,9 +5,9 @@ Unicode true
 !include "x64.nsh"
 !include "WinVer.nsh"
 
-Name "OMNIS Final"
+Name "OMNIS"
 OutFile "${OUTPUT}"
-InstallDir "$LOCALAPPDATA\Programs\OMNIS Final"
+InstallDir "$LOCALAPPDATA\Programs\OMNIS"
 InstallDirRegKey HKCU "Software\OMNIS Final" "InstallDir"
 RequestExecutionLevel user
 ManifestDPIAware true
@@ -15,10 +15,10 @@ SetCompressor zlib
 SetCompressionLevel 7
 ShowInstDetails show
 ShowUninstDetails show
-BrandingText "OMNIS Final | Windows x64 | ${RELEASE_DATE}"
+BrandingText "OMNIS | Windows x64 | ${RELEASE_DATE}"
 VIProductVersion "${FILE_VERSION}"
-VIAddVersionKey "ProductName" "OMNIS Final"
-VIAddVersionKey "FileDescription" "OMNIS Final Offline Setup"
+VIAddVersionKey "ProductName" "OMNIS"
+VIAddVersionKey "FileDescription" "OMNIS Offline Setup"
 VIAddVersionKey "FileVersion" "${FILE_VERSION}"
 VIAddVersionKey "ProductVersion" "${RELEASE_VERSION}"
 VIAddVersionKey "LegalCopyright" "OMNIS Team"
@@ -29,16 +29,16 @@ Var RuntimePresent
 !define MUI_ICON "${ICON}"
 !define MUI_UNICON "${ICON}"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "최신 OMNIS Final과 Java·MySQL 실행 환경을 설치합니다.$\r$\n$\r$\n설치 전에 실행 중인 OMNIS Final을 종료하세요.$\r$\n$\r$\n기본 업무 기능은 인터넷 없이 실행됩니다."
+!define MUI_WELCOMEPAGE_TEXT "최신 OMNIS과 Java·MySQL 실행 환경을 설치합니다.$\r$\n$\r$\n설치 전에 실행 중인 OMNIS을 종료하세요.$\r$\n$\r$\n기본 업무 기능은 인터넷 없이 실행됩니다."
 !define MUI_FINISHPAGE_RUN
-!define MUI_FINISHPAGE_RUN_TEXT "OMNIS Final 실행"
+!define MUI_FINISHPAGE_RUN_TEXT "OMNIS 실행"
 !define MUI_FINISHPAGE_RUN_FUNCTION "RunOmnis"
 !define MUI_FINISHPAGE_TEXT "설치가 완료되었습니다.$\r$\n$\r$\n첫 실행은 시연 DB 초기화와 서버 시작 때문에 시간이 걸릴 수 있습니다.$\r$\n$\r$\n시연 계정: bn1-co1-admin$\r$\n암호: Local-Demo-Init!26"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
-!define MUI_UNCONFIRMPAGE_TEXT_TOP "OMNIS Final 프로그램을 제거합니다. 사용자 데이터와 업무 파일은 보존됩니다. 먼저 실행 중인 OMNIS Final을 종료하세요."
+!define MUI_UNCONFIRMPAGE_TEXT_TOP "OMNIS 프로그램을 제거합니다. 사용자 데이터와 업무 파일은 보존됩니다. 먼저 실행 중인 OMNIS을 종료하세요."
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "Korean"
@@ -103,7 +103,7 @@ Function CheckRuntime
     ${EndIf}
 FunctionEnd
 
-Section "OMNIS Final" SEC_MAIN
+Section "OMNIS" SEC_MAIN
     SetShellVarContext current
     SetRegView 64
     Call CheckRuntime
@@ -128,7 +128,7 @@ Section "OMNIS Final" SEC_MAIN
     ${EndIf}
     SetOutPath "$INSTDIR"
     ; Mark a partial installation so it can be retried at the same location.
-    WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "Product" "OMNIS Final ${RELEASE_VERSION}"
+    WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "Product" "OMNIS ${RELEASE_VERSION}"
     WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "TestMode" "$TestMode"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     SetOverwrite on
@@ -141,13 +141,28 @@ Section "OMNIS Final" SEC_MAIN
         Abort
     ${EndIf}
     ${If} $TestMode != "1"
-        CreateDirectory "$SMPROGRAMS\OMNIS Final"
-        CreateShortcut "$SMPROGRAMS\OMNIS Final\OMNIS Final.lnk" "$INSTDIR\OMNIS.exe" "" "$INSTDIR\OMNIS.exe"
-        CreateShortcut "$SMPROGRAMS\OMNIS Final\설치 및 사용 안내.lnk" "$INSTDIR\INSTALL-KO.txt"
-        CreateShortcut "$SMPROGRAMS\OMNIS Final\OMNIS Final 제거.lnk" "$INSTDIR\Uninstall.exe"
-        CreateShortcut "$DESKTOP\OMNIS Final.lnk" "$INSTDIR\OMNIS.exe" "" "$INSTDIR\OMNIS.exe"
+        ; Preserve an existing OMNIS shortcut (including another legacy edition).
+        IfFileExists "$DESKTOP\OMNIS.lnk" 0 backup_shortcut_done
+        CreateDirectory "$APPDATA\OMNIS Desktop Final\shortcut-backups\${RELEASE_VERSION}"
+        IfFileExists "$APPDATA\OMNIS Desktop Final\shortcut-backups\${RELEASE_VERSION}\OMNIS.lnk" backup_shortcut_done 0
+        CopyFiles /SILENT "$DESKTOP\OMNIS.lnk" "$APPDATA\OMNIS Desktop Final\shortcut-backups\${RELEASE_VERSION}"
+    backup_shortcut_done:
+        ; Keep the legacy registry identity and data path for safe upgrades.
+        ReadRegStr $4 HKCU "Software\OMNIS Final" "InstallDir"
+        ${If} $4 == $INSTDIR
+            Delete "$DESKTOP\OMNIS Final.lnk"
+            Delete "$SMPROGRAMS\OMNIS Final\OMNIS Final.lnk"
+            Delete "$SMPROGRAMS\OMNIS Final\설치 및 사용 안내.lnk"
+            Delete "$SMPROGRAMS\OMNIS Final\OMNIS Final 제거.lnk"
+            RMDir "$SMPROGRAMS\OMNIS Final"
+        ${EndIf}
+        CreateDirectory "$SMPROGRAMS\OMNIS"
+        CreateShortcut "$SMPROGRAMS\OMNIS\OMNIS.lnk" "$INSTDIR\OMNIS.exe" "" "$INSTDIR\OMNIS.exe"
+        CreateShortcut "$SMPROGRAMS\OMNIS\설치 및 사용 안내.lnk" "$INSTDIR\INSTALL-KO.txt"
+        CreateShortcut "$SMPROGRAMS\OMNIS\OMNIS 제거.lnk" "$INSTDIR\Uninstall.exe"
+        CreateShortcut "$DESKTOP\OMNIS.lnk" "$INSTDIR\OMNIS.exe" "" "$INSTDIR\OMNIS.exe"
         WriteRegStr HKCU "Software\OMNIS Final" "InstallDir" "$INSTDIR"
-        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayName" "OMNIS Final"
+        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayName" "OMNIS"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayVersion" "${RELEASE_VERSION}"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "Publisher" "OMNIS Team"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "InstallLocation" "$INSTDIR"
@@ -181,11 +196,11 @@ Section "Uninstall"
     Delete "$INSTDIR\omnis-final-install.ini"
     Delete "$INSTDIR\Uninstall.exe"
     ${If} $TestMode != "1"
-        Delete "$DESKTOP\OMNIS Final.lnk"
-        Delete "$SMPROGRAMS\OMNIS Final\OMNIS Final.lnk"
-        Delete "$SMPROGRAMS\OMNIS Final\설치 및 사용 안내.lnk"
-        Delete "$SMPROGRAMS\OMNIS Final\OMNIS Final 제거.lnk"
-        RMDir "$SMPROGRAMS\OMNIS Final"
+        Delete "$DESKTOP\OMNIS.lnk"
+        Delete "$SMPROGRAMS\OMNIS\OMNIS.lnk"
+        Delete "$SMPROGRAMS\OMNIS\설치 및 사용 안내.lnk"
+        Delete "$SMPROGRAMS\OMNIS\OMNIS 제거.lnk"
+        RMDir "$SMPROGRAMS\OMNIS"
         DeleteRegKey HKCU "Software\OMNIS Final"
         DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final"
     ${EndIf}

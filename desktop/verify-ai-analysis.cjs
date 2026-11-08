@@ -1,8 +1,8 @@
 // Actual HTTP/API verification against start-source-validation's disposable clone.
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { request } = require('playwright');
-const latest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../output/source-validation/latest.json'), 'utf8'));
-const fixture = JSON.parse(fs.readFileSync(latest.fixture, 'utf8'));
+const latest = process.argv[2] ? null : JSON.parse(fs.readFileSync(path.resolve(__dirname, '../output/source-validation/latest.json'), 'utf8'));
+const fixture = JSON.parse(fs.readFileSync(process.argv[2] ? path.resolve(process.argv[2]) : latest.fixture, 'utf8'));
 const contexts = [], report = { success: false, checks: [] };
 async function ctx() { const api = await request.newContext({ baseURL: fixture.origin }); contexts.push(api); return api; }
 async function csrf(api) { await api.get('/api/me'); const token = (await api.storageState()).cookies.find(c => c.name === 'XSRF-TOKEN'); assert.ok(token); return { 'X-XSRF-TOKEN': decodeURIComponent(token.value) }; }
