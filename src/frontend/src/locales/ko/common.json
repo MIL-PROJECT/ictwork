@@ -21,11 +21,16 @@
       "support": "지원",
       "others": "기타",
       "work": "업무",
-      "department": "부서관리",
+      "department": "관리",
       "settings": "설정",
       "admin": "관리",
       "ai": "AI",
-      "home": ""
+      "home": "",
+      "overview": "통합상황판",
+      "requests": "업무요청",
+      "processing": "업무 처리",
+      "schedule": "일정",
+      "departmentInfo": "관리"
     },
     "badges": {
       "new": "신규",
@@ -58,7 +63,7 @@
       "createInvoice": "청구서 작성",
       "transactions": "거래 내역",
       "singleTransaction": "거래 상세",
-      "calendar": "달력",
+      "calendar": "일정",
       "userProfile": "내 정보",
       "task": "할 일",
       "taskList": "목록",
@@ -133,7 +138,7 @@
       "email": "메일",
       "inbox": "받은 편지함",
       "inboxDetails": "상세",
-      "workStatus": "업무 현황",
+      "workStatus": "업무 통계",
       "board": "통합상황판",
       "directives": "지시사항",
       "duty": "근무자 현황",
@@ -141,7 +146,7 @@
       "registeredTasks": "등록된 업무",
       "approvalBox": "결재함",
       "taskRegister": "업무 등록",
-      "taskApproval": "업무 결재",
+      "taskApproval": "결재",
       "approvalInProgress": "진행 중 결재",
       "orgChart": "조직도",
       "people": "인원",
@@ -153,17 +158,42 @@
       "personnelManage": "인원관리",
       "mySettings": "개인설정",
       "equipmentManage": "장비관리",
-      "taskReceipt": "업무 접수",
-      "workTypes": "업무 유형",
+      "taskReceipt": "접수 대기",
+      "workTypes": "업무 유형 관리",
       "approvalRoutes": "결재 경로",
-      "taskRequest": "업무 요청"
+      "taskRequest": "업무 요청",
+      "dutyDirectives": "근무·지시사항",
+      "organizationPeople": "조직·인원",
+      "equipmentDiagrams": "장비·구성도",
+      "departmentWork": "부서 업무",
+      "departmentService": "업무 안내",
+      "overview": "통합상황판",
+      "overviewPanels": "통합상황판",
+      "situation": "상황판",
+      "requests": "업무요청",
+      "newRequest": "새 요청",
+      "otherDepartmentRequest": "다른 부서에 요청",
+      "ownDepartmentRegister": "우리 부서 업무 등록",
+      "requestStatus": "요청 현황",
+      "requestedTasks": "요청한 업무",
+      "sharedTasks": "공유받은 업무",
+      "processing": "업무 처리",
+      "approvals": "결재",
+      "myTurn": "내 차례",
+      "handledApprovals": "처리한 결재",
+      "schedule": "일정",
+      "departmentTasks": "업무등록대장",
+      "departmentInfo": "관리",
+      "personnelAttributes": "인원 추가 특성",
+      "equipmentAttributes": "장비 추가 특성",
+      "operations": "운영현황"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",
       "description": "500개 이상의 UI 컴포넌트와 페이지를 갖춘 Tailwind CSS 관리자 템플릿",
       "purchasePlan": "요금제 구매"
     },
-    "brandSub": "정보통신 업무 통합 관리",
+    "brandSub": "정보통신 운용·정비 통합체계",
     "foot": {
       "aiOn": "AI 질의응답 켜짐",
       "aiOff": "AI 질의응답 꺼짐"
@@ -254,5 +284,17 @@
     "lastLabel": "마지막 쪽",
     "pageLabel": "{page}쪽",
     "rowsPerPage": "페이지당 행:"
+  },
+  "workGuidance": {
+    "description": "부서별 업무 유형과 설명을 확인한 뒤 업무를 요청하세요.",
+    "search": "업무 유형·부서·설명 검색",
+    "empty": "표시할 업무 유형이 없습니다.",
+    "failed": "업무 안내를 불러오지 못했습니다.",
+    "retry": "다시 시도"
+  },
+  "workflow": {
+    "actions": "화면 작업",
+    "mainNav": "주 메뉴",
+    "toggle": "{{name}} 메뉴 펼치기·접기"
   }
 }

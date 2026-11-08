@@ -1,0 +1,421 @@
+[
+  {
+    "name": "빈 검색은 추천 없음",
+    "query": "",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "한 글자 검색은 추천 없음",
+    "query": "전",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "전화 업무만 일치",
+    "query": "전화가 끊어졌습니다",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      },
+      {
+        "typeId": 2,
+        "name": "네트워크",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "유선랜 연결"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "네트워크 업무만 일치",
+    "query": "유선랜 연결이 필요합니다",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      },
+      {
+        "typeId": 2,
+        "name": "네트워크",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "유선랜 연결"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      2
+    ]
+  },
+  {
+    "name": "모르는 업무를 채워 넣지 않음",
+    "query": "창문 청소",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      },
+      {
+        "typeId": 2,
+        "name": "네트워크",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "유선랜 연결"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "같은 점수는 유형 번호 순서",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 9,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "전화 점검"
+      },
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      },
+      {
+        "typeId": 4,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "전화 점검"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      1,
+      4,
+      9
+    ]
+  },
+  {
+    "name": "추천은 세 개까지",
+    "query": "무전기",
+    "types": [
+      {
+        "typeId": 8,
+        "name": "무전기",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "무전기 점검"
+      },
+      {
+        "typeId": 6,
+        "name": "무전기",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "무전기 점검"
+      },
+      {
+        "typeId": 4,
+        "name": "무전기",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "무전기 점검"
+      },
+      {
+        "typeId": 3,
+        "name": "무전기",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "무전기 점검"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      3,
+      4,
+      6
+    ]
+  },
+  {
+    "name": "더 구체적인 일치가 먼저",
+    "query": "내선 전화 이동",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 번호"
+      },
+      {
+        "typeId": 2,
+        "name": "전화 이동",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      2,
+      1
+    ]
+  },
+  {
+    "name": "전각 문자와 대소문자 정규화",
+    "query": "ＰＣ ０１",
+    "types": [
+      {
+        "typeId": 7,
+        "name": "PC-01",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "PC-01 유지보수"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "접수할 수 없는 부서는 제외",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      },
+      {
+        "typeId": 3,
+        "name": "전화",
+        "departmentId": 20,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "전화 점검"
+      }
+    ],
+    "receivers": [
+      20
+    ],
+    "expected": [
+      3
+    ]
+  },
+  {
+    "name": "구분된 공통 안내 단어만으로는 추천하지 않음",
+    "query": "지원 업무 담당 처리 요청",
+    "types": [
+      {
+        "typeId": 5,
+        "name": "지원",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": "업무, 담당, 처리, 요청"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "사용 중지 유형은 제외",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": false,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "사용 중지 부서은 제외",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": false,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "기타 유형은 제외",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": true,
+        "active": true,
+        "departmentActive": true,
+        "description": "내선 전화 이동"
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  },
+  {
+    "name": "설명 없는 유형은 제외",
+    "query": "전화",
+    "types": [
+      {
+        "typeId": 1,
+        "name": "전화",
+        "departmentId": 10,
+        "departmentPath": "가상 통신대대 통신반",
+        "isOther": false,
+        "active": true,
+        "departmentActive": true,
+        "description": ""
+      }
+    ],
+    "receivers": [
+      10
+    ],
+    "expected": []
+  }
+]

@@ -82,5 +82,83 @@
     "priority": "Priority",
     "status": "Status",
     "wanted": "Wanted"
+  },
+  "risk": {
+    "eyebrow": "Operations control",
+    "core": "Critical operating status",
+    "coreHelp": "Current CPCON and crisis alert values · severity follows the configured colour",
+    "cpcon": "CPCON",
+    "crisis": "Crisis alert level",
+    "unset": "Summary not set",
+    "unverified": "Current status unverified",
+    "noIndicator": "No indicator to display",
+    "visibleOnly": "Access permissions and personal hidden-box settings apply.",
+    "sourceUpdated": "Source modified",
+    "attentionHelp": "ICT attention items · red → orange → yellow",
+    "needCheck": "Need review",
+    "visibleScope": "Displayed scope: {count} ICT boxes · hidden boxes excluded",
+    "none": "No red, orange or yellow items in the displayed scope.",
+    "previousNone": "The previous check had no attention items. The current status needs verification.",
+    "showRemaining": "Show {count} more · {total} total",
+    "collapse": "Show top 3 only",
+    "checking": "Checking sources…",
+    "partial": "Some sources failed · check each section",
+    "perSource": "Check times are shown per source",
+    "ictOverview": "Expand all ICT status",
+    "work": "Work overview",
+    "statistics": "Work statistics",
+    "workScope": "Work scope: {scope} · received/planned: current; done/rejected/transferred: {from} to {to}",
+    "receiptScope": "My receipt permission scope · {count} items",
+    "support": "Operations support",
+    "supportHelp": "Directives and today’s duty · open details to review",
+    "dutyHelp": "Unique personnel across today’s duty rosters. Open the duty board for details."
+  },
+  "health": {
+    "loading": "Checking source…",
+    "ready": "Checked {time}",
+    "empty": "Checked {time} · no displayable data",
+    "error": "Source failed · current value unverified",
+    "stale": "Refresh failed · previous value ({time})",
+    "unavailable": "No readable data · check permissions and scope."
+  },
+  "healthCompact": {
+    "loading": "Checking…",
+    "ready": "Checked {time}",
+    "empty": "Checked {time} · empty",
+    "error": "Source failed · unverified",
+    "stale": "Failed · previous {time}",
+    "unavailable": "Check scope / permissions"
+  },
+  "oneScreen": {
+    "spaceShortage": "Not enough space · open View all",
+    "coreAll": "View all {count} core indicators",
+    "coreSelection": "Each indicator type is summarized by configured colour priority. Open all to review each department.",
+    "allCount": "{count} total",
+    "visibleOnly": "Permissions and hidden settings apply",
+    "visibleCount": "{count} visible",
+    "alertsAll": "View all {count} alerts",
+    "close": "Close",
+    "partial": "Some sources failed",
+    "sourceTimes": "Source check times",
+    "panels": "Work processing and operations support",
+    "overdue": "Overdue",
+    "dialog": {
+      "all": "All ICT status",
+      "core": "Core status by department",
+      "alerts": "All attention items"
+    },
+    "modifiedShort": "Modified"
+  },
+  "classic": {
+    "section": "Operations overview",
+    "desc": "Communications operations as of {date}.",
+    "summary": "Systems and work overview",
+    "total": "Total systems",
+    "normal": "Operating normally",
+    "normalRate": "Normal rate",
+    "normalHelp": "Normal systems divided by all visible systems. Individual availability values are manually recorded.",
+    "operations": "Communications operations",
+    "systemCount": "{count} systems",
+    "systemAttention": "Watch / fault systems"
   }
 }
