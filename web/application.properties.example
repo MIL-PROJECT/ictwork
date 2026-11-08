@@ -1,0 +1,17 @@
+# Copy to config/application.properties; edit for the target MySQL server.
+# Keep this configured file private. The source repository contains only this template.
+spring.datasource.url=jdbc:mysql://127.0.0.1:3306/omnis?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true&preserveInstants=false&characterEncoding=UTF-8
+spring.datasource.username=omnis
+spring.datasource.password=CHANGE_ME_DB_PASSWORD
+
+# Used for creating/resetting accounts; does not replace restored account passwords.
+ictwork.initial-password=CHANGE_ME_Initial!2026
+ictwork.ai.enabled=true
+ictwork.ai.provider=LOCAL
+# Disable time-driven completion in this transferable demonstration package.
+ictwork.scheduler.enabled=false
+
+# Local browser only. Set 0.0.0.0 deliberately when deploying to a LAN server.
+server.address=127.0.0.1
+server.port=8080
+logging.file.name=logs/omnis.log
