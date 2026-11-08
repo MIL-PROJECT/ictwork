@@ -133,7 +133,7 @@ module.exports = async function verifyBoard(page, origin, evidence) {
 
     await page.evaluate(()=>{localStorage.setItem('language','en');localStorage.setItem('i18nextLng','en');localStorage.setItem('theme','dark');});
     await go();await ready('ready');await page.locator('html[lang=en].dark').waitFor({state:'attached'});
-    await page.getByRole('heading',{name:'Critical operating status',exact:true}).waitFor();
+    await page.getByRole('heading',{name:'Control levels',exact:true}).waitFor();
     await shot('board-english-dark.png');await require('./verify-board-fit.cjs').checkLayout(page,evidence,'english-dark');
     checks.push('English and dark theme');
     fs.writeFileSync(path.join(evidence,'board-result.json'),JSON.stringify({success:true,checks,layouts,failureLayouts,actualVisibleBoxes:visible.length,actualAttention:actualAlerts.length,fixturesAreSynthetic:true},null,2));

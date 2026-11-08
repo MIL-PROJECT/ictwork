@@ -1,6 +1,6 @@
 # OMNIS Desktop
 
-최신 배치 정리 실행본: `output/OMNIS-Layout-Polish-Windows-x64/OMNIS.exe`. 업무 통계 보기 조건을 상단으로 이동하고 통합상황판의 보조 문구·경보 요약줄을 정돈했다. 자세한 변경·검증은 `docs/UI_LAYOUT_POLISH.md`, 실행 근거는 `output/layout-polish/`에 보관한다.
+최신 실행본: `output/OMNIS-Unified-Operations-Windows-x64/OMNIS.exe`. 운영현황·정보통신 현황을 한 메뉴로 통합하고, 상황판의 통제 단계·주의 현황을 별도 카드로 정리했다. 접수 대기 머리글도 중앙 정렬했다. 자세한 변경·검증은 `docs/OPERATIONS_UNIFIED.md`, 근거는 `output/operations-unified/`에 보관한다. 기존 업무 통계 상단 조건 배치는 유지한다.
 
 Windows x64 시연 실행본. 배포 폴더 전체를 유지한 상태에서 **OMNIS.exe**를 실행한다. 첫 실행은 DB 초기화와 마이그레이션 때문에 시간이 걸릴 수 있다. 앱 창에서 시연 계정 **bn1-co1-admin**과 암호 **Local-Demo-Init!26**으로 로그인한다.
 

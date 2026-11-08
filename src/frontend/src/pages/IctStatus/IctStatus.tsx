@@ -19,8 +19,9 @@ import { useSearchParams } from "react-router";
  * 정보통신 현황 탭 (REQ-503·602, slices/15 13.2): 내가 볼 수 있는 박스를 개인 배치(순서·크기·숨김, 서버 저장)대로 놓는다.
  * [박스 추가](관리하는 부서가 있을 때), [숨긴 박스 (N)]. 주소의 box·tab으로 상세를 연다(AI 출처·새로 고침). 화면이 보이는 동안 1분마다 다시 부른다
  */
-export default function IctStatus() {
+export default function IctStatus({ integrated = false }: { integrated?: boolean }) {
   const { t } = useTranslation("ictStatus");
+  const { t: tc } = useTranslation();
   const { t: tf } = useTranslation("frameGeneral");
   const describe = useIctError();
   const tick = useMinuteRefresh();
@@ -94,10 +95,10 @@ export default function IctStatus() {
 
   return (
     <>
-      <PageMeta titleKey="sidebar.items.ictStatus" />
+      <PageMeta titleKey={integrated ? "sidebar.items.operations" : "sidebar.items.ictStatus"} />
       {/* 페이지 머리: 제목·설명, 오른쪽에 [숨긴 박스 (N)]·[박스 추가] (OMNIS 제목 오른쪽 화면 동작) */}
       <PageBreadcrumb
-        pageTitle={t("title")}
+        pageTitle={integrated ? tc("sidebar.items.operations") : t("title")}
         description={tf("ictStatus.description")}
         actions={
           (hidden.length > 0 || (tab && tab.addDepartments.length > 0)) && (

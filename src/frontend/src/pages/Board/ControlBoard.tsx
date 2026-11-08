@@ -85,11 +85,7 @@ export default function ControlBoard() {
       </div>
     </section>
 
-    <BoardRiskPanel resource={r.boxes} short={short} summary={<>
-      <Link className="board-band-value" to="/operations?attention=1"><span>{t("classic.systemAttention")}</span><strong>{ops ? ops.counts.WATCH + ops.counts.FAULT : "—"}<small>{t("unit.boxes")}</small></strong>{["error","stale","unavailable"].includes(r.operations.state) && <BoardResourceNote resource={r.operations} compact />}</Link>
-      <Link className="board-band-value" to={tasks(null,"&overdue=1") ?? "/tasks?tab=department"}><span>{t("band.overdue")}</span><strong>{n(r.overdue.value?.length)}<small>{t("unit.items")}</small></strong>{["error","stale","unavailable"].includes(r.overdue.state) && <BoardResourceNote resource={r.overdue} compact />}</Link>
-      <Link className="board-band-value" to="/duty" title={t("risk.dutyHelp")}><span>{t("band.duty")}</span><strong>{n(r.dutyToday.value)}<small>{t("unit.people")}</small></strong>{["error","stale","unavailable"].includes(r.dutyToday.state) && <BoardResourceNote resource={r.dutyToday} compact />}</Link>
-    </>} />
+    <BoardRiskPanel resource={r.boxes} short={short} />
 
     <section className="board-panels" aria-label={t("oneScreen.panels")}>
       <Card icon={<BoxIcon />} title={t("classic.operations")} subtitle={t("classic.systemCount",{count:n(ops?.total)})} to="/operations">

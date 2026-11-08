@@ -11,7 +11,7 @@ const SCREEN_ROUTES: Record<string, { menu: string; detail?: string }> = {
   register: { menu: "/approvals/new" },
   directive: { menu: "/directives" },
   duty: { menu: "/duty/edit" },
-  ict: { menu: "/ict-status" },
+  ict: { menu: "/operations?view=signals" },
   calendar: { menu: "/calendar" },
   equipment: { menu: "/department/equipment", detail: "/department/equipment/{id}" },
   diagram: { menu: "/department/diagrams", detail: "/department/diagrams/{id}" },

@@ -1,13 +1,14 @@
 import type { BoxCard } from "@/api/ictStatus";
 import { AlertIcon, BoxIcon } from "@/icons";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { ictStatusPath } from "@/layout/operationNavigation";
 import { attentionBoxes, BOX_TONE, coreBoxes, coreHighlights, visibleBoxes, type Resource } from "./boardState";
 import BoardBoxesDialog, { type BoardBoxView } from "./BoardBoxesDialog";
 import BoardResourceNote from "./BoardResourceNote";
 
-export default function BoardRiskPanel({ resource, short = false, summary }: { resource: Resource<BoxCard[]>; short?: boolean; summary?: ReactNode }) {
+export default function BoardRiskPanel({ resource, short = false }: { resource: Resource<BoxCard[]>; short?: boolean }) {
   const { t, i18n } = useTranslation("board");
   const { t: ti } = useTranslation("ictStatus");
   const [view, setView] = useState<BoardBoxView | null>(null);
@@ -19,11 +20,13 @@ export default function BoardRiskPanel({ resource, short = false, summary }: { r
   const describe = (box: BoxCard) => `${box.title} · ${box.shownSummary || t("risk.unset")} · ${ti(`colors.${box.shownColor}`)} · ${box.departmentLabel} · ${t("risk.sourceUpdated")} ${modified(box)}`;
   const worst = resource.value === null ? "gray" : alerts[0] ? BOX_TONE[alerts[0].shownColor] : "gray";
   return <div className="board-risk-zone">
-    <div className="board-band-stats"><section className="board-core" aria-labelledby="board-core-title">
-      <h2 id="board-core-title" className="sr-only"><BoxIcon aria-hidden />{t("risk.core")}</h2>
+    <section className="board-core" aria-labelledby="board-core-title">
+      <div className="board-risk-heading"><h2 id="board-core-title"><BoxIcon aria-hidden />{t("risk.core")}</h2>
+        <button type="button" className="board-link board-core-all" onClick={() => setView("core")} title={t("oneScreen.coreSelection")} aria-label={t("oneScreen.coreAll", { count: coreCount })}>{t("oneScreen.allCount", { count: coreCount })} ↗</button>
+      </div>
       <div className="sr-only"><BoardResourceNote resource={resource} compact /></div>
       <div className="board-core-grid">
-        {coreHighlights(boxes).map((box, index) => box ? <Link key={index} to={`/ict-status?box=${box.id}`} className={`board-core-indicator tone-${BOX_TONE[box.shownColor]}`} title={describe(box)} aria-label={describe(box)}>
+        {coreHighlights(boxes).map((box, index) => box ? <Link key={index} to={ictStatusPath(box.id)} className={`board-core-indicator tone-${BOX_TONE[box.shownColor]}`} title={describe(box)} aria-label={describe(box)}>
           <div className="board-core-label"><span>{box.title}</span><span className="board-color-label">{ti(`colors.${box.shownColor}`)}</span></div>
           <strong>{box.shownSummary || t("risk.unset")}</strong>
           <span className="board-core-department">{box.departmentLabel}</span>
@@ -34,8 +37,8 @@ export default function BoardRiskPanel({ resource, short = false, summary }: { r
           <small title={t("risk.visibleOnly")}>{t("oneScreen.visibleOnly")}</small>
         </div>)}
       </div>
-      <button type="button" className="board-link board-core-all" onClick={() => setView("core")} title={t("oneScreen.coreSelection")} aria-label={t("oneScreen.coreAll", { count: coreCount })}>{t("oneScreen.allCount", { count: coreCount })} ↗</button>
-    </section>{summary}<button type="button" className="board-link board-ict-summary" onClick={() => setView("all")} aria-label={t("oneScreen.dialog.all")}>{t("cards.ict")} ↗</button></div>
+      <button type="button" className="board-link board-ict-summary" onClick={() => setView("all")} aria-label={t("oneScreen.dialog.all")}>{t("risk.allIndicators")} ↗</button>
+    </section>
     <section className={`board-attention tone-${worst}`} aria-labelledby="board-attention-title" data-state={resource.state}>
       <div className="board-attention-caption"><div className="board-attention-heading"><div className="board-attention-icon"><AlertIcon aria-hidden /></div>
         <h2 id="board-attention-title" title={t("risk.attentionHelp")}>{t("alerts.caption")}</h2>
@@ -44,7 +47,7 @@ export default function BoardRiskPanel({ resource, short = false, summary }: { r
       </div><BoardResourceNote resource={resource} compact /></div>
       {resource.value === null ? <p className="board-attention-empty" title={t(resource.state === "loading" ? "loading" : "risk.unverified")}>{t(resource.state === "loading" ? "loading" : "risk.unverified")}</p> : !alerts.length ?
         <p className="board-attention-empty" title={t(resource.state === "stale" ? "risk.previousNone" : "risk.none")}>{t(resource.state === "stale" ? "risk.previousNone" : "risk.none")}</p> :
-        <div className="board-attention-items">{alerts.slice(0, short ? 1 : 2).map(box => <Link key={box.id} className={`board-risk-row tone-${BOX_TONE[box.shownColor]}`} to={`/ict-status?box=${box.id}`} title={describe(box)} aria-label={describe(box)}>
+        <div className="board-attention-items">{alerts.slice(0, short ? 1 : 2).map(box => <Link key={box.id} className={`board-risk-row tone-${BOX_TONE[box.shownColor]}`} to={ictStatusPath(box.id)} title={describe(box)} aria-label={describe(box)}>
           <span className="board-risk-marker">{ti(`colors.${box.shownColor}`)}</span><span className="board-risk-name"><strong>{box.title}</strong><span>{box.shownSummary || t("risk.unset")} · {box.departmentLabel}</span></span><span aria-hidden>↗</span>
         </Link>)}</div>}
       <button type="button" className="board-risk-expand" onClick={() => setView("alerts")} aria-label={t("oneScreen.alertsAll", { count: resource.value === null ? "—" : alerts.length })}>

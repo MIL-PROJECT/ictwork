@@ -186,7 +186,9 @@
       "departmentInfo": "관리",
       "personnelAttributes": "인원 추가 특성",
       "equipmentAttributes": "장비 추가 특성",
-      "operations": "운영현황"
+      "operations": "운영현황",
+      "operationSystems": "체계 운용",
+      "operationSignals": "통신·경보"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",

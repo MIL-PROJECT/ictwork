@@ -3,6 +3,7 @@ import { cn } from "@/utils";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 import { contextualActions, navigationContext, visibleLinks } from "./navigationSections";
+import { operationViewPath } from "./operationNavigation";
 
 export default function SectionNavigation() {
   const { t } = useTranslation();
@@ -21,7 +22,7 @@ export default function SectionNavigation() {
       {tabs.length > 1 && (
         <nav aria-label={t("sidebar.items." + screen.key)} className="flex flex-wrap gap-1">
           {tabs.map((link) => (
-            <Link key={link.key} to={link.path} aria-current={activeTab === link.key ? (context.action ? "location" : "page") : undefined}
+            <Link key={link.key} to={screen.key === "operations" ? operationViewPath(search, link.key === "operationSignals" ? "signals" : "systems") : link.path} aria-current={activeTab === link.key ? (context.action ? "location" : "page") : undefined}
               className={cn("rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-brand-500",
                 activeTab === link.key ? "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800")}>
               {t("sidebar.items." + link.key)}

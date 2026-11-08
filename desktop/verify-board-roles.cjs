@@ -58,15 +58,16 @@ const [installed, evidence] = process.argv.slice(2);
       assert.equal(await page.getByTestId('attention-count').innerText(),String(new Set(alerts.map(box=>box.id)).size));
       const shown=await page.locator('.board-core-indicator[href],.board-risk-row').evaluateAll(elements=>elements.map(element=>Number(new URL(element.href).searchParams.get('box'))));
       assert.ok(shown.every(id=>visible.some(box=>box.id===id)),'All displayed data must belong to this actor’s API scope');
-      await page.getByRole('button',{name:'정보통신 전체 현황',exact:true}).click();await page.getByRole('dialog').waitFor();
+      await page.getByRole('button',{name:'통신·경보 전체 현황',exact:true}).click();await page.getByRole('dialog').waitFor();
       const tableIds=await page.locator('.board-dialog-box').evaluateAll(elements=>elements.map(element=>Number(new URL(element.href).searchParams.get('box'))));
       assert.deepEqual([...tableIds].sort((a,b)=>a-b),visible.map(box=>box.id).sort((a,b)=>a-b));
       await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
       await page.evaluate(()=>window.scrollTo(0,0));await page.waitForTimeout(150);
       await page.screenshot({path:path.join(evidence,'board-role-'+user+'.png'),fullPage:true,animations:'disabled'});
       const statistics=await require('./verify-layout-polish.cjs').checkScope(page,origin,evidence,user);
+      const unifiedOperations=await require('./verify-operations-unified.cjs').checkActor(page,origin,evidence,user);
       await page.goto(origin+'/board');await page.locator('.board-attention:not([data-state=loading])').waitFor();
-      results.push({user,operationIds:operations.items.map(item=>item.id),visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true,statistics});
+      results.push({user,operationIds:operations.items.map(item=>item.id),visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true,statistics,unifiedOperations});
     }
     // The same mounted board clears department values when its certified scope disappears.
     const scopeEndpoint='**/api/work-status/scope';

@@ -16,7 +16,8 @@ module.exports = async function verifyMainFeatures(page,origin,evidence) {
     await page.goto(origin+route);
     await page.locator('header').getByRole('button',{name:'AI 업무지원',exact:true}).waitFor();
     await page.locator('main h1').waitFor();
-    assert.equal(new URL(page.url()).pathname,route);
+    assert.equal(new URL(page.url()).pathname,route==='/ict-status'?'/operations':route);
+    if(route==='/ict-status')assert.equal(new URL(page.url()).searchParams.get('view'),'signals');
     visits.push({route,heading:await page.locator('main h1').innerText()});
   }
   await page.goto(origin+'/tasks?tab=department');

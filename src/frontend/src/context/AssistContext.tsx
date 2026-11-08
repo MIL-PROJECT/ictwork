@@ -17,6 +17,7 @@ import {
   typedFocusedField,
 } from "@/components/assist/applyFill";
 import { answerText, navigateRoute, pickView } from "@/components/assist/assistNav";
+import { canonicalOperationRoute } from "@/layout/operationNavigation";
 import { useAuth } from "@/context/AuthContext";
 import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -706,7 +707,7 @@ export const AssistProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setNotice({ error: true, text: describe(e instanceof ApiError ? e.code : "") });
           return;
         }
-        const route = result.route || option.route || "";
+        const route = canonicalOperationRoute(result.route || option.route || "");
         if (!route) {
           setNotice({ error: true, text: t("errors.noScreen") });
           return;

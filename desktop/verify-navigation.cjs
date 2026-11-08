@@ -29,6 +29,7 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   await require('./verify-operations-failures.cjs')(page, origin, evidence);
   await require('./verify-demo-seed.cjs')(page, origin, evidence);
   await require('./verify-legacy-ui.cjs')(page, origin, evidence);
+  await require('./verify-operations-unified.cjs')(page, origin, evidence);
   await require('./verify-board.cjs')(page, origin, evidence);
   await require('./verify-layout-polish.cjs')(page, origin, evidence);
   const expected = ['통합상황판','업무요청','업무 처리','일정','관리','AI 질의응답'];
@@ -53,7 +54,7 @@ module.exports = async function verifyNavigation(page, origin, installed, profil
   await owner('업무 처리');
   await page.goBack();
   await page.waitForURL(origin+'/status');
-  for(const [label, route] of [['운영현황','/operations'],['지시사항','/directives'],['근무자 현황','/duty'],['정보통신 현황','/ict-status']]) {
+  for(const [label, route] of [['운영현황','/operations?view=systems'],['지시사항','/directives'],['근무자 현황','/duty']]) {
     await top(label).click();
     await page.waitForURL(origin+route);
     await owner('통합상황판');
