@@ -1,3 +1,4 @@
+import { BrandEmblem } from "@/components/brand/BrandEmblem";
 import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
 import { AiIcon, PieChartIcon, TaskIcon } from "@/icons";
 import React from "react";
@@ -44,10 +45,10 @@ export default function AuthLayout({
           </svg>
 
           <Link to="/" className="absolute top-11 left-[clamp(40px,6vw,88px)] flex items-center gap-4">
-            <span className="grid h-[52px] w-[60px] place-items-center rounded-[15px] bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] backdrop-blur-sm">
-              <img width={36} height={36} src="/images/logo/logo-icon.svg" alt="" />
+            <span className="grid h-[52px] w-[60px] place-items-center rounded-[15px] text-white bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] backdrop-blur-sm">
+              <BrandEmblem width={44} />
             </span>
-            <span className="text-2xl font-extrabold tracking-[-0.02em] whitespace-nowrap text-white">{t("common.appName")}</span>
+            <span className="text-2xl font-extrabold tracking-[0.18em] whitespace-nowrap text-white">{t("common.appName")}</span>
           </Link>
 
           <div className="relative max-w-[540px]">

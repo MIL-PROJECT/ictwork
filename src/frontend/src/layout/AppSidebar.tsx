@@ -1,7 +1,8 @@
+import { BrandEmblem } from "@/components/brand/BrandEmblem";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useFocusTrap } from "@/components/ui/modal/useFocusTrap";
-import { AiIcon, CalenderIcon, ChevronDownIcon, CloseIcon, DocsIcon, GridIcon, GroupIcon, PaperPlaneIcon } from "@/icons";
+import { AiIcon, BoxIcon, PieChartIcon, LegacyCampaignIcon, TaskIcon, CalenderIcon, ChevronDownIcon, CloseIcon, DocsIcon, GridIcon, GroupIcon, PaperPlaneIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,8 @@ import { Link, useLocation } from "react-router";
 import { navigationContext, screenPath, topMenus } from "./navigationSections";
 import SidebarFoot from "./SidebarFoot";
 
+
+const childIcons: Record<string, typeof BoxIcon> = { operations: BoxIcon, workStatus: PieChartIcon, directives: LegacyCampaignIcon, duty: CalenderIcon, ictStatus: BoxIcon, newRequest: PaperPlaneIcon, requestStatus: TaskIcon, departmentTasks: DocsIcon, taskReceipt: TaskIcon, approvals: DocsIcon, organizationPeople: GroupIcon, equipmentDiagrams: BoxIcon, docs: DocsIcon, workTypes: TaskIcon };
 
 const icons = {
   overview: GridIcon, requests: PaperPlaneIcon, processing: DocsIcon,
@@ -67,13 +70,13 @@ export default function AppSidebar() {
         !isMobileOpen && "max-xl:invisible",
       )}
       onMouseEnter={() => !isExpanded && setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-      <div className="flex items-center ps-px pe-2.5 pt-[26px] pb-[18px]">
+      <div className="legacy-sidebar-brand flex items-center ps-px pe-2.5 pt-[26px] pb-[18px]">
         <Link to="/" onClick={closeMobile} className="flex h-10 items-center gap-3" aria-label="OMNIS">
           <span aria-hidden className="grid h-10 w-[46px] shrink-0 place-items-center rounded-xl bg-brand-100 dark:bg-white/10">
-            <img src="/images/logo/logo-icon.svg" alt="" width={30} height={30} />
+            <BrandEmblem />
           </span>
           {showText && <span className={cn("flex flex-col", isMobileOpen ? "w-[120px]" : "w-40")}>
-            <strong className="text-[15.5px] text-brand-500 dark:text-white">OMNIS</strong>
+            <strong className="text-[20px] font-extrabold leading-[1.1] tracking-[-0.3px] text-brand-500 dark:text-white">OMNIS</strong>
             <span className="mt-0.5 truncate text-[11px] text-gray-400">{t("sidebar.brandSub")}</span>
           </span>}
         </Link>
@@ -111,10 +114,11 @@ export default function AppSidebar() {
                     {children.map((child) => {
                       const selected = context?.screen.key === child.key;
                       const childLabel = t("sidebar.items." + child.key);
+                      const ChildIcon = childIcons[child.key] ?? DocsIcon;
                       return <li key={child.key}><Link to={child.path} onClick={closeMobile}
                         aria-current={selected ? "page" : undefined} aria-label={!showText ? childLabel : undefined} title={!showText ? childLabel : undefined}
                         className={cn("menu-dropdown-item", selected ? "menu-dropdown-item-active" : "menu-dropdown-item-inactive", !showText && "px-0 justify-center")}>
-                        {showText ? childLabel : <span aria-hidden className="size-1.5 rounded-full bg-current" />}
+                        {showText ? <><ChildIcon aria-hidden className="legacy-child-icon" /><span className="truncate">{childLabel}</span></> : <ChildIcon aria-hidden className="size-5" />}
                       </Link></li>;
                     })}
                   </ul>}

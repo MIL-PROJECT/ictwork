@@ -1,4 +1,4 @@
-/* KRDS 서체: Pretendard GOV (SIL OFL 1.1). 외부 웹폰트 대신 로컬 파일을 main.tsx에서 불러옴 */
+/* Original OMNIS font stack; Windows platform fonts are available offline. */
 
 @import "tailwindcss";
 
@@ -14,7 +14,7 @@
 @theme {
   --font-*: initial;
   /* 토큰 이름(font-outfit)은 원본 사용처를 바꾸지 않으려고 그대로 둠 */
-  --font-outfit: "Pretendard GOV Variable", "Pretendard GOV", -apple-system, BlinkMacSystemFont, system-ui, "Malgun Gothic", sans-serif;
+  --font-outfit: "Pretendard Variable", Pretendard, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;

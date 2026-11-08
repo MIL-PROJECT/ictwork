@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandEmblem } from "@/components/brand/BrandEmblem";
+
 import AssistButton from "@/components/assist/AssistButton";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
@@ -80,7 +82,7 @@ const AppHeader: React.FC = () => {
           </button>
 
           <Link to="/" className="flex items-center gap-2 xl:hidden">
-            <img src="/images/logo/logo-icon.svg" alt="" width={28} height={28} />
+            <span className="text-brand-500 dark:text-brand-300"><BrandEmblem width={28} /></span>
             <span className="text-base font-bold whitespace-nowrap text-gray-900 dark:text-white">
               {tc("common.appName")}
             </span>
@@ -129,7 +131,7 @@ const AppHeader: React.FC = () => {
             <NotificationDropdown />
           </div>
           {/* <!-- User Area --> 사용자 메뉴(개인설정·언어·로그아웃)는 모든 폭에서 유지 */}
-          <UserDropdown />
+          <div className="legacy-header-user"><UserDropdown /></div>
         </div>
       </div>
     </header>

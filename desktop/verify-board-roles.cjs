@@ -47,7 +47,7 @@ const [installed, evidence] = process.argv.slice(2);
       const operations=await (await page.request.get(origin+'/api/operations')).json();
       await page.waitForFunction(total=>document.querySelector('.board-metric-value')?.textContent===total+'개',operations.items.length);
       assert.equal((await page.locator('.board-metric-value').allTextContents())[1],operations.items.filter(item=>item.status==='NORMAL').length+'개');
-      await page.goto(origin+'/operations');await page.locator('.ops-toolbar').waitFor();
+      await page.goto(origin+'/operations');await page.locator('.ops-paging').waitFor();
       if(operations.items.length) await page.locator('.ops-table tbody tr').first().waitFor();
       assert.equal(await page.getByRole('button',{name:'체계 등록',exact:true}).count(),operations.createDepartments.length?1:0);
       assert.equal(await page.locator('.ops-table tbody').getByRole('button',{name:'체계 수정',exact:true}).count(),operations.items.slice(0,10).filter(item=>item.canManage).length);

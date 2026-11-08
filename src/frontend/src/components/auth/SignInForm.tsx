@@ -1,3 +1,4 @@
+import { BrandEmblem } from "@/components/brand/BrandEmblem";
 import { ApiError } from "@/api/client";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -57,8 +58,8 @@ export default function SignInForm() {
       <div className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center">
         <div>
           <div className="mb-6">
-            <span aria-hidden className="mb-3.5 grid h-[54px] w-[62px] place-items-center rounded-2xl bg-brand-100 dark:bg-white/10">
-              <img width={34} height={34} src="/images/logo/logo-icon.svg" alt="" />
+            <span aria-hidden className="mb-3.5 grid h-[54px] w-[62px] place-items-center rounded-2xl bg-brand-100 text-brand-500 dark:bg-white/10 dark:text-brand-300">
+              <BrandEmblem width={40} />
             </span>
             <h1 className="text-[28px] leading-tight font-extrabold tracking-[-0.8px] text-gray-900 dark:text-white/90">
               {t("title")}

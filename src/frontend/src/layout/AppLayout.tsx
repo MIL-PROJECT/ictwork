@@ -38,7 +38,7 @@ const LayoutContent: React.FC = () => {
   const assistOpen = useAssistOpen();
 
   return (
-    <div className="min-h-[calc(100vh/var(--app-zoom))] xl:flex">
+    <div className="omnis-shell min-h-[calc(100vh/var(--app-zoom))] xl:flex">
       <AppSidebar />
       <Backdrop />
 

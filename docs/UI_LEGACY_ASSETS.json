@@ -1,0 +1,170 @@
+{
+  "referenceCommit": "96d84910367961ce3e0914852663f29e5dad355c",
+  "brandSource": "military_project/src/renderer/src/ui.tsx:BrandEmblem",
+  "iconPackage": {
+    "name": "@mui/icons-material",
+    "version": "9.4.0",
+    "license": "MIT"
+  },
+  "icons": [
+    {
+      "target": "grid.svg",
+      "source": "DashboardRounded"
+    },
+    {
+      "target": "paper-plane.svg",
+      "source": "SendRounded"
+    },
+    {
+      "target": "docs.svg",
+      "source": "FactCheckRounded"
+    },
+    {
+      "target": "calender-line.svg",
+      "source": "EventNoteRounded"
+    },
+    {
+      "target": "group.svg",
+      "source": "GroupsRounded"
+    },
+    {
+      "target": "ai-icon.svg",
+      "source": "SmartToyRounded"
+    },
+    {
+      "target": "box.svg",
+      "source": "DnsRounded"
+    },
+    {
+      "target": "check-circle.svg",
+      "source": "CheckCircleRounded"
+    },
+    {
+      "target": "alert.svg",
+      "source": "ReportRounded"
+    },
+    {
+      "target": "time.svg",
+      "source": "AccessTimeRounded"
+    },
+    {
+      "target": "task-icon.svg",
+      "source": "AssignmentRounded"
+    },
+    {
+      "target": "page.svg",
+      "source": "DescriptionRounded"
+    },
+    {
+      "target": "plus.svg",
+      "source": "AddRounded"
+    },
+    {
+      "target": "close.svg",
+      "source": "CloseRounded"
+    },
+    {
+      "target": "folder.svg",
+      "source": "FolderRounded"
+    },
+    {
+      "target": "download.svg",
+      "source": "DownloadRounded"
+    },
+    {
+      "target": "arrow-right.svg",
+      "source": "ArrowForwardRounded"
+    },
+    {
+      "target": "trash.svg",
+      "source": "DeleteOutlineRounded"
+    },
+    {
+      "target": "pencil.svg",
+      "source": "EditRounded"
+    },
+    {
+      "target": "lock.svg",
+      "source": "LockRounded"
+    },
+    {
+      "target": "envelope.svg",
+      "source": "MailRounded"
+    },
+    {
+      "target": "user-line.svg",
+      "source": "PersonRounded"
+    },
+    {
+      "target": "eye.svg",
+      "source": "VisibilityRounded"
+    },
+    {
+      "target": "eye-close.svg",
+      "source": "VisibilityOffRounded"
+    },
+    {
+      "target": "copy.svg",
+      "source": "ContentCopyRounded"
+    },
+    {
+      "target": "list.svg",
+      "source": "FormatListBulletedRounded"
+    },
+    {
+      "target": "pie-chart.svg",
+      "source": "AssessmentRounded"
+    },
+    {
+      "target": "chat.svg",
+      "source": "ForumRounded"
+    },
+    {
+      "target": "search.svg",
+      "source": "SearchRounded"
+    },
+    {
+      "target": "regenerate.svg",
+      "source": "RefreshRounded"
+    },
+    {
+      "target": "logout.svg",
+      "source": "LogoutRounded"
+    },
+    {
+      "target": "settings-alt.svg",
+      "source": "SettingsRounded"
+    },
+    {
+      "target": "bell-alt.svg",
+      "source": "NotificationsNoneRounded"
+    },
+    {
+      "target": "moon.svg",
+      "source": "DarkModeRounded"
+    },
+    {
+      "target": "sun.svg",
+      "source": "LightModeRounded"
+    },
+    {
+      "target": "legacy-hub.svg",
+      "source": "HubRounded"
+    },
+    {
+      "target": "legacy-build.svg",
+      "source": "BuildRounded"
+    },
+    {
+      "target": "legacy-campaign.svg",
+      "source": "CampaignRounded"
+    }
+  ],
+  "font": {
+    "package": "pretendard",
+    "version": "1.3.9",
+    "file": "PretendardVariable.woff2",
+    "license": "OFL-1.1",
+    "sha256": "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4"
+  }
+}
