@@ -18,6 +18,8 @@ import WorkGuidance from "./pages/Department/WorkGuidance";
 import WorkTypeManage from "./pages/Admin/WorkTypeManage";
 import AttributeManage from "./pages/Admin/AttributeManage";
 import AiChat from "./pages/Ai/AiChat";
+import SystemAdministration from "./pages/Admin/SystemAdministration";
+import Registration from "./pages/AuthPages/Registration";
 import SignIn from "./pages/AuthPages/SignIn";
 import WorkStatus from "./pages/Status/WorkStatus";
 import Calendar from "./pages/Calendar";
@@ -116,12 +118,14 @@ export default function App() {
             <Route path="/admin/attributes/equipment" element={<RequireFeature feature="ADMIN_ATTRIBUTE"><AttributeManage target="equipment" /></RequireFeature>} />
             <Route path="/admin/attributes/personnel" element={<RequireFeature feature="ADMIN_ATTRIBUTE"><AttributeManage target="personnel" /></RequireFeature>} />
             <Route path="/admin/approval-routes" element={<RequireFeature feature="ADMIN_SYSTEM"><ApprovalRouteManage /></RequireFeature>} />
+            <Route path="/admin/system" element={<RequireFeature feature="ADMIN_SYSTEM"><SystemAdministration /></RequireFeature>} />
 
             <Route path="/calendar" element={<Calendar />} />
           </Route>
 
           {/* Auth Layout */}
           <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<Registration />} />
           {/* QA 마스터의 계정 고르기 (DEC-067, 명세 밖 QA·시연 도구). 마스터만, 막는 것은 서버 API */}
           <Route path="/qa" element={<QaAccountPicker />} />
 

@@ -1,5 +1,17 @@
 # OMNIS Desktop
 
+## UI 개발 모드 (HMR)
+
+저장소 루트에서 `pnpm --dir desktop dev`를 실행하면 현재 `src/frontend/src`의 React·CSS를 Vite로 제공하는 Electron 창이 열린다. 저장한 UI 변경은 HMR로 반영되며, 브라우저에서도 `http://127.0.0.1:5173`으로 볼 수 있다. 종료는 Electron 창 닫기 또는 실행 터미널의 Ctrl+C다.
+
+Java·MySQL·최종 시연 DB는 기본적으로 `output/OMNIS-Final-Database-Windows-x64/resources`에서 가져온다. 개발 데이터와 로그는 `output/dev/profile/service`에 별도로 유지하며 최초 실행 때 최종 DB 복사본을 복원한다. 기존 설치 프로필과 분리된다. WAR는 `OMNIS_DEV_WAR` → 현재 빌드된 `src/backend/build/libs/ictwork-0.0.1.war` → 번들 WAR 순으로 선택한다. 개발 모드에서는 자동 스케줄러를 끄고 AI는 기본 LOCAL 모드로 켠다. 로그인은 기존 시연 계정 `bn1-co1-admin` / `Local-Demo-Init!26`을 사용한다.
+
+프론트엔드와 desktop의 기존 pnpm 의존성이 필요하다. Electron 실행 파일은 이 PC의 인접 `../military_project/node_modules/electron/dist/electron.exe`를 기본으로 사용하며, 다른 경로는 `OMNIS_ELECTRON_EXE`로 지정한다. 서비스 리소스 경로는 `OMNIS_DEV_RESOURCES`로 바꿀 수 있다. 개발 서버는 127.0.0.1:5173에만 열며 해당 포트가 사용 중이면 다른 포트로 자동 이동하지 않고 중단한다. 백엔드 프록시는 실행 때 선택한 로컬 포트로 자동 연결한다.
+
+UI 개발은 재패키징이 필요 없다. Kotlin/API 변경은 현재 소스의 WAR 재빌드와 dev 재시작이 필요하다. 번들 리소스를 수정할 필요는 없다. 최종 배포본에는 별도 빌드·패키징으로 반영한다.
+
+최종 DB 통합 실행본: `output/OMNIS-Final-Database-Windows-x64/OMNIS.exe`. 기존 `OMNIS Desktop Main` MySQL의 모든 행을 보존하면서 최신 main seed의 업무 자료와 첨부·구성도를 참조 ID와 함께 병합했다. 이 실행본은 별도 `OMNIS Desktop Final` 프로필의 첫 실행에 최종 SQL과 기존 QA 설정을 복원한다. 기존 프로필의 DB는 덮어쓰지 않는다. DB·검증 근거·설치파일 제작 입력은 `docs/FINAL_DATABASE_20261108.md`에 기록했다. 아래의 일반 시연 DB 설명과 달리, 이 선택적 배포본에는 병합한 기존 자료도 포함된다.
+
 최신 main 통합 실행본: `output/OMNIS-Main-Merged-Windows-x64/OMNIS.exe`. main의 최신 AI·설명 표시 기능과 최종 메뉴·상황판·브랜딩을 함께 반영했다. DB는 main V43(설명 설정)·V44(운영현황)를 사용한다. 구형 데스크톱 V43 프로필은 확인된 이력에 한해 자동 백업 후 업그레이드한다. 근거·복원 경계는 `docs/MAIN_MERGE_VERIFICATION.md`, 시험 결과는 `output/git-main-delivery/`에 보관한다.
 
 최신 실행본: `output/OMNIS-Unified-Operations-Windows-x64/OMNIS.exe`. 운영현황·정보통신 현황을 한 메뉴로 통합하고, 상황판의 통제 단계·주의 현황을 별도 카드로 정리했다. 접수 대기 머리글도 중앙 정렬했다. 자세한 변경·검증은 `docs/OPERATIONS_UNIFIED.md`, 근거는 `output/operations-unified/`에 보관한다. 기존 업무 통계 상단 조건 배치는 유지한다.

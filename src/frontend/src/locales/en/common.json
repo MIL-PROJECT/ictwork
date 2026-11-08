@@ -80,6 +80,8 @@
       "diagrams": "Diagrams",
       "docs": "Documents",
       "aiChat": "AI Q&A",
+      "systemAdmin": "System",
+      "registration": "Account registration",
       "orgManage": "Organization",
       "personnelManage": "Personnel",
       "mySettings": "My Settings",

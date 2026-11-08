@@ -3,7 +3,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { getLanguage, languages, type Locale } from "@/i18n/languages";
 import { cn } from "@/utils";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
@@ -13,6 +13,7 @@ export default function UserDropdown() {
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
   const subDropdownRef = useRef<HTMLLIElement>(null);
+  const languageMenuId = useId();
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { language: locale, setLanguage } = useLanguage();
@@ -46,7 +47,7 @@ export default function UserDropdown() {
   }, []);
 
   return (
-    <div className="relative">
+    <div className="user-dropdown relative">
       <button
         type="button"
         aria-expanded={isOpen}
@@ -113,10 +114,11 @@ export default function UserDropdown() {
               onItemClick={closeDropdown}
               tag="a"
               to="/settings/me"
+              baseClassName="flex w-full text-start"
               className="group flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13.5px] font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
-                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                className="shrink-0 fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
                 width="18"
                 height="18"
                 viewBox="0 0 24 24"
@@ -137,6 +139,8 @@ export default function UserDropdown() {
             <button
               type="button"
               onClick={() => setIsSubDropdownOpen((prev) => !prev)}
+              aria-expanded={isSubDropdownOpen}
+              aria-controls={languageMenuId}
               className={cn(
                 "group flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-[13.5px] font-medium transition-colors",
                 isSubDropdownOpen
@@ -146,6 +150,7 @@ export default function UserDropdown() {
             >
               <span className="flex items-center gap-2.5">
                 <svg
+                  className="shrink-0"
                   xmlns="http://www.w3.org/2000/svg"
                   width="18"
                   height="18"
@@ -171,9 +176,9 @@ export default function UserDropdown() {
             </button>
 
             {isSubDropdownOpen && (
-              // 좁은 화면은 메뉴 안에 펼쳐 아래 로그아웃을 가리지 않게, 넓은 화면은 메뉴 왼쪽에 띄운다
-              <div className="mt-1 rounded-[14px] bg-gray-50 p-1.5 md:absolute md:inset-e-[calc(100%+10px)] md:top-0 md:mt-0 md:w-60 md:bg-white md:shadow-theme-lg md:ring-1 md:ring-gray-200 dark:bg-white/3 md:dark:bg-gray-dark md:dark:ring-gray-800">
-                <ul className="flex flex-col gap-1">
+              // 사이드바의 넘침 자르기 안에서 모든 언어를 선택할 수 있게 메뉴 안에 펼친다.
+              <div className="mt-1 rounded-[14px] bg-gray-50 p-1.5 dark:bg-white/3">
+                <ul id={languageMenuId} className="flex flex-col gap-1">
                   {languages.map((language) => {
                     const isSelected = locale === language.id;
                     const FlagIcon = language.FlagIcon;
@@ -182,6 +187,7 @@ export default function UserDropdown() {
                       <li key={language.id}>
                         <button
                           type="button"
+                          aria-pressed={isSelected}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleSelectLanguage(language.id);
@@ -239,7 +245,7 @@ export default function UserDropdown() {
           }
         >
           <svg
-            className="fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"
+            className="shrink-0 fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"
             width="18"
             height="18"
             viewBox="0 0 24 24"

@@ -171,14 +171,14 @@ class AttributeApiTest(
     // ── 정의 권한·이름 (REQ-405·519) ──
 
     @Test
-    fun `REQ-405 1반 부서 관리자가 만든 특성은 1반 인원에게만 붙고 2반 줄은 빈칸이며, 1중대 부서 관리자·시스템 관리자는 만들 수 없고 같은 이름은 거부된다`() {
+    fun `REQ-405 1반 부서 관리자가 만든 특성은 1반 인원에게만 붙고 2반 줄은 빈칸이며, 상위 부서 관리자는 만들 수 없으며 최고 관리자는 가능하고 같은 이름은 거부된다`() {
         val line = define("a-s1adm", s1, "회선번호")
         // 고칠 수 있는 부서: 역할의 대상 부서만(하위 부서 제외)
         assertThat(getAs("a-s1adm", "/api/attributes/personnel/departments").map { it["id"].asLong() }).containsExactly(s1.id)
         assertThat(getAs("a-c1adm", "/api/attributes/personnel/departments").map { it["id"].asLong() }).containsExactly(c1.id)
         assertThat(list("a-c1adm", s1)["canEdit"].asBoolean()).isFalse()
         defineAs("a-c1adm", s1, "다른 특성").andExpect(status().isForbidden)
-        defineAs("a-sys", s1, "다른 특성").andExpect(status().isForbidden)
+        defineAs("a-sys", s1, "다른 특성", target = "equipment").andExpect(status().isCreated)
         defineAs("a-s1adm", s1, "회선번호").andExpect(status().isConflict).andExpect(jsonPath("$.code").value("ATTRIBUTE_DUPLICATE"))
         // 다른 부서는 같은 이름을 쓴다
         defineAs("a-s2adm", s2, "회선번호").andExpect(status().isCreated)

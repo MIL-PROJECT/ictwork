@@ -123,15 +123,17 @@ class DutyRosterApiTest : DutyTestBase() {
     fun noEditForOthers() {
         val id = roster("adm", c1, "야간 당직")
         val bn = roster("bnadm", b1, "대대 당직")
-        listOf("hong", "sys", "s11m").forEach { who ->
+        listOf("hong", "s11m").forEach { who ->
             assertThat(today(who)["canEdit"].asBoolean()).`as`(who).isFalse()
             get(who, "/api/duty/manage").andExpect(status().isForbidden)
             send("POST", who, "/api/duty/rosters", mapOf("departmentId" to c1.id, "name" to "새 근무표")).andExpect(status().isForbidden)
         }
         // 보기만 하는 사람은 403, 볼 수 없는 사람은 404
         get("hong", "/api/duty/rosters/$id").andExpect(status().isForbidden)
-        get("sys", "/api/duty/rosters/$id").andExpect(status().isForbidden)
-        send("PUT", "sys", "/api/duty/rosters/$id/name", mapOf("name" to "고침", "version" to version(id))).andExpect(status().isForbidden)
+        get("sys", "/api/duty/rosters/$id").andExpect(status().isOk)
+        assertThat(today("sys")["canEdit"].asBoolean()).isTrue()
+        get("sys", "/api/duty/manage").andExpect(status().isOk)
+        send("PUT", "sys", "/api/duty/rosters/$id/name", mapOf("name" to "고침", "version" to version(id))).andExpect(status().isOk)
         send("POST", "hong", "/api/duty/rosters/$id/rules", mapOf("kind" to "WEEKDAY", "name" to "규칙", "days" to listOf("MON"), "members" to listOf(pid("A")), "version" to version(id)))
             .andExpect(status().isForbidden)
         send("POST", "hong", "/api/duty/rosters/$id/fill", mapOf("month" to "2026-11", "version" to version(id))).andExpect(status().isForbidden)

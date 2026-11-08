@@ -140,7 +140,7 @@ class AttributeService(
     fun departments(loginId: String, targetRaw: String): List<AttributeDepartment> {
         val actor = accessPolicy.actor(loginId)
         AttributeTargets.parse(targetRaw)
-        val ids = actor.roles.filter { it.roleCode == Roles.DEPT_ADMIN }.mapNotNull { it.departmentId }.filter { actor.tree.find(it)?.active == true }.toSet()
+        val ids = actor.directlyManagedActiveDepartments()
         return statusScopes.order(actor.tree, ids).map { AttributeDepartment(it, departmentPath(actor.tree, it).orEmpty()) }
     }
 

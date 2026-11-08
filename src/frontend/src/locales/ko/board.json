@@ -81,9 +81,13 @@
     "requester": "요청자",
     "priority": "우선순위",
     "status": "상태",
-    "wanted": "희망일"
+    "wanted": "희망일",
+    "namedBy": "명의자",
+    "content": "내용",
+    "date": "일시"
   },
   "risk": {
+    "title": "통제 현황",
     "eyebrow": "운용 통제",
     "core": "통제 단계",
     "coreHelp": "CPCON·위기경보단계의 현재 값 · 위험도는 등록된 색상 기준",
@@ -112,7 +116,8 @@
     "support": "운용 지원",
     "supportHelp": "지시사항과 오늘 근무 · 상세 화면에서 확인",
     "dutyHelp": "오늘 근무표의 중복 인원을 제외한 인원입니다. 근무자 현황에서 확인하세요.",
-    "allIndicators": "전체 지표 보기"
+    "allIndicators": "전체 지표 보기",
+    "selection": "주요 통제 지표 포함 최대 6개 · 같은 지표는 가장 높은 경계 색상 · 빨강 우선"
   },
   "health": {
     "loading": "자료 확인 중…",

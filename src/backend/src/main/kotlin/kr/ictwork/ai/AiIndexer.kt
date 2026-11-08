@@ -115,6 +115,17 @@ class AiIndexer(
 
     /** 다음 회차를 바로 시작하게 깨운다 (다시 색인) */
     fun wake() = synchronized(signal) { signal.notifyAll() }
+    /** Provider changes invalidate vectors together; no old/new embedding spaces are mixed. */
+    fun resetEmbeddingSpace() = synchronized(runLock) {
+        tx.executeWithoutResult {
+            val sources = sourceRepository.findAll()
+            val ids = sources.mapNotNull { it.id }
+            if (ids.isNotEmpty()) chunkRepository.deleteBySourcePks(ids)
+            sources.forEach { it.status = AiIndexStatuses.PENDING; it.error = null }
+        }
+        cache.clear()
+        wake()
+    }
 
     private fun loop() {
         try {

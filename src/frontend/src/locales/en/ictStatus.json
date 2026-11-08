@@ -175,5 +175,9 @@
     "NOT_FOUND": "Not found. The box was deleted or you cannot view it.",
     "ACCESS_DENIED": "You do not have permission to edit this box.",
     "default": "Could not process. Try again later."
+  },
+  "status": {
+    "normal": "Normal",
+    "abnormal": "Abnormal"
   }
 }

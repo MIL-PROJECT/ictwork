@@ -93,9 +93,14 @@ class AiTools(
     private val fileRepository: StoredFileRepository,
     private val objectMapper: ObjectMapper,
     private val clock: Clock,
+    private val operations: kr.ictwork.operations.OperationsService? = null,
 ) {
     /** 모델에 주는 도구 정의 (PoC TOOLS에서 search_documents를 빼고 query_work에 requester를 더함, 11.6) */
-    val definitions: JsonNode by lazy { objectMapper.readTree(TOOLS_JSON) }
+    val definitions: JsonNode by lazy {
+        (objectMapper.readTree(TOOLS_JSON) as com.fasterxml.jackson.databind.node.ArrayNode).also { array ->
+            array.add(objectMapper.readTree("""{"type":"function","function":{"name":"query_operations","description":"조회 가능한 정보통신 운영체계의 현재 상태·운용률·개수를 조회한다","parameters":{"type":"object","properties":{"mode":{"type":"string","enum":["count","list"]}},"required":["mode"]}}}"""))
+        }
+    }
 
     /** context: 이어 묻기로 넘긴 앞 질문들(모델이 넣은 부서 낱말을 질문 글과 견줄 때 함께 본다) */
     fun run(name: String, args: JsonNode, actor: Actor, loginId: String, question: String, context: List<String> = emptyList()): AiToolResult = try {
@@ -103,6 +108,14 @@ class AiTools(
         // 칸에는 값 하나만 받는다: 여러 값(배열)·묶음을 넣으면 조건을 버리지 않고 다시 묻는다. 빈 배열·빈 묶음은 값이 없는 것으로 본다
         val many = args.fields().asSequence().firstOrNull { (_, v) -> (v.isArray || v.isObject) && v.size() > 0 }?.key
         if (many != null) retry("'$many'에 넣은 여러 값") else when (name) {
+            "query_operations" -> {
+                val items = operations?.list(loginId)?.items.orEmpty()
+                val labels = mapOf("NORMAL" to "정상", "WATCH" to "주의", "INSPECTION" to "점검", "FAULT" to "장애", "OFFLINE" to "중단")
+                val values = linkedMapOf<String, Any?>("전체 체계" to items.size)
+                labels.forEach { (code, label) -> values[label] = items.count { it.status == code } }
+                if (args.path("mode").asText() == "list") values["체계 목록"] = items.take(10).map { mapOf("체계명" to it.name, "상태" to labels[it.status], "운용률" to it.uptimePct, "소속" to it.departmentLabel) }
+                AiToolResult(values, listOf("현재 조회 권한 범위의 운영체계 · 운용률은 담당자 기록값"), listOf(AiLink("정보통신 운영 현황", "/operations?view=systems")), checks = actor.workScope().map { AiSourceRef(AiRefTypes.STATUS, it, label = "") })
+            }
             "query_equipment" -> equipment(args, actor, asked)
             "query_work" -> work(args, actor, loginId, asked)
             "query_people" -> people(args, actor, asked)

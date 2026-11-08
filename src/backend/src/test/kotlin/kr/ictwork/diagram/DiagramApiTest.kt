@@ -224,7 +224,7 @@ class DiagramApiTest(
         personnelRepository.saveAndFlush(p)
         getAs("d-admin", "/api/diagrams/$id").andExpect(status().isNotFound)
         assertThat(json(getAs("d-admin", "/api/diagrams/orphans").andExpect(status().isOk)).map { it["id"].asLong() }).contains(id)
-        assertThat(json(getAs("d-sys", "/api/diagrams/orphans").andExpect(status().isOk)).map { it["id"].asLong() }).doesNotContain(id)
+        assertThat(json(getAs("d-sys", "/api/diagrams/orphans").andExpect(status().isOk)).map { it["id"].asLong() }).contains(id)
         send("POST", "d-c2", "/api/diagrams/$id/recover").andExpect(status().isNotFound)
         // 부서 관리자 d-admin은 대대 소속(주인 부서 아님)이지만 공백인 동안은 권한을 바꿀 수 있다 (설계자 판단 ⑦)
         send("POST", "d-admin", "/api/diagrams/$id/recover").andExpect(status().isNoContent)

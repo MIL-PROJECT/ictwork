@@ -897,7 +897,7 @@ aside .sb-scroll {
 aside:has(> .sb-scroll) {
   overflow: hidden;
 }
-aside :is(.menu-item-text, .menu-dropdown-item, .sb-status, h2) {
+aside :is(.menu-item-text, .menu-dropdown-item, .sb-status:not(.sb-qa-status), h2) {
   white-space: nowrap;
 }
 aside .menu-item-text {
@@ -905,15 +905,15 @@ aside .menu-item-text {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 낮은 화면: 사이드바 아래 상태 상자를 숨겨 메뉴 자리를 확보한다 (OMNIS 850px 이하 압축) */
+/* 낮은 화면: AI 상태 상자를 숨겨 메뉴 자리를 확보한다. QA 계정 전환 안내는 유지한다. */
 @media (max-height: 820px) {
-  aside .sb-status {
+  aside .sb-status:not(.sb-qa-status) {
     display: none;
   }
 }
 /* 글자 크기 "크게"(REQ-008)는 같은 창에서 CSS 높이가 1/1.25이므로 조건을 배율만큼(820 × 1.25) 늦춘다 */
 @media (max-height: 1025px) {
-  html[data-font-size="large"] aside .sb-status {
+  html[data-font-size="large"] aside .sb-status:not(.sb-qa-status) {
     display: none;
   }
 }

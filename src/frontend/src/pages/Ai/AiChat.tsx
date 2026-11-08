@@ -14,13 +14,15 @@ import ConversationList from "@/components/ai/ConversationList";
 import QuestionInput from "@/components/ai/QuestionInput";
 import { nextLocalId, useAiAsk } from "@/components/ai/useAiAsk";
 import ProposalButtons from "@/components/assist/ProposalButtons";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import AiWorkbench from "@/components/ai/AiWorkbench";
+import useViewportPanel from "@/hooks/useViewportPanel";
 import { useAssist } from "@/context/AssistContext";
 import { AiIcon, AlertHexaIcon, InfoIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./ai-workspace.css";
 
 interface Thread {
   id: number | null; // null: 아직 만들지 않은 새 대화
@@ -41,6 +43,8 @@ export default function AiChat() {
   const { t: tc } = useTranslation();
   const { t: tf } = useTranslation("frameAdmin");
   const { state: busy, ask, stop } = useAiAsk();
+  const { ref: viewportRef, height: panelHeight } = useViewportPanel();
+  const [mode, setMode] = useState<"chat" | "analysis">("chat");
   const { setPageConversation, startTask, turnSignal, notifyTurn } = useAssist();
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [statusError, setStatusError] = useState<"off" | "error" | null>(null); // off: AI가 꺼져 있음(서버 404)
@@ -228,26 +232,31 @@ export default function AiChat() {
   const questionCount = thread.messages.filter((m) => m.role === "USER").length;
 
   return (
-    <div>
+    <div ref={viewportRef} className="ai-page" data-compact={panelHeight > 0 && panelHeight < 650} style={panelHeight ? { height: panelHeight } : undefined}>
       <PageMeta titleKey="sidebar.items.aiChat" />
-      {/* OMNIS AI 지원: 페이지 머리 설명 + 참고용 안내 띠, 아래에 카드(대화 목록·대화) */}
-      <PageBreadcrumb pageTitle={tc("sidebar.items.aiChat")} description={tf("ai.description")} />
-      <p className="mb-4 flex items-start gap-2.5 rounded-xl bg-brand-50 px-4 py-2.5 text-[13px] text-brand-600 ring-1 ring-brand-200 ring-inset dark:bg-white/5 dark:text-gray-300 dark:ring-gray-700">
-        <InfoIcon className="mt-0.5 size-4 shrink-0 [&_path]:fill-current" aria-hidden="true" />
-        {tf("ai.banner")}
-      </p>
+      <header className="ai-page-heading">
+        <div><h1>{tc("sidebar.items.aiChat")}</h1><p>{t("workspace.description")}</p></div>
+        <details className="ai-help"><summary><InfoIcon aria-hidden />{t("workspace.help")}</summary><div>{tf("ai.banner")}<p>{t("workspace.localHelp")}</p></div></details>
+      </header>
+      <div className="ai-toolbar">
+        <div role="group" aria-label={t("workspace.mode")} className="ai-mode-switch">
+          <button type="button" aria-pressed={mode === "chat"} onClick={() => setMode("chat")}>{t("workspace.chat")}</button>
+          <button type="button" aria-pressed={mode === "analysis"} onClick={() => setMode("analysis")}>{t("workspace.analysis")}</button>
+        </div>
+        {status?.provider && <p className="ai-provider" title={status.model} role="status">{mode === "analysis" ? t("workspace.localAnalysis") : `${status.provider} · ${status.model}`}</p>}
+      </div>
       {unreachable && (
-        <p role="alert" className="mb-4 flex items-start gap-2.5 rounded-xl bg-warning-50 px-4 py-2.5 text-[13px] text-warning-800 ring-1 ring-warning-500/30 ring-inset dark:bg-warning-500/15 dark:text-warning-300">
+        <p role="alert" className="ai-alert flex items-start gap-2.5 rounded-xl bg-warning-50 px-4 py-2 text-[13px] text-warning-800 dark:bg-warning-500/15 dark:text-warning-300">
           <AlertHexaIcon className="mt-0.5 size-4 shrink-0 [&_path]:fill-current" aria-hidden="true" />
           {t("unreachable")}
         </p>
       )}
       {statusError && (
-        <p className="mb-4 rounded-xl bg-error-50 px-4 py-2.5 text-[13px] text-error-600 ring-1 ring-error-500/20 ring-inset dark:bg-error-500/10 dark:text-error-400">
+        <p role="alert" className="ai-alert rounded-xl bg-error-50 px-4 py-2 text-[13px] text-error-600 dark:bg-error-500/10 dark:text-error-400">
           {t(statusError === "off" ? "off" : "statusError")}
         </p>
       )}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+      <div hidden={mode !== "chat"} className="ai-workspace" onKeyDown={e => { if (e.key === "Escape" && listOpen) { setListOpen(false); toggleRef.current?.focus(); } }}>
         <ConversationList
           conversations={conversations}
           error={listError}
@@ -260,9 +269,9 @@ export default function AiChat() {
           onNew={startNew}
           onDelete={remove}
         />
-        <section aria-labelledby="ai-chat-title" className="omnis-panel min-w-0 flex-1 overflow-hidden rounded-[20px] bg-white dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/[0.03]">
+        <section aria-labelledby="ai-chat-title" className="ai-chat-panel omnis-panel min-h-0 min-w-0 flex flex-col overflow-hidden rounded-[20px] bg-white dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/[0.03]">
           {/* OMNIS 카드 머리: 아이콘 타일 + 제목(지금 대화) + 부제(질문 건수) */}
-          <div className="flex min-h-[62px] items-center gap-3 border-b border-gray-100 px-[22px] py-3 dark:border-gray-800">
+          <div className="ai-chat-heading flex shrink-0 min-h-[62px] items-center gap-3 border-b border-gray-100 px-[22px] py-3 dark:border-gray-800">
             <span aria-hidden className="grid size-[34px] shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-500 [&_svg]:size-[18px] dark:bg-white/10 dark:text-brand-300">
               <AiIcon />
             </span>
@@ -274,6 +283,7 @@ export default function AiChat() {
             </div>
           </div>
           <ChatMessages
+            className="ai-messages h-0 min-h-0 flex-1"
             messages={thread.messages}
             draft={busyHere ? busy : null}
             loading={thread.loading}
@@ -292,6 +302,7 @@ export default function AiChat() {
             </p>
           )}
           <QuestionInput
+            compact
             value={input}
             onChange={setInput}
             onSubmit={() => void send(input, true)}
@@ -302,6 +313,7 @@ export default function AiChat() {
           />
         </section>
       </div>
+      <div hidden={mode !== "analysis"} className="ai-analysis"><AiWorkbench disabled={statusError === "off" || !!busy} /></div>
       {/* 답이 끝났을 때만 읽어 준다(글자마다 읽지 않음) */}
       <p role="status" aria-live="polite" className="sr-only">
         {/* 같은 문구가 이어져도 다시 읽도록 끝에 빈칸을 번갈아 붙인다 */}

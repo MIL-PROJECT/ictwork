@@ -9,7 +9,8 @@
     "roles": "역할",
     "none": "없음",
     "systemWide": "체계 전체",
-    "loadError": "내 정보를 불러오지 못했습니다."
+    "loadError": "내 정보를 불러오지 못했습니다.",
+    "compactDesc": "계정 정보 변경은 관리자에게 요청하세요."
   },
   "positions": {
     "BN_CMDR": "대대장",
@@ -56,6 +57,15 @@
     "guidesOn": "보임",
     "guidesOff": "숨김",
     "guidesHelp": "화면의 작은 설명 글을 숨깁니다. 규칙·경고·오류 안내는 늘 보입니다.",
-    "guidesSaveFailed": "설명 글 설정을 저장하지 못했습니다. 잠시 뒤 다시 고르세요."
+    "guidesSaveFailed": "설명 글 설정을 저장하지 못했습니다. 잠시 뒤 다시 고르세요.",
+    "combinedTitle": "화면·달력 설정",
+    "compactDesc": "표시 방식과 계정별 글자 크기를 설정합니다."
+  },
+  "layout": {
+    "groups": "개인설정 구분",
+    "profile": "내 정보",
+    "display": "화면·달력",
+    "password": "비밀번호",
+    "notifications": "알림"
   }
 }

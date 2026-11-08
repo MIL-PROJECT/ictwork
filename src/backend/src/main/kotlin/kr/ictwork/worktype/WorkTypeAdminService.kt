@@ -103,8 +103,8 @@ class WorkTypeAdminService(
     @Transactional(readOnly = true)
     fun departments(loginId: String): List<WorkTypeDepartment> {
         val actor = accessPolicy.actor(loginId)
-        if (!actor.isDeptAdmin) throw denied()
-        return actor.roles.mapNotNull { it.departmentId?.takeIf(actor::deptAdminOf) }.distinct()
+        if (!actor.isSysAdmin && !actor.isDeptAdmin) throw denied()
+        return (if (actor.isSysAdmin) actor.tree.allIds().toList() else actor.roles.mapNotNull { it.departmentId?.takeIf(actor::deptAdminOf) }).distinct()
             .filter { actor.tree.find(it)?.active == true }
             .map { WorkTypeDepartment(it, resolver.path(actor.tree, it)) }
             .sortedBy { it.path }

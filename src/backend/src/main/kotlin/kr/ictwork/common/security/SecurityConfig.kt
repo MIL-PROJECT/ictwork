@@ -56,6 +56,7 @@ class SecurityConfig(private val objectMapper: ObjectMapper) {
         loginSuccessHandler: AuthenticationSuccessHandler,
         userDetailsService: UserDetailsService,
         qaMaster: QaMaster,
+        accountSecurity: kr.ictwork.admin.AccountSecurityService,
     ): SecurityFilterChain {
         // QA 마스터 세션은 계정 고르기·내 정보·로그아웃만 쓴다 (DEC-067)
         val notQaMaster = AuthorizationManager<RequestAuthorizationContext> { authentication, _ ->
@@ -78,6 +79,7 @@ class SecurityConfig(private val objectMapper: ObjectMapper) {
                     .antMatchers(HttpMethod.GET, "/api/me").authenticated()
                     // 로그인·로그아웃 주소의 POST는 앞의 필터가 처리한다. 그 밖의 방식은 로그인하지 않았어도 MVC까지 가서 405가 된다 (DEC-054)
                     .antMatchers("/api/auth/login", "/api/auth/logout").permitAll()
+                    .antMatchers(HttpMethod.POST, "/api/registrations").permitAll()
                     .antMatchers("/api/**").access(notQaMaster)
                     .anyRequest().permitAll()
             }
@@ -87,7 +89,8 @@ class SecurityConfig(private val objectMapper: ObjectMapper) {
                     .usernameParameter("loginId")
                     .passwordParameter("password")
                     .successHandler(loginSuccessHandler)
-                    .failureHandler { _, response, _ ->
+                    .failureHandler { request, response, _ ->
+                        accountSecurity.failure(request.getParameter("loginId").orEmpty())
                         response.writeJson(objectMapper, 401, ErrorResponse("AUTH_INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다."))
                     }
             }

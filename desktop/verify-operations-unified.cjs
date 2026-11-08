@@ -98,9 +98,9 @@ async function checkActor(page,origin,evidence,user,{mutate=false}={}) {
     const r=el.getBoundingClientRect();return [...el.children].filter(c=>getComputedStyle(c).display!=='none').map(c=>{const x=c.getBoundingClientRect();return Math.abs((x.top+x.bottom)/2-(r.top+r.bottom)/2);});
   }));assert.ok(centered.every(d=>d<1),'All visible receipt headers must be vertically centered');
   const core=await page.locator('.board-core').boundingBox(),attention=await page.locator('.board-attention').boundingBox();
-  assert.ok(Math.abs(core.y-attention.y)<1&&core.x+core.width<=attention.x,'Control and attention are separate adjacent cards');
+  assert.ok(Math.abs(core.y-attention.y)<1&&core.x+core.width<=attention.x,'Control and attention sit side by side in one shared card');
   await page.screenshot({path:path.join(evidence,'unified-board-'+user+'.png'),animations:'disabled'});
-  checks.push('risk area only contains control/alerts, separate cards and centered receipt headers');
+  checks.push('risk area only contains control/alerts in one shared card and centered receipt headers');
   return {user,checks,visibleBoxes:visible.length,canCreateBoxes:!!raw.addDepartments.length,createdId,receiptHeaderCenterOffsets:centered};
 }
 module.exports=async(page,origin,evidence)=>{

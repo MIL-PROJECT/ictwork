@@ -5,6 +5,7 @@
   "main": "main.cjs",
   "private": true,
   "scripts": {
+    "dev": "node dev.cjs",
     "verify:setup": "node setup-smoke.cjs"
   },
   "devDependencies": {

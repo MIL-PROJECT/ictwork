@@ -1,3 +1,4 @@
+import { indicatorSummary } from "@/utils/ictStatusPresentation";
 import { ApiError } from "@/api/client";
 import { type BoxDetail, deleteBox, fetchBox } from "@/api/ictStatus";
 import Button from "@/components/ui/button/Button";
@@ -166,7 +167,7 @@ export default function BoxDetailDialog({ boxId, tab, onTab, tick, onClose, onCh
                     <div>
                       <dt className="text-theme-xs text-gray-500 dark:text-gray-400">{t("detail.summary")}</dt>
                       <dd className={cn("mt-1 inline-flex rounded-md px-3 py-1.5 text-base font-semibold", tone.card, tone.text)}>
-                        {detail.shownSummary}
+                        {indicatorSummary(detail, { normal: t("status.normal"), abnormal: t("status.abnormal") })}
                         <span className="sr-only">{t("colorLabel", { color: t(`colors.${detail.shownColor}`) })}</span>
                       </dd>
                     </div>

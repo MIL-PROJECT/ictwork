@@ -85,5 +85,59 @@
     "AI_FAILED": "Could not write an answer. Please ask again.",
     "NOT_FOUND": "Conversation not found. It may have been deleted or the AI feature is off.",
     "default": "The request could not be processed. Please try again later."
+  },
+  "workspace": {
+    "description": "Ask about system data and review work analysis in one place.",
+    "help": "About this page",
+    "mode": "AI features",
+    "chat": "Chat",
+    "analysis": "Work analysis",
+    "localAnalysis": "Local rules · no external transmission",
+    "localHelp": "LOCAL uses permission-scoped queries and rules without a generative model. Long conversations and results scroll within their panels; the composer remains on screen."
+  },
+  "analysis": {
+    "features": "Analysis features",
+    "SUMMARY": {
+      "label": "Daily summary",
+      "description": "Count visible systems, open work and work completed today."
+    },
+    "TRIAGE": {
+      "label": "Triage",
+      "description": "Suggest a category and priority from symptoms and service impact."
+    },
+    "PRIORITY": {
+      "label": "Work priorities",
+      "description": "Review open work by urgency, overdue deadline and scheduled date."
+    },
+    "SIMILAR": {
+      "label": "Similar work",
+      "description": "Find visible current and past work with overlapping title terms."
+    },
+    "title": "Title",
+    "titlePlaceholder": "Example: wireless communication outage",
+    "symptoms": "Description / symptoms",
+    "impact": "Service impact",
+    "rulesHelp": "Rule-based suggestions. Review original records and use professional judgment.",
+    "run": "Run analysis",
+    "running": "Loading and analyzing…",
+    "result": "Analysis result",
+    "empty": "Select an analysis feature",
+    "emptyHelp": "Only visible records are analyzed; business data is never changed automatically.",
+    "category": "Suggested category",
+    "priority": "Suggested priority",
+    "urgent": "Urgent",
+    "normal": "Normal",
+    "rationale": "Reason:",
+    "overdue": "Overdue",
+    "noMatches": "No matching work.",
+    "status": {
+      "RECEIVED": "Awaiting receipt",
+      "IN_APPROVAL": "In approval",
+      "APPROVED": "Received",
+      "PLANNED": "Planned",
+      "DONE": "Completed",
+      "REJECTED": "Rejected",
+      "TRANSFERRED": "Transferred"
+    }
   }
 }

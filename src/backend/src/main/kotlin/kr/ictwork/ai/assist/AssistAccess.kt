@@ -220,11 +220,11 @@ class AssistAccess(
 
     /** 근무표 추가: 부서 관리자가 관리하는 사용 중 부서(하위 제외, DutyAccess.canManage) */
     fun manageableDepartments(actor: Actor): List<Long> =
-        actor.roles.filter { it.roleCode == Roles.DEPT_ADMIN }.mapNotNull { it.departmentId }.distinct().filter { dutyAccess.canManage(actor, it) }
+        actor.directlyManagedActiveDepartments().toList()
 
     /** 업무 유형을 만들 수 있는 부서: 사용 중인 부서 관리자 역할의 대상 부서 그대로 (WorkTypeAdminService.departments) */
     fun workTypeDepartments(actor: Actor): Set<Long> =
-        actor.roles.mapNotNull { it.departmentId?.takeIf(actor::deptAdminOf) }.filter { actor.tree.find(it)?.active == true }.toSet()
+        actor.directlyManagedActiveDepartments()
 
     /** 설치장소를 등록할 수 있는 부서: 장비관리 범위(equipmentDepartmentIds)의 사용 중 부서 (12.8) */
     fun locationDepartments(actor: Actor): Set<Long> = actor.deptAdminDepartmentIds().filter { actor.tree.find(it)?.active == true }.toSet()

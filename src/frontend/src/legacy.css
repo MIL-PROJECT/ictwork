@@ -11,6 +11,7 @@ body { font-family:'Pretendard Variable',Pretendard,'Segoe UI','Malgun Gothic',s
 .omnis-shell { font-size:13px; }
 .omnis-shell>aside { box-shadow:var(--omnis-shadow); }
 .legacy-sidebar-brand { padding-left:10px; }
+.legacy-sidebar-brand[data-collapsed=true] { justify-content:center;padding-inline:0; }
 .legacy-sidebar-brand strong { font-size:20px;font-weight:800;letter-spacing:-.3px; }
 .legacy-sidebar-brand strong+span { font-size:11px;line-height:15px;margin-top:3px; }
 .omnis-shell .menu-item { font-size:14.5px;font-weight:500;gap:12px;height:44px; }

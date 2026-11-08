@@ -71,6 +71,7 @@ class AiCall {
 @Component
 class OllamaClient(private val settings: AiSettings) {
     private val mapper = jacksonObjectMapper()
+    private val external by lazy { ExternalAiClient(settings) }
     private val http: HttpClient by lazy {
         HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
@@ -86,7 +87,14 @@ class OllamaClient(private val settings: AiSettings) {
     fun tree(value: Any?): JsonNode = mapper.valueToTree(value)
 
     /** 실행기에 닿는가 (GET /api/version, 3초) */
-    fun reachable(): Boolean = try {
+    fun reachable(): Boolean {
+        if (settings.provider == "LOCAL") return true
+        if (settings.provider in setOf("OPENAI", "ANTHROPIC")) {
+            val runtime = settings.runtime ?: return false
+            val value = runtime.value()
+            return value.externalAiEnabled && !value.externalAiConsentAt.isNullOrBlank() && runtime.credentialConfigured(settings.provider) && settings.chatModel.isNotBlank()
+        }
+        return try {
         val response = http.send(request("/api/version").timeout(Duration.ofSeconds(3)).GET().build(), HttpResponse.BodyHandlers.discarding())
         response.statusCode() == 200
     } catch (e: InterruptedException) {
@@ -95,6 +103,7 @@ class OllamaClient(private val settings: AiSettings) {
     } catch (e: Exception) {
         false
     }
+    }
 
     /**
      * 글 찾기 벡터 (POST /api/embed). 처음 모델을 올릴 때 수십 초 걸릴 수 있어 2분까지 기다린다.
@@ -102,6 +111,7 @@ class OllamaClient(private val settings: AiSettings) {
      */
     fun embed(texts: List<String>, call: AiCall? = null): List<FloatArray> {
         if (call?.cancelled == true) throw AiCancelledException()
+        if (settings.provider != "OLLAMA") return texts.map(LocalRuleEngine::embedding)
         val body = newObject().put("model", settings.embedModel)
         body.putArray("input").also { array -> texts.forEach(array::add) }
         val request = post("/api/embed", body).timeout(Duration.ofMinutes(2)).build()
@@ -135,6 +145,18 @@ class OllamaClient(private val settings: AiSettings) {
      */
     fun chat(body: ObjectNode, call: AiCall, onPart: (JsonNode) -> Unit) {
         if (call.cancelled) throw AiCancelledException()
+        if (settings.provider == "LOCAL") { onPart(LocalRuleEngine.reply(body)); return }
+        if (settings.provider in setOf("OPENAI", "ANTHROPIC")) {
+            try { external.chat(body, call, onPart) } catch (e: AiUnavailableException) {
+                if (call.cancelled) throw AiCancelledException()
+                settings.runtime?.fallback(settings.provider)
+                val reply = LocalRuleEngine.reply(body)
+                val message = reply.path("message") as ObjectNode
+                if (message.path("content").asText().isNotEmpty()) message.put("content", "외부 AI 응답을 받지 못해 로컬 규칙으로 대체했습니다.\n" + message.path("content").asText())
+                onPart(reply)
+            }
+            return
+        }
         val future = http.sendAsync(post("/api/chat", body).build(), HttpResponse.BodyHandlers.ofInputStream())
         call.attach(future)
         val response = try {
@@ -174,6 +196,8 @@ class OllamaClient(private val settings: AiSettings) {
      */
     fun structured(body: ObjectNode, schema: JsonNode, call: AiCall, tick: (() -> Unit)? = null): ObjectNode {
         if (call.cancelled) throw AiCancelledException()
+        if (settings.provider == "LOCAL") return LocalRuleEngine.structured(schema)
+        if (settings.provider in setOf("OPENAI", "ANTHROPIC")) return external.structured(body, schema, call)
         body.put("stream", false)
         body.set<JsonNode>("format", schema)
         val future = http.sendAsync(post("/api/chat", body).build(), HttpResponse.BodyHandlers.ofByteArray())

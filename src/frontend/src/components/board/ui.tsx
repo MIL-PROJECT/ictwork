@@ -115,6 +115,7 @@ export function Paged<T>({
   reserved = 0,
   unit,
   compact = false,
+  pageSize,
   children,
 }: {
   rows: T[];
@@ -122,6 +123,7 @@ export function Paged<T>({
   reserved?: number;
   unit: string;
   compact?: boolean;
+  pageSize?: number;
   children: (pageRows: T[]) => ReactNode;
 }) {
   const { t } = useTranslation("board");
@@ -133,14 +135,14 @@ export function Paged<T>({
     const el = ref.current;
     if (!el) return;
     const fit = () => {
-      setSize(pageCapacity(el.clientHeight, rowHeight, reserved));
+      setSize(pageSize ?? pageCapacity(el.clientHeight, rowHeight, reserved));
       setNarrow(el.clientWidth < 380);
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [rowHeight, reserved]);
+  }, [rowHeight, reserved, pageSize]);
   const pages = size ? Math.max(1, Math.ceil(rows.length / size)) : 1;
   const smallPager = compact || narrow;
   const cur = Math.min(page, pages);

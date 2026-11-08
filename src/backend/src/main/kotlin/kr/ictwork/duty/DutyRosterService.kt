@@ -141,7 +141,7 @@ class DutyRosterService(
         val actor = accessPolicy.actor(loginId)
         if (!access.editableAny(actor)) throw denied()
         val tree = actor.tree
-        val managed = actor.roles.filter { it.roleCode == Roles.DEPT_ADMIN }.mapNotNull { it.departmentId }.filter { access.canManage(actor, it) }.toSet()
+        val managed = actor.directlyManagedActiveDepartments()
         val assigned = access.assignedRosterIds(actor)
         val rosters = rosterRepository.findAllByOrderByIdAsc()
         val shown = rosters.filter { it.departmentId in managed || checkNotNull(it.id) in assigned }

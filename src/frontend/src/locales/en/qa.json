@@ -31,6 +31,7 @@
   "banner": {
     "label": "QA mode · {name} ({loginId})",
     "switch": "Switch account",
-    "switchFailed": "Could not return to account selection. Please try again."
+    "switchFailed": "Could not return to account selection. Please try again.",
+    "mode": "QA mode"
   }
 }

@@ -69,22 +69,26 @@ class Actor(val account: Account, val roles: List<RoleAssignment>, val tree: Dep
 
     private val deptAdminRoots = roles.filter { it.roleCode == Roles.DEPT_ADMIN }.mapNotNull { it.departmentId }
 
-    val isDeptAdmin = deptAdminRoots.isNotEmpty()
+    // Highest administrators inherit department-management capabilities in OMNIS.
+    val isDeptAdmin = isSysAdmin || deptAdminRoots.isNotEmpty()
 
-    /** 부서 관리자 역할로 관리하는 부서인가 (장비는 시스템 관리자가 아니라 이 판정만 쓴다, DEC-039) */
-    fun deptAdminManages(departmentId: Long): Boolean = deptAdminRoots.any { tree.isWithin(departmentId, it) }
+    /** 최고 관리자는 전체, 부서 관리자는 역할 대상과 그 하위 부서를 관리한다. */
+    fun deptAdminManages(departmentId: Long): Boolean = isSysAdmin || deptAdminRoots.any { tree.isWithin(departmentId, it) }
 
     /**
      * 사용 중인 부서 관리자 역할의 대상 부서가 바로 그 부서인가 (하위 부서 제외, 전출과 무관, slices/11 2.6·G-62).
-     * 업무 유형·양식(REQ-808)과 추가 특성(REQ-405·519)을 고칠 권한. 시스템 관리자도 이 판정을 따른다
+     * 업무 유형·양식과 추가 특성을 고칠 권한. 최고 관리자는 모든 부서를 관리한다.
      */
-    fun deptAdminOf(departmentId: Long): Boolean = departmentId in deptAdminRoots
+    fun deptAdminOf(departmentId: Long): Boolean = isSysAdmin || departmentId in deptAdminRoots
+
+    /** 업무 유형·특성·현황·근무표를 관리할 수 있는 사용 중 부서. */
+    fun directlyManagedActiveDepartments(): Set<Long> = tree.allIds().filter { deptAdminOf(it) && tree.find(it)?.active == true }.toSet()
 
     /** 관리하는 부서인가: 시스템 관리자는 전체 */
     fun manages(departmentId: Long): Boolean = isSysAdmin || deptAdminManages(departmentId)
 
-    /** 부서 관리자 역할로 관리하는 부서 목록 (장비 관리 범위, 시스템 관리자라도 이 역할이 없으면 비어 있음) */
-    fun deptAdminDepartmentIds(): Set<Long> = deptAdminRoots.flatMap { tree.selfAndDescendants(it) }.toSet()
+    /** 장비 관리 범위: 최고 관리자는 전체 부서. */
+    fun deptAdminDepartmentIds(): Set<Long> = if (isSysAdmin) tree.allIds() else deptAdminRoots.flatMap { tree.selfAndDescendants(it) }.toSet()
 
     /**
      * 업무 조회 범위 (DEC-060): 소속 범위 ∪ 역할 범위(가진 역할의 대상 부서와 하위). 시스템 관리자는 전체.
@@ -110,7 +114,7 @@ class Actor(val account: Account, val roles: List<RoleAssignment>, val tree: Dep
 
     /**
      * 장비를 다룰 수 있는 범위 (명세 1.4, E-34·E-37): 관리 범위 ∪ 자기 소속 부서(하위 부서는 넣지 않음).
-     * 시스템 관리자도 같은 규칙 (E-28)
+     * 최고 관리자는 모든 부서를 포함한다.
      */
     fun equipmentScope(): Set<Long> = deptAdminDepartmentIds() + setOfNotNull(personnelDepartmentId)
 

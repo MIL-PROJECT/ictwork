@@ -68,7 +68,7 @@ class IctBoxAccess(
 
     /** 박스를 추가할 수 있는 부서: DEPT_ADMIN 역할 대상 부서 중 사용 중인 것, 조직 순서 */
     fun managedDepartments(actor: Actor): List<Long> {
-        val ids = actor.roles.filter { it.roleCode == Roles.DEPT_ADMIN }.mapNotNull { it.departmentId }.filter { actor.tree.find(it)?.active == true }.toSet()
+        val ids = actor.directlyManagedActiveDepartments()
         return statusScopes.order(actor.tree, ids)
     }
 }

@@ -18,7 +18,7 @@ test("system search, status and attention filters intersect across names/codes/d
   assert.equal(filterOperations(items,"","NORMAL",true).length,0);
   assert.equal(filterOperations(items,"없는 체계","").length,0);
 });
-test("operations belongs to the overview group, preserving six top menus",()=>{
-  assert.equal(topMenus.length,6);assert.ok(topMenus[0].children.includes("operations"));
+test("operations stays in overview independently of the gated system menu",()=>{
+  assert.equal(topMenus.filter(menu=>menu.key!=="systemAdmin").length,6);assert.ok(topMenus[0].children.includes("operations"));
   assert.equal(navigationContext("/operations","?system=12")?.screen.owner,"overview");
 });

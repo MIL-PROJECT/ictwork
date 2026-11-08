@@ -27,7 +27,6 @@ import { Panel } from "@/components/common/Panel";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import DepartmentFilter, { FILTER_SELECT_CLASS } from "@/components/org/DepartmentFilter";
 import { byName } from "@/components/org/OrgTree";
-import { AssignedWorkList } from "@/components/work/common";
 import { useAuth, useGuides } from "@/context/AuthContext";
 import { useOrgData } from "@/hooks/useOrgData";
 import { usePaging } from "@/hooks/usePaging";
@@ -378,7 +377,7 @@ export default function EquipmentBrowser({
   const columnLabel = (key: ColumnKey) => (isAttrKey(key) ? (attrColumns.get(key)?.label ?? key) : t(`fields.${key}`));
   // 켠 추가 특성 열만 걸러 보기 칸을 보인다(특성이 많아도 걸러 보기 줄이 길어지지 않게, 설계 판단)
   const filterColumns = attrColumnList.filter((c) => columns.includes(attrColumnKey(c) as ColumnKey) && (FILTER_BY_VALUE.includes(c.kind) || FILTER_BY_RANGE.includes(c.kind)));
-  const linkKey = shown.includes("NAME") ? "NAME" : shown.find((k) => k !== "ASSIGNED_WORK");
+  const linkKey = shown.includes("NAME") ? "NAME" : shown[0];
   // 업무 현황에서 연 목록은 그 조건 안에서 보고 내려받기만 한다(등록·일괄 등록·편집 모드 없음, 설계 9.2)
   const canAdd = canAddEquipment(user?.equipmentEditDepartmentIds.length ?? 0, source);
   const canEditTable = canAdd;
@@ -631,7 +630,7 @@ export default function EquipmentBrowser({
         )}
         {/* 표는 카드 안에 꽉 차게(테두리·모서리 없음) */}
         <div className="print-fit relative overflow-x-auto">
-          <Table className="text-sm">
+          <Table className="equipment-list-table text-sm">
             <caption className="sr-only">{t("list.caption")}</caption>
             <TableHeader className="border-b border-gray-200 dark:border-gray-800">
               <TableRow>
@@ -696,13 +695,14 @@ export default function EquipmentBrowser({
                     />
                   );
                 }
-                // 상세 화면으로 가는 링크 (키보드로도 열 수 있게): 장비명 칸, 없으면 배정된 업무가 아닌 첫 칸.
+                // 상세 화면으로 가는 링크 (키보드로도 열 수 있게): 장비명 칸, 없으면 첫 칸.
                 // 빈 칸이어도 누를 수 있게 "—"를 보이고, 화면 읽기 프로그램에는 장비 표시 이름을 함께 읽힌다
                 const link = (text: string) => (
                   <Link
                     to={`/department/equipment/${e.id}`}
                     state={{ from: `${location.pathname}${location.search}` }}
-                    className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    title={text || e.displayName}
+                    className="block max-w-80 truncate print:max-w-none print:overflow-visible print:whitespace-normal print:text-clip font-medium text-brand-600 hover:underline dark:text-brand-400"
                   >
                     {text || "—"}
                     {/* 장비명 칸이면 시리얼넘버만, 다른 칸이면 표시 이름 전체를 화면 읽기 프로그램에 덧붙인다 */}
@@ -710,18 +710,13 @@ export default function EquipmentBrowser({
                   </Link>
                 );
                 return (
-                  <TableRow key={e.id} className={cn(e.status === "DISPOSED" && "opacity-60", !onPage.has(e.id) && offPage)}>
-                    {shown.map((key, index) => (
-                      <TableCell key={key} className={cn("px-4 py-3 align-top text-gray-700 dark:text-gray-300", columnClass(key), key === STICKY_COLUMN && STICKY_CLASS)}>
+                  <TableRow key={e.id} className={cn("h-10 print:h-auto", e.status === "DISPOSED" && "opacity-60", !onPage.has(e.id) && offPage)}>
+                    {shown.map((key) => (
+                      <TableCell key={key} className={cn("px-4 py-3 align-middle text-gray-700 dark:text-gray-300", columnClass(key), key === STICKY_COLUMN && STICKY_CLASS)}>
                         {key === linkKey ? (
                           link(cellText(e, key, t, attrColumns))
-                        ) : key === "ASSIGNED_WORK" ? (
-                          <>
-                            {!linkKey && index === 0 && link(e.displayName)}
-                            <AssignedWorkList items={e.assignedWork} />
-                          </>
                         ) : (
-                          cellText(e, key, t, attrColumns)
+                          <span className="block max-w-80 truncate print:max-w-none print:overflow-visible print:whitespace-normal print:text-clip" title={cellText(e, key, t, attrColumns)}>{cellText(e, key, t, attrColumns)}</span>
                         )}
                       </TableCell>
                     ))}

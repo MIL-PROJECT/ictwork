@@ -6,6 +6,8 @@ import { ApiError, apiFetch, notifyAuthStatus } from "./client";
 export interface AiStatus {
   reachable: boolean;
   examples: string[];
+  provider?: string;
+  model?: string;
 }
 
 // 서버 ConversationView: 제목은 첫 질문 때 정해져 그 전에는 null
@@ -76,6 +78,8 @@ export const fetchAiStatus = () =>
   apiFetch<Partial<AiStatus>>("/api/ai/status").then((s) => ({
     reachable: s.reachable !== false,
     examples: Array.isArray(s.examples) ? s.examples.slice(0, 3) : [],
+    provider: s.provider,
+    model: s.model,
   }));
 
 export const fetchConversations = () => apiFetch<AiConversationSummary[]>("/api/ai/conversations");

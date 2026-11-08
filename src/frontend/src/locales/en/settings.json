@@ -9,7 +9,8 @@
     "roles": "Roles",
     "none": "None",
     "systemWide": "Whole system",
-    "loadError": "Could not load your information."
+    "loadError": "Could not load your information.",
+    "compactDesc": "Contact an administrator to change account details."
   },
   "positions": {
     "BN_CMDR": "Battalion commander",
@@ -56,6 +57,15 @@
     "guidesOn": "Show",
     "guidesOff": "Hide",
     "guidesHelp": "Hides small explanatory text on screens. Rules, warnings and errors always stay visible.",
-    "guidesSaveFailed": "Couldn't save the help text setting. Try again in a moment."
+    "guidesSaveFailed": "Couldn't save the help text setting. Try again in a moment.",
+    "combinedTitle": "Display & calendar",
+    "compactDesc": "Adjust display options and account font size."
+  },
+  "layout": {
+    "groups": "Settings groups",
+    "profile": "Profile",
+    "display": "Display",
+    "password": "Password",
+    "notifications": "Alerts"
   }
 }

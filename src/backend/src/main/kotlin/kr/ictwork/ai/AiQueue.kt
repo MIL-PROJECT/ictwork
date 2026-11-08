@@ -26,6 +26,10 @@ class AiQueue {
 
     /** 질문을 처리하는 중인가 (색인은 이 동안 쉰다) */
     val processing: Boolean get() = running != null
+    fun <T> configure(action: () -> T): T = lock.withLock {
+        if (line.isNotEmpty()) throw busy()
+        action()
+    }
 
     fun enter(accountId: Long, conversationId: Long): AiTicket = lock.withLock {
         if (line.any { it.accountId == accountId }) throw busy()

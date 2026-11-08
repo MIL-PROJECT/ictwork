@@ -212,12 +212,12 @@ class EquipmentApiTest(
     }
 
     @Test
-    fun `REQ-501 부서 관리자 역할이 없는 시스템 관리자는 자기 소속 부서 밖의 장비를 등록할 수 없다`() {
-        create("q-sys", newInput("관리자 장비", s1.id, "QA-N-0002")).andExpect(status().isForbidden)
-        create("q-sys", newInput("관리자 장비", s3.id, "QA-N-0002")).andExpect(status().isCreated)
-        // 소속 밖 장비는 보기만 하고 고치지 못한다 (E-28)
-        edit("q-sys", r1.id, mapOf("memo" to "x")).andExpect(status().isForbidden)
-        assertThat(getAs("q-sys", "/api/me")["equipmentEditDepartmentIds"].map { it.asLong() }).containsExactly(s3.id)
+    fun `REQ-501 최고 관리자는 모든 부서의 장비를 등록하고 수정한다`() {
+        create("q-sys", newInput("관리자 장비", s1.id, "QA-N-0002")).andExpect(status().isCreated)
+        create("q-sys", newInput("관리자 장비", s3.id, "QA-N-0003")).andExpect(status().isCreated)
+        // 최고 관리자 권한은 소속과 무관하다.
+        edit("q-sys", r1.id, mapOf("memo" to "x")).andExpect(status().isOk)
+        assertThat(getAs("q-sys", "/api/me")["equipmentEditDepartmentIds"].map { it.asLong() }).contains(s1.id, s2.id, s3.id)
     }
 
     @Test
@@ -476,7 +476,7 @@ class EquipmentApiTest(
         assertThat(managed.map { it["id"].asLong() }).containsExactlyInAnyOrder(r1.id, r2.id)
         assertThat(managed.first { it["id"].asLong() == r2.id }["status"].asText()).isEqualTo("DISPOSED")
         getStatus("q-s1a", "/api/admin/equipment").andExpect(status().isForbidden)
-        getStatus("q-sys", "/api/admin/equipment").andExpect(status().isForbidden) // 시스템 관리자도 부서 관리자 역할로만 (E-28)
+        getStatus("q-sys", "/api/admin/equipment").andExpect(status().isOk) // 최고 관리자 포함
     }
 
     @Test

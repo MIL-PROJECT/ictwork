@@ -479,7 +479,7 @@ class AiQaTest(
         assertThat(body.path("stream").asBoolean()).isTrue()
         assertThat(body.path("options").path("num_ctx").asInt()).isEqualTo(16384)
         assertThat(body.path("options").path("temperature").asInt()).isEqualTo(0)
-        assertThat(body.path("tools").map { it.path("function").path("name").asText() }).containsExactly("query_equipment", "query_work", "query_people", "query_directives", "query_duty", "query_ict_status")
+        assertThat(body.path("tools").map { it.path("function").path("name").asText() }).containsExactly("query_equipment", "query_work", "query_people", "query_directives", "query_duty", "query_ict_status", "query_operations")
 
         val detail = json(mockMvc.perform(get("/api/ai/conversations/$id").with(signedIn("ai-s1a", accountRepository))).andExpect(status().isOk)
             .andReturn().response.getContentAsString(Charsets.UTF_8))

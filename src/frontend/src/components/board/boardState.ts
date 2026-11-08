@@ -1,4 +1,5 @@
 import type { BoxCard, BoxColor } from "../../api/ictStatus.ts";
+import { indicatorKey } from "../../utils/ictStatusPresentation.ts";
 
 export type ResourceState = "loading" | "ready" | "empty" | "error" | "stale" | "unavailable";
 export interface Resource<T> { value: T | null; state: ResourceState; checkedAt: string | null }
@@ -17,11 +18,31 @@ export function mergeResource<T>(previous: Resource<T>, result: Outcome<T>, now:
 
 export const ALERT_RANK: Partial<Record<BoxColor, number>> = { RED: 0, ORANGE: 1, YELLOW: 2 };
 export const BOX_TONE = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", BLUE: "sky", GRAY: "gray" } as const;
+const CONTROL_RANK: Record<BoxColor, number> = { RED: 0, ORANGE: 1, YELLOW: 2, BLUE: 3, GREEN: 4, GRAY: 5 };
+
+export function compareIndicators(a: BoxCard, b: BoxCard): number {
+  return CONTROL_RANK[a.shownColor] - CONTROL_RANK[b.shownColor] ||
+    b.updatedAt.localeCompare(a.updatedAt) || a.id - b.id;
+}
+
+// Reserve named controls, then fill by configured severity. The full
+// department-specific list remains accessible through the existing dialog.
+export function controlHighlights(boxes: BoxCard[]): BoxCard[] {
+  const representatives = new Map<string, BoxCard>();
+  for (const box of visibleBoxes(boxes).sort(compareIndicators)) {
+    const key = indicatorKey(box.title);
+    if (!representatives.has(key)) representatives.set(key, box);
+  }
+  const primaryKeys = ["CPCON", "위기경보단계", "GPS전파교란"];
+  const primary = primaryKeys.flatMap(key => representatives.get(key) ?? []);
+  const remaining = [...representatives.values()].filter(box => !primaryKeys.includes(indicatorKey(box.title)));
+  return [...primary, ...remaining.slice(0, 6 - primary.length)].sort(compareIndicators);
+}
 
 // Titles are user-defined. These exact normalized aliases identify the two existing
 // named indicators only; their numeric/text value NEVER determines severity.
 export function coreKind(title: string): "cpcon" | "crisis" | null {
-  const key = title.normalize("NFKC").replace(/\s+/g, "").toUpperCase();
+  const key = indicatorKey(title);
   return key === "CPCON" ? "cpcon" : key === "위기경보단계" ? "crisis" : null;
 }
 

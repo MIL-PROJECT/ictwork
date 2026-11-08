@@ -19,6 +19,7 @@ class LoginSuccessHandler(
     private val accountRepository: AccountRepository,
     private val objectMapper: ObjectMapper,
     private val qaMaster: QaMaster,
+    private val accountSecurity: kr.ictwork.admin.AccountSecurityService,
 ) : AuthenticationSuccessHandler {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -31,6 +32,7 @@ class LoginSuccessHandler(
             return
         }
         val account = checkNotNull(accountRepository.findByLoginId(authentication.name))
+        accountSecurity.success(authentication.name)
         request.getSession(true).setAttribute(CredentialStamp.SESSION_ATTRIBUTE, CredentialStamp.of(account.passwordHash))
         response.writeJson(objectMapper, 200, meService.find(authentication.name))
     }

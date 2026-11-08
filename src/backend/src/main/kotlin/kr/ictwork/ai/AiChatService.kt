@@ -39,7 +39,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.annotation.PreDestroy
 
-data class AiStatusView(val reachable: Boolean, val examples: List<String>)
+data class AiStatusView(val reachable: Boolean, val examples: List<String>, val provider: String = "OLLAMA", val model: String? = null)
 
 data class ConversationView(val id: Long, val title: String?, val createdAt: LocalDateTime, val lastAskedAt: LocalDateTime?)
 
@@ -166,7 +166,7 @@ class AiChatService(
 
     fun status(): AiStatusView {
         settings.requireActive()
-        return AiStatusView(ollama.reachable(), EXAMPLES)
+        return AiStatusView(ollama.reachable(), EXAMPLES, settings.provider, settings.chatModel)
     }
 
     /** 내 대화 목록: 마지막 질문이 늦은 것부터 (REQ-B01) */

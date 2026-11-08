@@ -15,6 +15,12 @@ $fileVersion = "$($release.Year).$($release.Month).$($release.Day).0"
 foreach ($required in 'OMNIS.exe', 'resources/app/main.cjs', 'resources/app/legacy-schema.cjs', 'resources/app/windows-ansi.exe', 'resources/ictwork.war', 'resources/java/bin/java.exe', 'resources/mysql/bin/mysqld.exe') {
     if (!(Test-Path -LiteralPath (Join-Path $source $required) -PathType Leaf)) { throw "Missing payload: $required" }
 }
+if ((Get-Content -LiteralPath "$source/resources/app/main.cjs" -Raw).Contains("require('./final-dataset.cjs')") -and !(Test-Path -LiteralPath "$source/resources/app/final-dataset.cjs")) { throw 'Missing final dataset bootstrap module' }
+$finalDataset = Test-Path -LiteralPath "$source/resources/final-db/manifest.json"
+if ($finalDataset) {
+    $datasetManifest = Get-Content -LiteralPath "$source/resources/final-db/manifest.json" -Raw | ConvertFrom-Json
+    if ((Get-FileHash -LiteralPath "$source/resources/final-db/final-db.sql" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $datasetManifest.sql.sha256) { throw 'Final database SQL hash mismatch' }
+}
 $signature = Get-AuthenticodeSignature -LiteralPath $runtime
 if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Microsoft Corporation*') {
     throw 'The Visual C++ prerequisite must have a valid Microsoft signature.'
@@ -48,7 +54,7 @@ AI 질의응답은 이 demo 배포 설정에서 꺼져 있습니다. Ollama와 A
 
 사용자 데이터: %APPDATA%\OMNIS Desktop Main\service
 프로그램을 제거하거나 다시 설치해도 해당 데이터는 자동 삭제하지 않습니다.
-이 설치본에는 새 시연 DB를 만드는 자료가 들어 있으며, 원본 PC의 입력 자료는 포함하지 않습니다.
+__DATASET_DESCRIPTION__
 기존 SQLite 기반 OMNIS 1.1.12 데이터와 자동 호환·이관되지 않습니다.
 
 데이터를 따로 옮길 때는 앱 창을 정상적으로 닫아 Java/MySQL 종료를 기다린 다음,
@@ -60,6 +66,12 @@ service 폴더 전체를 백업합니다. 대상의 기존 데이터도 먼저 �
 설치 파일은 전자서명되지 않았습니다. 실행이 차단되면 해당 PC 관리자의 허용 절차를 따릅니다.
 '@
 $guide = $guide.Replace('__RELEASE_DATE__', $ReleaseDate)
+if ($finalDataset) {
+    $guide = $guide.Replace('__DATASET_DESCRIPTION__', '이 설치본에는 기존 DB와 최신 main seed를 병합한 최종 DB가 포함됩니다. 새 프로필의 첫 실행에만 복원하며 기존 프로필 DB를 덮어쓰지 않습니다.')
+    $guide = $guide.Replace('%APPDATA%\OMNIS Desktop Main\service', '%APPDATA%\OMNIS Desktop Final\service')
+} else {
+    $guide = $guide.Replace('__DATASET_DESCRIPTION__', '이 설치본에는 새 시연 DB를 만드는 자료가 들어 있으며, 원본 PC의 입력 자료는 포함하지 않습니다.')
+}
 $guide | Set-Content -LiteralPath (Join-Path $evidence 'INSTALL-KO.txt') -Encoding UTF8
 $guide | Set-Content -LiteralPath (Join-Path $dvd '설치안내.txt') -Encoding UTF8
 $defines = @(

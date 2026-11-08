@@ -367,7 +367,7 @@ class WorkFormRequestTest(
     // ---------- 양식 관리 (REQ-808, G-56·G-57·G-66) ----------
 
     @Test
-    fun `F9 기타에 양식 넣기 400, 51번째 질문 400, 앞 구역 이동 400, 다른 부서·시스템 관리자 403`() {
+    fun `F9 기타에 양식 넣기 400, 51번째 질문 400, 앞 구역 이동 400, 다른 부서 403, 최고 관리자 허용`() {
         saveForm("f-c1admin", workTypeRepository.otherOf(c1.id!!), phoneForm).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("WORK_TYPE_OTHER_FIXED"))
         val many = mapOf("sections" to listOf(section("s1", (1..51).map { item("q$it", "SHORT_TEXT") })))
         saveForm("f-c1admin", phone, many).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("FORM_INVALID"))
@@ -378,7 +378,7 @@ class WorkFormRequestTest(
         saveForm("f-c1admin", phone, backward).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("FORM_INVALID")).andExpect(jsonPath("$.field").value("go"))
         val s1Phone = workTypeRepository.saveAndFlush(WorkType(s1.id!!, "전화", false, 1)).id!!
         saveForm("f-c1admin", s1Phone, phoneForm).andExpect(status().isForbidden)
-        saveForm("f-sys", phone, phoneForm).andExpect(status().isForbidden)
+        saveForm("f-sys", phone, phoneForm).andExpect(status().isOk)
     }
 
     @Test

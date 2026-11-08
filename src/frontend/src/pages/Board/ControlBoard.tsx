@@ -87,12 +87,12 @@ export default function ControlBoard() {
       </div>
     </section>
 
-    <BoardRiskPanel resource={r.boxes} short={short} />
+    <BoardRiskPanel resource={r.boxes} />
 
     <section className="board-panels" aria-label={t("oneScreen.panels")}>
       <Card icon={<BoxIcon />} title={t("classic.operations")} subtitle={t("classic.systemCount",{count:n(ops?.total)})} to="/operations">
         <BoardResourceNote resource={r.operations} compact />
-        {systems && <Paged rows={systems} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 36} reserved={short ? 22 : boardFit && boardHeight < 780 ? 28 : 36} unit={t("unit.boxes")}>{rows => <>
+        {systems && <Paged rows={systems} pageSize={4} rowHeight={short ? 24 : boardFit && boardHeight < 780 ? 26 : 28} reserved={short ? 18 : boardFit && boardHeight < 780 ? 24 : 28} unit={t("unit.boxes")}>{rows => <>
           <div className="board-operation-columns"><span>{to("name")}</span><span>{to("state")}</span><span title={to("manualRate")}>{to("uptime")}</span></div>
           {rows.map(item => <Link key={item.id} className="board-operation-row" to={`/operations?system=${item.id}`} title={`${item.code} · ${item.name} · ${item.departmentLabel} · ${to(`status.${item.status}`)} · ${to("uptime")} ${item.uptimePct}%`}>
             <strong>{item.name}</strong><Pill tone={operationTone[item.status]}>{to(`status.${item.status}`)}</Pill><Meter value={item.uptimePct} /></Link>)}
@@ -117,15 +117,17 @@ export default function ControlBoard() {
       </Card>
       <Card icon={<AlertIcon />} title={t("cards.receipts")} subtitle={t("risk.receiptScope", { count: n(r.receipts.value?.length) })} to="/approvals/receipts">
         <BoardResourceNote resource={r.receipts} compact />
-        {r.receipts.value !== null && <Paged rows={r.receipts.value} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 36} reserved={short ? 22 : boardFit && boardHeight < 780 ? 28 : 36} unit={t("unit.items")}>{rows => <><div className="board-receipt-columns"><span>{t("cols.no")}</span><span>{t("cols.title")}</span><span>{t("cols.priority")}</span><span>{t("cols.wanted")}</span></div>{rows.map(item =>
+        {r.receipts.value !== null && <Paged rows={r.receipts.value} pageSize={4} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 36} reserved={short ? 22 : boardFit && boardHeight < 780 ? 28 : 36} unit={t("unit.items")}>{rows => <><div className="board-receipt-columns"><span>{t("cols.no")}</span><span>{t("cols.title")}</span><span>{t("cols.priority")}</span><span>{t("cols.wanted")}</span></div>{rows.map(item =>
           <Link key={item.id} className="board-receipt-item" to={`/work/items/${item.id}?from=receipts`} title={`#${item.id} · ${item.title} · ${item.requesterName} · ${tw(`priority.${item.priority}`)} · ${shortDate(item.requestedSchedule?.startDate ?? null)}`}>
             <span className="board-receipt-no">#{item.id}</span><strong>{item.title}</strong><Pill tone={item.priority === "URGENT" ? "red" : "gray"}>{tw(`priority.${item.priority}`)}</Pill><small>{item.requesterName} · {shortDate(item.requestedSchedule?.startDate ?? null)}</small>
           </Link>)}</>}</Paged>}
       </Card>
       <Card icon={<LegacyCampaignIcon />} title={t("cards.directives")} subtitle={t("cards.directivesSub", { count: n(r.directives.value?.length) })} to="/directives">
         <BoardResourceNote resource={r.directives} compact />
-        {r.directives.value !== null && <Paged rows={r.directives.value} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 42} unit={t("unit.items")}>{rows => rows.map(item =>
-          <Link key={item.id} className="board-directive-item" to={`/directives?id=${item.id}`} title={`${item.departmentName} · ${item.content} · ${item.directiveDate}`}><Pill tone="lavender">{item.positionName ? td(`position.${item.positionName}`) : item.departmentName}</Pill><strong>{item.departmentName} · {item.content.split("\n")[0]}</strong><small>{item.directiveDate}</small></Link>)}</Paged>}
+        {r.directives.value !== null && <Paged rows={r.directives.value} pageSize={4} rowHeight={short ? 28 : boardFit && boardHeight < 780 ? 32 : 42} reserved={short ? 22 : boardFit && boardHeight < 780 ? 28 : 36} unit={t("unit.items")}>{rows => <>
+          <div className="board-directive-columns"><span>{t("cols.namedBy")}</span><span>{t("cols.content")}</span><span>{t("cols.date")}</span></div>
+          {rows.map(item => <Link key={item.id} className="board-directive-item" to={`/directives?id=${item.id}`} title={`${item.namedName} · ${item.departmentName} · ${item.content} · ${item.directiveDate}`}><Pill tone="lavender">{item.positionName ? td(`position.${item.positionName}`) : item.departmentName} {item.namedName}</Pill><strong>{item.departmentName} · {item.content.split("\n")[0]}</strong><small>{item.directiveDate}</small></Link>)}
+        </>}</Paged>}
       </Card>
     </section>
   </div>;

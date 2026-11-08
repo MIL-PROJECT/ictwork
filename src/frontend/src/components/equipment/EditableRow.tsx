@@ -12,7 +12,6 @@ import {
   updateEquipment,
 } from "@/api/equipment";
 import { TableCell } from "@/components/ui/table";
-import { AssignedWorkList } from "@/components/work/common";
 import { clip, cn } from "@/utils";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -81,7 +80,7 @@ export default function EditableRow({
   onPending: (id: number, pending: boolean) => void; // 고친 값이 남은 줄은 걸러 보기를 바꿔도 표에 남긴다
   onError: (id: number, failed: boolean) => void; // 저장하지 못한 줄(오류 문구가 있음). 지금 쪽 밖이면 부모가 표 위에 알린다 (G-117)
   announce: (text: string) => void; // 표 밖의 화면 읽기용 알림 영역
-  linkColumn: ColumnKey | undefined; // 상세 링크를 둘 칸(목록과 같음: 장비명, 없으면 배정된 업무가 아닌 첫 칸)
+  linkColumn: ColumnKey | undefined; // 상세 링크를 둘 칸(목록과 같음: 장비명, 없으면 첫 칸)
   from: string; // 상세 화면의 "목록으로"가 돌아올 주소
   onForbidden: () => void; // 저장이 권한 없음(403)이면 부모가 목록을 다시 읽는다
   attrColumns: Map<string, AttributeColumn>; // 추가 특성 열 (REQ-519: 단답·객관식·드롭다운·선형 배율·날짜·시각·숫자만 칸에서 고침)
@@ -393,7 +392,7 @@ export default function EditableRow({
           const hasLink = column === linkColumn || (!linkColumn && index === 0);
           return (
             <TableCell key={column} className={cn("px-2 py-2 align-top text-gray-700 dark:text-gray-300", columnClass(column), column === STICKY_COLUMN && STICKY_CLASS)}>
-              {editor ?? (column === "ASSIGNED_WORK" ? <AssignedWorkList items={e.assignedWork} /> : <span className="block px-1 py-2.5">{cellText(e, column, t, attrColumns) || "—"}</span>)}
+              {editor ?? <span className="block px-1 py-2.5">{cellText(e, column, t, attrColumns) || "—"}</span>}
               {/* SuggestInput에는 aria-label을 줄 수 없어 화면 읽기용 이름을 따로 둔다 */}
               {EDIT_FIELDS[column]?.suggest && editor && (
                 <label htmlFor={`edit-${e.id}-${column}`} className="sr-only">

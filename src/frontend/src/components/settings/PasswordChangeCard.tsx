@@ -74,9 +74,9 @@ export default function PasswordChangeCard({ onChanged }: { onChanged?: () => vo
 
   return (
     // OMNIS 카드: 아이콘 머리(제목·규칙 설명) + 입력 칸, 아래 동작 줄은 대화상자 바닥처럼 옅은 띠
-    <Panel icon={<LockIcon />} title={t("title")} titleId={titleId} subtitle={t("desc")} flush>
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4 px-[22px] pt-2 pb-5">
+    <Panel className="settings-password" icon={<LockIcon />} title={t("title")} titleId={titleId} subtitle={t("desc")} flush>
+      <form className="settings-password-form" onSubmit={handleSubmit}>
+        <div className="settings-password-fields space-y-4 px-[22px] pt-2 pb-5">
           {fields.map(([id, label, value, setValue, autoComplete]) => {
             const invalid = message?.field === id;
             return (
@@ -107,7 +107,7 @@ export default function PasswordChangeCard({ onChanged }: { onChanged?: () => vo
             </p>
           )}
         </div>
-        <div className="flex justify-end border-t border-gray-100 bg-gray-50 px-[22px] py-3.5 dark:border-gray-800 dark:bg-white/3">
+        <div className="settings-password-footer flex justify-end border-t border-gray-100 bg-gray-50 px-[22px] py-3.5 dark:border-gray-800 dark:bg-white/3">
           <Button
             size="sm"
             disabled={submitting || !current || !next || !confirm}

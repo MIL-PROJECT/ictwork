@@ -14,18 +14,33 @@ import java.net.URI
 @Component
 class AiSettings(
     @Value("\${ictwork.ai.enabled}") enabled: Boolean,
-    @Value("\${ictwork.ai.base-url}") val baseUrl: String,
-    @Value("\${ictwork.ai.chat-model}") val chatModel: String,
+    @Value("\${ictwork.ai.base-url}") baseUrl: String,
+    @Value("\${ictwork.ai.chat-model}") chatModel: String,
     @Value("\${ictwork.ai.embed-model}") val embedModel: String,
     // 시험이 짧게 바꿔 시간 넘김을 본다
     @Value("\${ictwork.ai.answer-timeout-seconds}") @Volatile var answerTimeoutSeconds: Long,
     @Value("\${ictwork.ai.index-interval-seconds}") val indexIntervalSeconds: Long,
+    @Value("\${ictwork.ai.provider:OLLAMA}") private val configuredProvider: String = "OLLAMA",
+    val runtime: AiRuntime? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
-    val active: Boolean = enabled && isLocalAddress(baseUrl).also { local ->
-        if (enabled && !local) log.warn("AI 실행기 주소가 이 PC가 아니어서 AI 질의응답을 켜지 않습니다 (NFR-005)")
+    private val configuredEnabled = enabled
+    private val configuredBaseUrl = baseUrl
+    private val configuredChatModel = chatModel
+    init {
+        runtime?.value()?.takeIf { it.provider != null }?.let { answerTimeoutSeconds = it.timeoutSeconds }
     }
+    val provider: String get() = runtime?.value()?.provider ?: configuredProvider
+    val baseUrl: String get() = runtime?.value()?.takeIf { it.provider != null }?.ollamaEndpoint ?: configuredBaseUrl
+    val chatModel: String get() = when (provider) {
+        "LOCAL" -> "omnis-local-rules-v1"
+        "OPENAI" -> runtime?.value()?.openaiModel.orEmpty()
+        "ANTHROPIC" -> runtime?.value()?.anthropicModel.orEmpty()
+        else -> runtime?.value()?.takeIf { it.provider != null }?.ollamaModel ?: configuredChatModel
+    }
+
+    val active: Boolean get() = (runtime?.value()?.enabled ?: configuredEnabled) &&
+        (provider != "OLLAMA" || isLocalAddress(baseUrl).also { if (!it) log.warn("AI 로컬 실행기 주소가 이 PC가 아니어서 연결하지 않습니다") })
 
     /** 꺼져 있으면 찾을 수 없다고 한다(GET·POST·DELETE 모두, slices/12 11.4) */
     fun requireActive() {

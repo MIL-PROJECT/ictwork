@@ -150,7 +150,7 @@ module.exports = async function verifyLayoutPolish(page,origin,evidence) {
   await page.setViewportSize({width:1600,height:900});await page.goto(origin+'/board');
   await page.locator('.board-attention:not([data-state=loading])').waitFor();
   assert.equal(await page.locator('.board-eyebrow').count(),0);
-  const style=await page.locator('.board-attention').evaluate(el=>{const s=getComputedStyle(el);return {left:s.borderLeftWidth,top:s.borderTopWidth,radius:s.borderRadius};});
+  const style=await page.locator('.board-risk-zone').evaluate(el=>{const s=getComputedStyle(el);return {left:s.borderLeftWidth,top:s.borderTopWidth,radius:s.borderRadius};});
   assert.equal(style.left,style.top,'No accented left border');assert.equal(style.left,'1px');
   assert.equal(await page.locator('.board-core-indicator').first().evaluate(el=>getComputedStyle(el).borderLeftWidth),'0px');
   await page.screenshot({path:path.join(evidence,'board-refined-band.png'),animations:'disabled'});

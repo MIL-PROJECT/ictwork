@@ -81,9 +81,13 @@
     "requester": "Requester",
     "priority": "Priority",
     "status": "Status",
-    "wanted": "Wanted"
+    "wanted": "Wanted",
+    "namedBy": "Issued by",
+    "content": "Content",
+    "date": "Date"
   },
   "risk": {
+    "title": "Control status",
     "eyebrow": "Operations control",
     "core": "Control levels",
     "coreHelp": "Current CPCON and crisis alert values · severity follows the configured colour",
@@ -112,7 +116,8 @@
     "support": "Operations support",
     "supportHelp": "Directives and today’s duty · open details to review",
     "dutyHelp": "Unique personnel across today’s duty rosters. Open the duty board for details.",
-    "allIndicators": "All indicators"
+    "allIndicators": "All indicators",
+    "selection": "Up to six indicators including key controls; highest configured severity per indicator, red first"
   },
   "health": {
     "loading": "Checking source…",

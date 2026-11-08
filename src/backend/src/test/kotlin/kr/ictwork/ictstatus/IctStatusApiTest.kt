@@ -82,9 +82,10 @@ class IctStatusApiTest(
         mapOf("definition" to definition(STATUS), "values" to mapOf("status" to value?.let { mapOf("option" to it) })) + FOLLOW_STATUS
 
     @Test
-    fun `onlyDeptAdminAddsBox 1중대 부서 관리자만 박스 추가 부서를 갖고, 시스템 관리자·대대장·반원은 없고 서버도 거부`() {
+    fun `onlyAdministratorsAddBox 최고 관리자는 전체, 부서 관리자는 지정 부서, 대대장·반원은 서버도 거부`() {
         assertThat(f.tab("i-c1adm")["addDepartments"].map { it["id"].asLong() }).containsExactly(f.c1.id)
-        listOf("i-sys", "i-bncmdr", "i-s1b").forEach { login ->
+        assertThat(f.tab("i-sys")["addDepartments"].map { it["id"].asLong() }).contains(f.c1.id, f.c2.id)
+        listOf("i-bncmdr", "i-s1b").forEach { login ->
             assertThat(f.tab(login)["addDepartments"].size()).isZero()
             f.send("POST", login, "/api/ict-boxes", mapOf("departmentId" to f.c1.id, "title" to "x", "summaryText" to "x")).andExpect(status().isForbidden)
         }
@@ -110,10 +111,10 @@ class IctStatusApiTest(
             assertThat(f.tabIds(login)).describedAs(login).doesNotContain(id)
             f.getAs(login, "/api/ict-boxes/$id").andExpect(status().isNotFound)
         }
-        // 시스템 관리자는 보지만 고치는 사람이 아니라 공개 범위·담당자는 보이지 않는다
+        // 최고 관리자는 전체 부서의 현황을 관리한다.
         val bySys = f.detail("i-sys", id)
-        assertThat(bySys["canEdit"].asBoolean()).isFalse()
-        assertThat(bySys["scope"].isNull).isTrue()
+        assertThat(bySys["canEdit"].asBoolean()).isTrue()
+        assertThat(bySys["scope"].isObject).isTrue()
         assertThat(f.detail("i-c1adm", id)["assignees"].map { it["label"].asText() }).containsExactly("하사 사람-i-s1a (1대대 1중대 1반)")
     }
 
@@ -172,10 +173,10 @@ class IctStatusApiTest(
     }
 
     @Test
-    fun `sysAdminCannotEdit 시스템 관리자는 보지만 고치기·추가는 403`() {
+    fun `sysAdminCanEdit 최고 관리자는 현황 수정과 삭제가 가능하다`() {
         val id = battlefield()
-        f.update("i-sys", id, mapOf("title" to "x")).andExpect(status().isForbidden)
-        f.send("DELETE", "i-sys", "/api/ict-boxes/$id").andExpect(status().isForbidden)
+        f.update("i-sys", id, mapOf("title" to "x")).andExpect(status().isOk)
+        f.send("DELETE", "i-sys", "/api/ict-boxes/$id").andExpect(status().isNoContent)
     }
 
     @Test
@@ -183,7 +184,7 @@ class IctStatusApiTest(
         val id = battlefield()
         roleAssignmentRepository.saveAndFlush(RoleAssignment(accountOf("i-sys").id!!, "DEPT_ADMIN", f.c1.id))
         assertThat(f.updated("i-sys", id, mapOf("title" to "전장망2"))["title"].asText()).isEqualTo("전장망2")
-        assertThat(f.tab("i-sys")["addDepartments"].map { it["id"].asLong() }).containsExactly(f.c1.id)
+        assertThat(f.tab("i-sys")["addDepartments"].map { it["id"].asLong() }).contains(f.c1.id, f.c2.id)
     }
 
     @Test

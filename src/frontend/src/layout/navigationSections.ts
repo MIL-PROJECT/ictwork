@@ -48,6 +48,7 @@ export const screens: Screen[] = [
   { key: "docs", owner: "departmentInfo", tabs: [{ key: "docs", path: "/department/docs" }] },
   { key: "workTypes", owner: "departmentInfo", tabs: [{ key: "workTypes", path: "/admin/work-types", feature: "ADMIN_WORK_TYPE" }] },
   { key: "aiChat", owner: "aiChat", tabs: [{ key: "aiChat", path: "/ai" }] },
+  { key: "systemAdmin", owner: "systemAdmin", tabs: [{ key: "systemAdmin", path: "/admin/system", feature: "ADMIN_SYSTEM" }] },
 ];
 
 export const topMenus = [
@@ -57,6 +58,7 @@ export const topMenus = [
   { key: "schedule", screen: "calendar", children: [] },
   { key: "departmentInfo", screen: "organizationPeople", children: ["organizationPeople", "equipmentDiagrams", "docs", "workTypes"] },
   { key: "aiChat", screen: "aiChat", children: [] },
+  { key: "systemAdmin", screen: "systemAdmin", children: [] },
 ];
 
 export function visibleLinks(links: readonly NavigationLink[], features: readonly string[]) {

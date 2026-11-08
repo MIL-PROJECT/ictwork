@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { navigationContext, listPathOf, matchesTarget, safeListReturn, safeDepartmentListReturn, withListReturn, screens, visibleLinks, topMenus, contextualActions, menuTrail, screenPath } from "../src/layout/navigationSections.ts";
 
-test("six top-level menus resolve to accessible destinations", () => {
-  assert.deepEqual(topMenus.map(menu => menu.key), ["overview","requests","processing","schedule","departmentInfo","aiChat"]);
+test("top-level menus include the separately gated system menu", () => {
+  assert.deepEqual(topMenus.map(menu => menu.key), ["overview","requests","processing","schedule","departmentInfo","aiChat","systemAdmin"]);
   for (const menu of topMenus) assert.ok(screens.some(screen => screen.key === menu.screen));
+  assert.equal(screenPath("systemAdmin",[]),undefined);
+  assert.equal(screenPath("systemAdmin",["ADMIN_EQUIPMENT"]),undefined);
+  assert.equal(screenPath("systemAdmin",["ADMIN_SYSTEM"]),"/admin/system");
+  assert.equal(navigationContext("/admin/system")?.screen.owner,"systemAdmin");
 });
 
 test("overview and statistics are independent pages under one sidebar group", () => {

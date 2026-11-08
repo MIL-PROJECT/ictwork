@@ -2,21 +2,28 @@ const { app, BrowserWindow } = require('electron');
 const { spawn, execFileSync } = require('node:child_process');
 const { pipeline } = require('node:stream/promises');
 const { prepareLegacySchema } = require('./legacy-schema.cjs');
+const { installFinalDataset } = require('./final-dataset.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
-const resources = process.resourcesPath;
+// Development uses the current source with an existing bundle's Java/MySQL/WAR.
+// Packaged releases always use their own resources and normal profile.
+const development = !app.isPackaged && app.commandLine.hasSwitch('omnis-dev');
+const resources = development ? path.resolve(process.env.OMNIS_DEV_RESOURCES) : process.resourcesPath;
+const developmentOrigin = development ? new URL(process.env.OMNIS_DEV_URL).origin : null;
+const pathHelper = path.join(development ? path.join(resources, 'app') : __dirname, 'windows-ansi.exe');
 const customProfile = app.commandLine.getSwitchValue('user-data-dir');
-const profile = customProfile ? path.resolve(customProfile) : path.join(app.getPath('appData'), 'OMNIS Desktop Main');
+const bundledFinalDataset = fs.existsSync(path.join(resources, 'final-db/manifest.json'));
+const profile = customProfile ? path.resolve(customProfile) : development ? path.resolve(__dirname, '../output/dev/profile') : path.join(app.getPath('appData'), bundledFinalDataset ? 'OMNIS Desktop Final' : 'OMNIS Desktop Main');
 app.setPath('userData', profile);
 const state = path.join(profile, 'service');
 const data = path.join(state, 'mysql-data');
 const mysqlBin = path.join(resources, 'mysql', 'bin');
 const java = path.join(resources, 'java', 'bin', 'java.exe');
-const war = path.join(resources, 'ictwork.war');
+const war = development && process.env.OMNIS_DEV_WAR ? path.resolve(process.env.OMNIS_DEV_WAR) : path.join(resources, 'ictwork.war');
 const demoHash = '$2b$12$yk3bmg6ARaWcA.OpWOIw2O3qMsEMtghYpzecJw58Td8xB2fG/RxXu';
 const seedHash = '$2a$10$OZda4fvZaA5H42SMfEp0.enXwl2cqzAflMS4D9PQgDEteVwMA6NQm';
 let window;
@@ -58,7 +65,7 @@ async function writeMysqlOptions(extra = [], bootstrap) {
   const output = path.join(state, 'omnis-mysql.ini');
   fs.writeFileSync(input, ['[mysqld]', 'basedir=' + mysqlPath(path.dirname(mysqlBin)), 'datadir=' + mysqlPath(data), ...extra, ...(bootstrap ? ['init-file=' + mysqlPath(bootstrap)] : [])].join('\n') + '\n');
   try {
-    await check(run(path.join(__dirname, 'windows-ansi.exe'), [input, output], 'runtime-setup.log'), 'MySQL 경로 설정 (Windows 문자 인코딩과 호환되는 경로 필요)', 15000);
+    await check(run(pathHelper, [input, output], 'runtime-setup.log'), 'MySQL 경로 설정 (Windows 문자 인코딩과 호환되는 경로 필요)', 15000);
   } finally { fs.rmSync(input, { force: true }); }
 }
 
@@ -147,11 +154,28 @@ async function start() {
   }
   if (stopping) return;
 
-  const outOfOrder = await prepareLegacySchema({
-    query: async sql => {
-      const output = execFileSync(path.join(mysqlBin,'mysql.exe'),['--no-defaults','--protocol=TCP','--host=127.0.0.1','--port='+mysqlPort,'--user=root','--database=ictwork','--batch','--skip-column-names','--execute='+sql],{encoding:'utf8',windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root},timeout:30000});
-      return output.trim() ? output.trim().split(/\r?\n/).map(row=>row.split('\t')) : [];
+  const query = async sql => {
+    const output = execFileSync(path.join(mysqlBin,'mysql.exe'),['--no-defaults','--protocol=TCP','--host=127.0.0.1','--port='+mysqlPort,'--user=root','--database=ictwork','--default-character-set=utf8mb4','--batch','--skip-column-names'],{input:sql,encoding:'utf8',windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root},timeout:30000});
+    return output.trim() ? output.trim().split(/\r?\n/).map(row=>row.split('\t')) : [];
+  };
+  await installFinalDataset({
+    directory:path.join(resources,'final-db'),state,query,
+    record:async (file,value)=>fs.writeFileSync(file,JSON.stringify(value,null,2)),
+    restore:async file=>{
+      status('OMNIS 최종 DB 준비 중','설치본의 통합 데이터와 QA 설정을 복원하고 있습니다.');
+      const log=fs.openSync(path.join(state,'final-dataset-import.log'),'a');
+      let child;
+      try {child=spawn(path.join(mysqlBin,'mysql.exe'),['--no-defaults','--protocol=TCP','--host=127.0.0.1','--port='+mysqlPort,'--user=root','--database=ictwork','--default-character-set=utf8mb4'],{windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root},stdio:['pipe',log,log]});}
+      finally {fs.closeSync(log);}
+      const done=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',code=>code===0?resolve():reject(Error('최종 DB 복원 실패: final-dataset-import.log를 확인하세요.')));});
+      const timer=setTimeout(()=>child.kill(),120000);
+      try {await Promise.all([done,pipeline(fs.createReadStream(file),child.stdin)]);} finally {clearTimeout(timer);}
     },
+  });
+  if (stopping) return;
+
+  const outOfOrder = await prepareLegacySchema({
+    query,
     backup: async () => {
       status('OMNIS 업그레이드 준비 중','기존 시연 DB를 먼저 백업하고 있습니다.');
       const folder=path.join(state,'backups');fs.mkdirSync(folder,{recursive:true});
@@ -168,7 +192,7 @@ async function start() {
   });
   if (stopping) return;
   status('OMNIS 시작 중', 'Java 백엔드와 업무 화면을 준비하고 있습니다.');
-  const webPort = await freePort();
+  const webPort = development ? Number(process.env.OMNIS_DEV_BACKEND_PORT) : await freePort();
   const origin = 'http://127.0.0.1:' + webPort;
   backend = run(java, [
     '-jar', war, '--server.address=127.0.0.1', '--server.port=' + webPort, '--spring.profiles.active=demo',
@@ -195,10 +219,11 @@ async function start() {
     "WHERE login_id='bn1-co1-admin' AND password_hash='" + seedHash + "'"], credentials.root),
   'Demo account setup');
 
+  const uiOrigin = developmentOrigin ?? origin;
   window.webContents.on('will-navigate', (event, target) => {
-    if (new URL(target).origin !== origin) event.preventDefault();
+    if (new URL(target).origin !== uiOrigin) event.preventDefault();
   });
-  await window.loadURL(origin + '/signin');
+  await window.loadURL(uiOrigin + '/signin');
   for (const [service, name] of [[backend, 'Java'], [database, 'MySQL']]) {
     void service.done.then(() => {
       if (!stopping) status('OMNIS 서비스가 종료됐습니다', name + ' 로그: ' + state);
@@ -242,6 +267,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   void app.whenReady().then(() => {
     window = new BrowserWindow({
+      show: !(development && process.env.OMNIS_DEV_HEADLESS === '1'),
       width: 1440, height: 950, title: 'OMNIS', icon: path.join(__dirname, 'omnis.ico'),
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
     });

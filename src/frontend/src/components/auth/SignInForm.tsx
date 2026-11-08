@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ArrowRightIcon, EyeCloseIcon, EyeIcon, LockIcon, UserIcon } from "@/icons";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 /** 로그인 뒤 돌아갈 주소: 같은 사이트의 상대 경로만(`/`로 시작, `//`·`/\`는 아님). 로그인 화면 자신과 QA 계정 고르기는 뺀다 */
 function returnPath(from: unknown): string | null {
@@ -138,6 +138,7 @@ export default function SignInForm() {
               </div>
             </div>
           </form>
+          <div className="mt-5 text-center text-sm"><Link to="/signup" className="font-semibold text-brand-500 underline underline-offset-4 dark:text-brand-300">사용자 등록 신청</Link></div>
           <p className="mt-[22px] flex gap-2 border-t border-gray-100 pt-5 text-[11.5px] leading-normal text-gray-400 dark:border-gray-800">
             <LockIcon aria-hidden="true" className="mt-px size-[15px] shrink-0" />
             {tf("legal")}

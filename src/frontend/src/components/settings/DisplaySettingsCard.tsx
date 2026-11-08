@@ -9,6 +9,7 @@ import { languages } from "@/i18n/languages";
 import { cn } from "@/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CalendarSettingsControl } from "./CalendarSettingsCard";
 
 // 화면 설정: 언어·화면 테마(상단바에 있던 기능을 개인설정에도 모음, 이 브라우저에 저장), 글자 크기(계정에 저장, REQ-008), 설명 글 보이기(계정에 저장, REQ-009)
 function OptionButtons<T extends string>({
@@ -50,6 +51,7 @@ function OptionButtons<T extends string>({
 
 export default function DisplaySettingsCard() {
   const { t } = useTranslation("settings", { keyPrefix: "display" });
+  const { t: tw } = useTranslation("work");
   const { language, setLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const { user, setFontSize, setShowGuides } = useAuth();
@@ -88,7 +90,7 @@ export default function DisplaySettingsCard() {
 
   return (
     // OMNIS 카드: 아이콘 머리(제목·설명) + 이름표·고르기 줄(아래 경계선)
-    <Panel icon={<LayoutIcon />} title={t("title")} titleId="settings-display-title" subtitle={t("desc")} subtitleGuide bodyClassName="divide-y divide-gray-100 dark:divide-gray-800">
+    <Panel className="settings-display" icon={<LayoutIcon />} title={t("combinedTitle")} titleId="settings-display-title" subtitle={t("compactDesc")} subtitleGuide bodyClassName="settings-display-options divide-y divide-gray-100 dark:divide-gray-800">
       <div className="flex flex-wrap items-center gap-4 py-3">
         <span id="display-language-label" className="w-28 text-[12.5px] font-bold text-gray-600 dark:text-gray-400">
           {t("language")}
@@ -136,7 +138,7 @@ export default function DisplaySettingsCard() {
         )}
       </div>
       <div className="flex flex-wrap items-center gap-4 py-3">
-        <span id="display-guides-label" className="w-28 text-[12.5px] font-bold text-gray-600 dark:text-gray-400">
+        <span id="display-guides-label" title={t("guidesHelp")} className="w-28 text-[12.5px] font-bold text-gray-600 dark:text-gray-400">
           {t("guides")}
         </span>
         <OptionButtons
@@ -148,7 +150,7 @@ export default function DisplaySettingsCard() {
           value={showGuides ? "ON" : "OFF"}
           onSelect={selectShowGuides}
         />
-        <p data-guide className="basis-full text-[12.5px] text-gray-500 dark:text-gray-400">
+        <p data-guide className="settings-guides-help basis-full text-[12.5px] text-gray-500 dark:text-gray-400">
           {t("guidesHelp")}
         </p>
         {guidesError && (
@@ -156,6 +158,11 @@ export default function DisplaySettingsCard() {
             {guidesError}
           </p>
         )}
+      </div>
+      <div className="settings-calendar-option">
+        <span className="settings-calendar-label" title={tw("settings.calendarDesc")}>{tw("settings.calendarTitle")}</span>
+        <CalendarSettingsControl />
+        <p data-guide>{tw("settings.calendarDesc")}</p>
       </div>
     </Panel>
   );

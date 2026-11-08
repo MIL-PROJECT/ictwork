@@ -1,0 +1,28 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {Database,writeJson,fileManifest,hash}=require('./final-db-tools.cjs');
+const {buildMerge,assertPreserved}=require('./merge-final-db.cjs');
+const output=path.resolve(process.argv[2]),apply=process.argv.includes('--apply');
+const evidence=path.join(output,'evidence'),service=path.join(output,'final-profile/service');
+const db=new Database({bundle:path.resolve('output/OMNIS-Main-Merged-Windows-x64'),service,evidence});
+(async()=>{try{
+ await db.start();
+ const original=JSON.parse(fs.readFileSync(path.join(evidence,'source-rows.json'),'utf8'));
+ assert.deepEqual(db.snapshot(),original,'Working DB must still match the original before merging');
+ const plan=buildMerge(db);
+ fs.writeFileSync(path.join(evidence,'seed-merge.sql'),plan.sql);
+ writeJson(path.join(evidence,'id-map.json'),plan.maps);
+ writeJson(path.join(evidence,'merge-plan.json'),{counts:plan.counts,notes:plan.notes});
+ const examples={};
+ for(const [table,columns]of Object.entries({notification:['link'],request_target_type:['answers'],equipment:['attr_values'],personnel:['attr_values'],ict_box:['values_json','tables_json'],work_form_version:['definition']}))examples[table]=plan.donor[table].filter(row=>columns.some(col=>row[col]&&row[col]!=='{}')).slice(0,3).map(row=>Object.fromEntries(columns.map(col=>[col,row[col]])));
+ writeJson(path.join(evidence,'embedded-reference-examples.json'),examples);
+ console.log(JSON.stringify({apply,counts:Object.fromEntries(Object.entries(plan.counts).filter(([,info])=>info.imported)),notes:plan.notes.length},null,2));
+ if(!apply)return;
+ db.sql(plan.sql);
+ const after=db.snapshot();assertPreserved(original,after);assert.deepEqual(db.foreignKeyErrors(),[]);
+ writeJson(path.join(evidence,'merged-rows.json'),after);
+ writeJson(path.join(evidence,'merge-result.json'),{success:true,originalRowsPreserved:true,foreignKeysValid:true,counts:plan.counts,at:new Date().toISOString()});
+ console.log('PASS: merged seed graph, all original rows preserved, all foreign keys valid');
+}finally{await db.stop();
+ const before=JSON.parse(fs.readFileSync(path.join(evidence,'source-files-before.json'),'utf8'));
+ assert.deepEqual(fileManifest(path.join(process.env.APPDATA,'OMNIS Desktop Main/service')),before,'Original profile files must remain unchanged');
+}})().catch(e=>{console.error(e.message);process.exitCode=1;});

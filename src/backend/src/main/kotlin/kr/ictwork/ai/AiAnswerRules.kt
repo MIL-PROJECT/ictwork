@@ -16,7 +16,7 @@ data class AiTextCall(val name: String, val arguments: ObjectNode)
  * - 보일 출처: 답이 쓴 글(이름이 나오거나 글이 겹침)만
  */
 object AiAnswerRules {
-    val TOOL_NAMES = listOf("query_equipment", "query_work", "query_people", "query_directives", "query_duty", "query_ict_status")
+    val TOOL_NAMES = listOf("query_equipment", "query_work", "query_people", "query_directives", "query_duty", "query_ict_status", "query_operations")
 
     const val NOT_FOUND = "체계 자료에서 찾지 못했습니다"
     const val GENERAL = "체계 자료에 근거하지 않은 일반 답"

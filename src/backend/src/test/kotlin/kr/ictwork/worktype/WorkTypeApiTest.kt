@@ -345,7 +345,7 @@ class WorkTypeApiTest(
     // ---------- 유형 관리 (REQ-808, G-35·G-50·G-57·G-62·G-66) ----------
 
     @Test
-    fun `T10 1중대 부서 관리자는 1중대 유형만 만들고 1반 것은 403, 시스템 관리자도 403, 같은 이름 409, 관리 목록은 그 부서 관리자만`() {
+    fun `T10 1중대 부서 관리자는 1중대 유형만 만들고 1반 것은 403, 최고 관리자 허용, 같은 이름 409, 관리 목록은 그 부서 관리자만`() {
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화", "description" to "전화 고장 처리")).andExpect(status().isCreated)
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "전화")).andExpect(status().isConflict)
             .andExpect(jsonPath("$.code").value("WORK_TYPE_DUPLICATE"))
@@ -353,7 +353,7 @@ class WorkTypeApiTest(
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to " ")).andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("NAME_INVALID"))
         send("POST", "t-c1admin", "/api/admin/work-types", mapOf("departmentId" to s1.id, "name" to "전화")).andExpect(status().isForbidden)
-        send("POST", "t-sys", "/api/admin/work-types", mapOf("departmentId" to c1.id, "name" to "인터넷")).andExpect(status().isForbidden)
+        send("POST", "t-sys", "/api/admin/work-types", mapOf("departmentId" to c2s1.id, "name" to "최고 관리자 유형", "description" to "관리자 등록 시험")).andExpect(status().isCreated)
         // 삭제된 부서는 역할이 남아 있어도 고치지 않는다
         c1.active = false
         departmentRepository.saveAndFlush(c1)
@@ -366,14 +366,14 @@ class WorkTypeApiTest(
         workTypeRepository.flush()
         assertThat(getAs("t-c1admin", "/api/admin/work-types?departmentId=${c1.id}").map { it["name"].asText() }).containsExactly("전화", "화상회의", "기타")
         getStatus("t-s1", "/api/admin/work-types?departmentId=${c1.id}").andExpect(status().isForbidden)
-        getStatus("t-sys", "/api/admin/work-types?departmentId=${c1.id}").andExpect(status().isForbidden)
+        getStatus("t-sys", "/api/admin/work-types?departmentId=${c1.id}").andExpect(status().isOk)
         // 고칠 수 있는 부서: 역할 대상 부서만(하위 부서 제외). 부서 관리자가 아니면 403
         assertThat(getAs("t-c1admin", "/api/admin/work-types/departments").map { it["id"].asLong() }).containsExactly(c1.id)
         assertThat(getAs("t-c1admin", "/api/admin/work-types/departments")[0]["path"].asText()).isEqualTo("1대대 1중대")
         getStatus("t-s1", "/api/admin/work-types/departments").andExpect(status().isForbidden)
         assertThat(getAs("t-c1admin", "/api/me")["features"].map { it.asText() }).contains("ADMIN_WORK_TYPE")
         assertThat(getAs("t-s1", "/api/me")["features"].map { it.asText() }).doesNotContain("ADMIN_WORK_TYPE")
-        assertThat(getAs("t-sys", "/api/me")["features"].map { it.asText() }).doesNotContain("ADMIN_WORK_TYPE")
+        assertThat(getAs("t-sys", "/api/me")["features"].map { it.asText() }).contains("ADMIN_WORK_TYPE")
     }
 
     @Test

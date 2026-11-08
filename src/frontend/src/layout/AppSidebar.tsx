@@ -2,7 +2,7 @@ import { BrandEmblem } from "@/components/brand/BrandEmblem";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useFocusTrap } from "@/components/ui/modal/useFocusTrap";
-import { AiIcon, BoxIcon, PieChartIcon, LegacyCampaignIcon, TaskIcon, CalenderIcon, ChevronDownIcon, CloseIcon, DocsIcon, GridIcon, GroupIcon, PaperPlaneIcon } from "@/icons";
+import { AiIcon, BoxIcon, PieChartIcon, LegacyCampaignIcon, TaskIcon, CalenderIcon, ChevronDownIcon, CloseIcon, DocsIcon, GridIcon, GroupIcon, SettingsAltIcon, PaperPlaneIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,7 +15,7 @@ const childIcons: Record<string, typeof BoxIcon> = { operations: BoxIcon, workSt
 
 const icons = {
   overview: GridIcon, requests: PaperPlaneIcon, processing: DocsIcon,
-  schedule: CalenderIcon, departmentInfo: GroupIcon, aiChat: AiIcon,
+  schedule: CalenderIcon, departmentInfo: GroupIcon, aiChat: AiIcon, systemAdmin: SettingsAltIcon,
 };
 
 export default function AppSidebar() {
@@ -70,7 +70,7 @@ export default function AppSidebar() {
         !isMobileOpen && "max-xl:invisible",
       )}
       onMouseEnter={() => !isExpanded && setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-      <div className="legacy-sidebar-brand flex items-center ps-px pe-2.5 pt-[26px] pb-[18px]">
+      <div data-collapsed={!showText} className="legacy-sidebar-brand flex items-center ps-px pe-2.5 pt-[26px] pb-[18px]">
         <Link to="/" onClick={closeMobile} className="flex h-10 items-center gap-3" aria-label="OMNIS">
           <span aria-hidden className="grid h-10 w-[46px] shrink-0 place-items-center rounded-xl bg-brand-100 dark:bg-white/10">
             <BrandEmblem />

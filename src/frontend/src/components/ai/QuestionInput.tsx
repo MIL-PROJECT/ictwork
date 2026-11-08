@@ -13,7 +13,7 @@ const countChars = (text: string) => Array.from(text).length;
  * idPrefix: 한 화면에 둘이 있을 때(AI 질의응답 화면과 업무지원 패널) 칸 id가 겹치지 않게
  * disabled: AI를 끈 서버의 업무지원 패널처럼 입력·보내기를 막을 때 (REQ-C10)
  */
-export default function QuestionInput({ value, onChange, onSubmit, busy, busyHere, onStop, inputRef, idPrefix = "ai-question", disabled = false }: {
+export default function QuestionInput({ value, onChange, onSubmit, busy, busyHere, onStop, inputRef, idPrefix = "ai-question", disabled = false, compact = false }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -23,6 +23,7 @@ export default function QuestionInput({ value, onChange, onSubmit, busy, busyHer
   inputRef: RefObject<HTMLTextAreaElement | null>;
   idPrefix?: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const { t } = useTranslation("ai");
   const length = countChars(value.trim());
@@ -55,7 +56,7 @@ export default function QuestionInput({ value, onChange, onSubmit, busy, busyHer
         if (canSend) onSubmit();
       }}
       // OMNIS 대화상자 바닥처럼 옅은 띠 위에 입력 칸
-      className="border-t border-gray-100 bg-gray-50 px-[22px] py-4 dark:border-gray-800 dark:bg-white/[0.02]"
+      className="ai-composer border-t border-gray-100 bg-gray-50 px-[22px] py-4 dark:border-gray-800 dark:bg-white/[0.02]"
     >
       <label htmlFor={idPrefix} className="sr-only">
         {t("input.label")}
@@ -63,7 +64,7 @@ export default function QuestionInput({ value, onChange, onSubmit, busy, busyHer
       <textarea
         ref={inputRef}
         id={idPrefix}
-        rows={3}
+        rows={compact ? 2 : 3}
         value={value}
         onChange={(e) => onChange(clip(e, MAX_QUESTION))}
         onKeyDown={onKeyDown}

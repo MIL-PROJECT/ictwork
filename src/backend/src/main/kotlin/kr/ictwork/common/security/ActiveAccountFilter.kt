@@ -39,7 +39,7 @@ class ActiveAccountFilter(private val userDetailsService: UserDetailsService, pr
             val stampChanged = session != null && session.getAttribute(CredentialStamp.SESSION_ATTRIBUTE) != currentStamp
             val qaEnded = QaMaster.isSwitched(authentication) &&
                 (!qaMaster.enabled || session?.getAttribute(QaMaster.STAMP_ATTRIBUTE) != qaMaster.stamp())
-            if (user == null || !user.isEnabled || stampChanged || qaEnded) {
+            if (user == null || !user.isEnabled || !user.isAccountNonLocked || stampChanged || qaEnded) {
                 SecurityContextHolder.clearContext()
                 session?.invalidate()
             }

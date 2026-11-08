@@ -235,12 +235,12 @@ class AdminApiTest(
     }
 
     @Test
-    fun `V3 장비는 다룰 수 있는 범위(관리 범위와 자기 소속 부서)에서 등록·수정하고, 시스템 관리자도 같은 규칙, 관리부서 옮기기는 부서 관리자만 (REQ-501, E-28·E-34)`() {
+    fun `V3 장비는 다룰 수 있는 범위(관리 범위와 자기 소속 부서)에서 등록·수정하고, 최고 관리자는 전체, 관리부서 옮기기는 관리자만 (REQ-501, E-28·E-34)`() {
         postAs("t-c1admin", "/api/equipment", newEquipment("새 장비", s2.id, "ADM-N-0001")).andExpect(status().isCreated)
         postAs("t-c1admin", "/api/equipment", newEquipment("남의 장비", s3.id, "ADM-N-0002")).andExpect(status().isForbidden)
-        // 부서 관리자 역할이 없는 시스템 관리자는 자기 소속 부서(1반)만
-        postAs("t-sys", "/api/equipment", newEquipment("관리자 장비", s3.id, "ADM-N-0003")).andExpect(status().isForbidden)
-        postAs("t-sys", "/api/equipment", newEquipment("관리자 장비", null, "ADM-N-0004"))
+        // 최고 관리자는 소속과 무관하게 전체 부서를 관리한다.
+        postAs("t-sys", "/api/equipment", newEquipment("관리자 장비", s3.id, "ADM-N-0003")).andExpect(status().isCreated)
+        postAs("t-sys", "/api/equipment", newEquipment("관리자 장비", s1.id, "ADM-N-0004"))
             .andExpect(status().isCreated).andExpect(jsonPath("$.departmentId").value(s1.id!!))
         // t-dual(2반 소속 반원, 1반 부서 관리자): 소속 부서인 2반 장비는 고치지만, 관리 범위 밖이라 관리부서를 옮기지는 못한다
         val s2Equipment = equipmentRepository.findAll().first { it.departmentId == s2.id }
@@ -477,7 +477,7 @@ class AdminApiTest(
         // 업무 유형 관리(ADMIN_WORK_TYPE)·추가 특성(ADMIN_ATTRIBUTE, REQ-405·519)은 부서 관리자 역할이 있으면 (REQ-808, G-62). 업무 현황(WORK_DASHBOARD)은 모두 (REQ-901, DEC-075, G-21)
         assertThat(getAs("t-s1m", "/api/me")["features"].map { it.asText() }).containsExactly("WORK_DASHBOARD")
         assertThat(getAs("t-sys", "/api/me")["features"].map { it.asText() })
-            .containsExactlyInAnyOrder("ADMIN_ORG", "ADMIN_PERSONNEL", "ADMIN_SYSTEM", "WORK_DASHBOARD")
+            .containsExactlyInAnyOrder("ADMIN_ORG", "ADMIN_PERSONNEL", "ADMIN_SYSTEM", "ADMIN_EQUIPMENT", "ADMIN_WORK_TYPE", "ADMIN_ATTRIBUTE", "WORK_DASHBOARD")
 
         assertThat(getAs("t-sys", "/api/personnel").first()["name"].asText()).isEqualTo("최신 인원")
 
@@ -587,7 +587,7 @@ class AdminApiTest(
                 .andExpect(status().isCreated).andReturn().response.getContentAsString(Charsets.UTF_8),
         )["id"].asLong()
         postAs("t-c1admin", "/api/admin/locations", mapOf("name" to "남의 창고", "departmentId" to s3.id)).andExpect(status().isForbidden)
-        mockMvc.perform(get("/api/admin/locations").with(signedIn("t-sys", accountRepository))).andExpect(status().isForbidden)
+        mockMvc.perform(get("/api/admin/locations").with(signedIn("t-sys", accountRepository))).andExpect(status().isOk)
         assertThat(getAs("t-c1admin", "/api/admin/locations").map { it["name"].asText() }).containsExactlyInAnyOrder("1중대 창고", "1반 선반")
 
         // 사용 중인 설치장소와 같은 이름은 등록·이름 바꾸기 모두 거부 (REQ-512, 대소문자 구분 없음)

@@ -27,8 +27,8 @@ export default function NotificationSettingsCard() {
 
   return (
     // OMNIS 카드: 아이콘 머리(제목·설명) + 종류마다 한 줄(아래 경계선)
-    <Panel icon={<BellAltIcon />} title={t("settings.notificationsTitle")} titleId="settings-notifications-title" subtitle={t("settings.notificationsDesc")} subtitleGuide>
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+    <Panel className="settings-notifications" icon={<BellAltIcon />} title={t("settings.notificationsTitle")} titleId="settings-notifications-title" subtitle={t("settings.notificationsDesc")} subtitleGuide>
+      <div className="settings-notification-options divide-y divide-gray-100 dark:divide-gray-800">
         {settings?.map((s) => (
           <div key={`${s.type}-${s.enabled}-${round}`} className="flex min-h-[46px] items-center py-1.5">
             <Switch label={t(`notifications.types.${s.type}`)} defaultChecked={s.enabled} onChange={(on) => change(s.type, on)} />

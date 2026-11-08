@@ -35,7 +35,7 @@ class DutyAccess(
     private val assigneeRepository: DutyAssigneeRepository,
     private val clock: Clock,
 ) {
-    /** 근무표 관리자: 그 부서를 대상으로 한 부서 관리자 역할(하위 제외)이 있고 그 부서가 사용 중. 시스템 관리자도 이 역할이 있을 때만 (G-62·G-144) */
+    /** 근무표 관리자: 그 부서를 대상으로 한 부서 관리자 역할(하위 제외)이 있고 그 부서가 사용 중. 최고 관리자는 모든 사용 중 부서를 관리한다. */
     fun canManage(actor: Actor, departmentId: Long): Boolean =
         actor.deptAdminOf(departmentId) && actor.tree.find(departmentId)?.active == true
 
@@ -55,7 +55,7 @@ class DutyAccess(
 
     /** [근무표 수정] 단추: 사용 중인 부서를 대상으로 한 부서 관리자 역할이 하나라도 있거나 어느 근무표의 담당자 (근무표가 없어도 보임) */
     fun editableAny(actor: Actor): Boolean =
-        actor.roles.any { it.roleCode == Roles.DEPT_ADMIN && it.departmentId?.let { id -> actor.tree.find(id)?.active } == true } ||
+        actor.directlyManagedActiveDepartments().isNotEmpty() ||
             assignedRosterIds(actor).isNotEmpty()
 
     fun context(actor: Actor): DutyViewContext {

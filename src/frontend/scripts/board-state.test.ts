@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { BoxCard } from "../src/api/ictStatus.ts";
+import { controlHighlights } from "../src/components/board/boardState.ts";
+import { indicatorSummary } from "../src/utils/ictStatusPresentation.ts";
 import { attentionBoxes, coreBoxes, coreHighlights, coreKind, initialResource, mergeResource, visibleBoxes, pageCapacity, boardViewport } from "../src/components/board/boardState.ts";
 
 const box = (id: number, shownColor: BoxCard["shownColor"], overrides: Partial<BoxCard> = {}): BoxCard => ({
@@ -25,6 +27,36 @@ test("core indicators use exact normalized names, retaining normal indicators an
 });
 test("CPCON numbers never override the stored colour severity", () => {
   assert.deepEqual(attentionBoxes([box(1,"GREEN",{title:"CPCON",shownSummary:"1단계"}),box(2,"RED",{title:"CPCON",shownSummary:"5단계"})]).map(row=>row.id),[2]);
+});
+
+test("unified control panel keeps the named controls, at most six titles, red first", () => {
+  const data = [box(1,"BLUE",{title:"CPCON"}), box(2,"YELLOW",{title:"위기경보단계"}),
+    box(3,"RED",{title:"GPS 전파교란",shownSummary:"있음"}),
+    box(4,"GREEN",{title:"GPS전파교란",shownSummary:"없음"}),
+    ...Array.from({length:8},(_,i)=>box(i+5,"ORANGE"))];
+  const before=structuredClone(data);
+  const selected=controlHighlights(data);
+  assert.equal(selected.length,6);
+  assert.deepEqual(selected.map(row=>row.shownColor),["RED","ORANGE","ORANGE","ORANGE","YELLOW","BLUE"]);
+  for(const id of [1,2,3]) assert.ok(selected.some(row=>row.id===id));
+  assert.equal(selected.filter(row=>row.title.includes("GPS")).length,1);
+  assert.deepEqual(data,before,"Selection must not reorder or change API data");
+});
+
+test("control representatives respect hidden IDs and highest registered colour", () => {
+  const selected=controlHighlights([box(1,"RED",{title:"CPCON"}),box(1,"RED",{hidden:true}),
+    box(2,"GREEN",{title:" cpcon "}),box(3,"YELLOW",{title:"ＣＰＣＯＮ"})]);
+  assert.deepEqual(selected.map(row=>row.id),[3]);
+  assert.deepEqual(controlHighlights([]),[]);
+  assert.equal(controlHighlights([box(9,"GRAY")]).length,1);
+});
+
+test("GPS display converts only known occurrence labels and retains custom values", () => {
+  for(const [value,expected] of [["있음","비정상"],["없음","정상"],["확인 중","확인 중"]]) {
+    assert.equal(indicatorSummary({title:" GPS 전파교란 ",shownSummary:value}),expected);
+  }
+  assert.equal(indicatorSummary({title:"GPS 전파교란 훈련",shownSummary:"있음"}),"있음");
+  assert.equal(indicatorSummary({title:"GPS 전파교란",shownSummary:"없음"},{normal:"Normal",abnormal:"Abnormal"}),"Normal");
 });
 test("empty success and zero differ from unverified or failed data", () => {
   assert.equal(mergeResource(initialResource(),{ok:true,value:[]},"t1").state,"empty");

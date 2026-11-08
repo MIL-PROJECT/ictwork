@@ -31,7 +31,8 @@ ictwork:
     total-limit-mb: 500
   # AI 질의응답 (REQ-B09, NFR-005, slices/12 5.1). 처음에는 끈다: 개발 PC(application-local.yml)만 켜고 배포판(demo)·시험은 끈 채로 둔다
   ai:
-    enabled: false
+    enabled: true
+    provider: LOCAL
     # 실행기(Ollama) 주소: 같은 PC(localhost·127.0.0.1·::1)만 받는다. 아니면 AI를 켜지 않고 경고를 남긴다
     base-url: http://127.0.0.1:11434
     chat-model: qwen3:8b
