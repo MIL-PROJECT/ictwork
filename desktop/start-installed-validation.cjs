@@ -16,9 +16,9 @@ let app, db, originalAdmin, closing=false;
 async function close() {
   if(closing) return; closing=true;
   try {
-    if(originalAdmin && db) db.sql("UPDATE account SET password_hash='"+originalAdmin.password_hash+"',password_change_required="+originalAdmin.password_change_required+" WHERE login_id='sysadmin'");
+    if(originalAdmin && db) db.sql("UPDATE account SET password_hash='"+originalAdmin.password_hash+"',password_change_required="+originalAdmin.password_change_required+",updated_at='"+originalAdmin.updated_at+"' WHERE login_id='sysadmin'");
   } finally { if(app) await app.close(); }
-  process.stdin.pause();
+  process.stdin.destroy();
 }
 (async()=>{
   const env={...process.env,PATH:path.join(process.env.SystemRoot,'System32'),ICTWORK_SCHEDULER_ENABLED:'false',ICTWORK_AI_ENABLED:'true',ICTWORK_AI_PROVIDER:'LOCAL',ICTWORK_QAMASTER_LOGINID:'installed-validation-master',ICTWORK_QAMASTER_PASSWORDHASH:bcrypt(password)};
@@ -27,7 +27,7 @@ async function close() {
   const service=path.join(profile,'service'), log=path.join(service,'spring.log');
   let origin;
   for(let attempt=0;attempt<960;attempt++) {
-    const matches=fs.existsSync(log)?[...fs.readFileSync(log,'utf8').matchAll(/Tomcat started on port (\d+)/g)]:[];
+    const matches=fs.existsSync(log)?[...fs.readFileSync(log,'utf8').matchAll(/Tomcat started on port(?:\(s\))?:? (\d+)/g)]:[];
     if(matches.length) {
       const candidate='http://127.0.0.1:'+matches.at(-1)[1];
       try { if((await fetch(candidate+'/signin',{signal:AbortSignal.timeout(700)})).ok){origin=candidate;break;} }catch{}
@@ -46,12 +46,12 @@ async function close() {
   readline.on('line',async line=>{
     if(line.trim()==='fixture') {
       if(originalAdmin) return;
-      originalAdmin=JSON.parse(db.sql("SELECT JSON_OBJECT('password_hash',password_hash,'password_change_required',password_change_required) FROM account WHERE login_id='sysadmin'"));
+      originalAdmin=JSON.parse(db.sql("SELECT JSON_OBJECT('password_hash',password_hash,'password_change_required',password_change_required,'updated_at',DATE_FORMAT(updated_at,'%Y-%m-%d %H:%i:%s.%f')) FROM account WHERE login_id='sysadmin'"));
       db.sql("UPDATE account SET password_hash='"+bcrypt(password)+"',password_change_required=FALSE WHERE login_id='sysadmin'");
       console.log('DISPOSABLE ADMIN FIXTURE READY; shipped DB and original credentials unchanged');
     }
     if(line.trim()==='quit') {readline.close();await close();}
   });
-  app.on('close',()=>{app=undefined;readline.close();process.stdin.pause();});
+  app.on('close',()=>{app=undefined;readline.close();process.stdin.destroy();});
 })().catch(async error=>{console.error(error);process.exitCode=1;await close();});
 for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>void close());
