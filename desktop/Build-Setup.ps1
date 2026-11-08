@@ -2,13 +2,17 @@ param(
     [Parameter(Mandatory)][string]$BundlePath,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [string]$MakeNsis = "$PSScriptRoot/../output/installer-tools/nsis-3.13/makensis.exe",
-    [string]$VisualCppInstaller = "$PSScriptRoot/../output/installer-tools/vc_redist.x64.exe"
+    [string]$VisualCppInstaller = "$PSScriptRoot/../output/installer-tools/vc_redist.x64.exe",
+    [ValidatePattern('^\d{4}-\d{2}-\d{2}$')][string]$ReleaseDate = (Get-Date -Format 'yyyy-MM-dd')
 )
 $ErrorActionPreference = 'Stop'
 $source = (Resolve-Path -LiteralPath $BundlePath).Path
 $compiler = (Resolve-Path -LiteralPath $MakeNsis).Path
 $runtime = (Resolve-Path -LiteralPath $VisualCppInstaller).Path
-foreach ($required in 'OMNIS.exe', 'resources/app/main.cjs', 'resources/app/windows-ansi.exe', 'resources/ictwork.war', 'resources/java/bin/java.exe', 'resources/mysql/bin/mysqld.exe') {
+$release = [DateTime]::ParseExact($ReleaseDate, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+$releaseVersion = $release.ToString('yyyy.MM.dd')
+$fileVersion = "$($release.Year).$($release.Month).$($release.Day).0"
+foreach ($required in 'OMNIS.exe', 'resources/app/main.cjs', 'resources/app/legacy-schema.cjs', 'resources/app/windows-ansi.exe', 'resources/ictwork.war', 'resources/java/bin/java.exe', 'resources/mysql/bin/mysqld.exe') {
     if (!(Test-Path -LiteralPath (Join-Path $source $required) -PathType Leaf)) { throw "Missing payload: $required" }
 }
 $signature = Get-AuthenticodeSignature -LiteralPath $runtime
@@ -29,7 +33,7 @@ $directories = @(Get-ChildItem -LiteralPath $source -Directory -Recurse | Sort-O
 $uninstall += @($directories | ForEach-Object { 'RMDir "$INSTDIR\' + $_.FullName.Substring($source.Length + 1) + '"' })
 $uninstall | Set-Content -LiteralPath (Join-Path $evidence 'uninstall-payload.nsh') -Encoding UTF8
 $guide = @'
-OMNIS Final — Windows x64 설치 안내 (2026-11-07)
+OMNIS Final — Windows x64 설치 안내 (__RELEASE_DATE__)
 
 1. DVD에 있는 Setup.exe를 실행합니다. 별도 압축 해제는 필요하지 않습니다.
 2. 설치 위치를 선택하고 설치합니다. 기본 위치는 현재 사용자 Programs\OMNIS Final입니다.
@@ -55,12 +59,14 @@ service 폴더 전체를 백업합니다. 대상의 기존 데이터도 먼저 �
 오류 확인: 위 service 폴더의 spring.log, mysql.log.
 설치 파일은 전자서명되지 않았습니다. 실행이 차단되면 해당 PC 관리자의 허용 절차를 따릅니다.
 '@
+$guide = $guide.Replace('__RELEASE_DATE__', $ReleaseDate)
 $guide | Set-Content -LiteralPath (Join-Path $evidence 'INSTALL-KO.txt') -Encoding UTF8
 $guide | Set-Content -LiteralPath (Join-Path $dvd '설치안내.txt') -Encoding UTF8
 $defines = @(
     '/INPUTCHARSET', 'UTF8', '/V3',
     "/DBUNDLE=$source", "/DOUTPUT=$dvd\Setup.exe", "/DICON=$PSScriptRoot\omnis.ico",
     "/DVCREDIST=$runtime", "/DGUIDE=$evidence\INSTALL-KO.txt", "/DREMOVEFILES=$evidence\uninstall-payload.nsh",
+    "/DRELEASE_DATE=$ReleaseDate", "/DRELEASE_VERSION=$releaseVersion", "/DFILE_VERSION=$fileVersion",
     "$PSScriptRoot\installer.nsi"
 )
 & $compiler @defines 2>&1 | Tee-Object -FilePath (Join-Path $evidence 'makensis.log')
@@ -85,6 +91,8 @@ $result = [ordered]@{
     warSha256 = (Get-FileHash -LiteralPath (Join-Path $source 'resources/ictwork.war') -Algorithm SHA256).Hash.ToLowerInvariant()
     desktopMainSha256 = (Get-FileHash -LiteralPath (Join-Path $source 'resources/app/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
     createdAt = (Get-Date).ToUniversalTime().ToString('o')
+    releaseDate = $ReleaseDate
+    releaseVersion = $releaseVersion
 }
 $result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $evidence 'build-result.json') -Encoding UTF8
 ($result.sha256 + '  Setup.exe') | Set-Content -LiteralPath (Join-Path $destination 'SHA256.txt') -Encoding ASCII

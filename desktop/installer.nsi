@@ -15,12 +15,12 @@ SetCompressor zlib
 SetCompressionLevel 7
 ShowInstDetails show
 ShowUninstDetails show
-BrandingText "OMNIS Final | Windows x64 | 2026-11-07"
-VIProductVersion "2026.11.7.0"
+BrandingText "OMNIS Final | Windows x64 | ${RELEASE_DATE}"
+VIProductVersion "${FILE_VERSION}"
 VIAddVersionKey "ProductName" "OMNIS Final"
 VIAddVersionKey "FileDescription" "OMNIS Final Offline Setup"
-VIAddVersionKey "FileVersion" "2026.11.7.0"
-VIAddVersionKey "ProductVersion" "2026.11.07"
+VIAddVersionKey "FileVersion" "${FILE_VERSION}"
+VIAddVersionKey "ProductVersion" "${RELEASE_VERSION}"
 VIAddVersionKey "LegalCopyright" "OMNIS Team"
 
 Var TestMode
@@ -128,7 +128,7 @@ Section "OMNIS Final" SEC_MAIN
     ${EndIf}
     SetOutPath "$INSTDIR"
     ; Mark a partial installation so it can be retried at the same location.
-    WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "Product" "OMNIS Final 2026.11.07"
+    WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "Product" "OMNIS Final ${RELEASE_VERSION}"
     WriteINIStr "$INSTDIR\omnis-final-install.ini" "Installer" "TestMode" "$TestMode"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     SetOverwrite on
@@ -148,7 +148,7 @@ Section "OMNIS Final" SEC_MAIN
         CreateShortcut "$DESKTOP\OMNIS Final.lnk" "$INSTDIR\OMNIS.exe" "" "$INSTDIR\OMNIS.exe"
         WriteRegStr HKCU "Software\OMNIS Final" "InstallDir" "$INSTDIR"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayName" "OMNIS Final"
-        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayVersion" "2026.11.07"
+        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayVersion" "${RELEASE_VERSION}"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "Publisher" "OMNIS Team"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "InstallLocation" "$INSTDIR"
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OMNIS Final" "DisplayIcon" "$INSTDIR\OMNIS.exe"
