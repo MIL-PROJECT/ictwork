@@ -120,5 +120,33 @@
     "error": "조회 실패 · 현재 값 확인 불가",
     "stale": "갱신 실패 · 이전 확인값 ({time})",
     "unavailable": "조회할 수 있는 자료 없음 · 권한·조회 범위를 확인하세요."
+  },
+  "healthCompact": {
+    "loading": "확인 중…",
+    "ready": "확인 {time}",
+    "empty": "확인 {time} · 자료 없음",
+    "error": "조회 실패 · 확인 불가",
+    "stale": "갱신 실패 · 이전 {time}",
+    "unavailable": "조회 범위·권한 확인 필요"
+  },
+  "oneScreen": {
+    "spaceShortage": "공간 부족 · 전체 보기에서 확인",
+    "coreAll": "핵심 운용 상태 전체 {count}개 보기",
+    "coreSelection": "부서별 지표 중 설정 색상 우선순위로 각 종류를 요약합니다. 전체에서 부서별 값을 확인하세요.",
+    "allCount": "{count}개",
+    "visibleOnly": "권한·숨김 설정 적용",
+    "visibleCount": "범위 {count}개",
+    "alertsAll": "주의 전체 {count}건 보기",
+    "close": "닫기",
+    "partial": "일부 갱신 실패",
+    "sourceTimes": "영역별 확인 시각",
+    "panels": "업무 처리와 운용 지원",
+    "overdue": "지연",
+    "dialog": {
+      "all": "정보통신 전체 현황",
+      "core": "부서별 핵심 운용 상태",
+      "alerts": "전체 주의 현황"
+    },
+    "modifiedShort": "수정"
   }
 }

@@ -49,9 +49,10 @@ const [installed, evidence] = process.argv.slice(2);
       assert.equal(await page.getByTestId('attention-count').innerText(),String(new Set(alerts.map(box=>box.id)).size));
       const shown=await page.locator('.board-core-indicator[href],.board-risk-row').evaluateAll(elements=>elements.map(element=>Number(new URL(element.href).searchParams.get('box'))));
       assert.ok(shown.every(id=>visible.some(box=>box.id===id)),'All displayed data must belong to this actor’s API scope');
-      await page.locator('.board-ict-details summary').click();
-      const tableIds=await page.locator('.board-ict-details tbody a').evaluateAll(elements=>elements.map(element=>Number(new URL(element.href).searchParams.get('box'))));
+      await page.getByRole('button',{name:'정보통신 전체 현황',exact:true}).click();await page.getByRole('dialog').waitFor();
+      const tableIds=await page.locator('.board-dialog-box').evaluateAll(elements=>elements.map(element=>Number(new URL(element.href).searchParams.get('box'))));
       assert.deepEqual([...tableIds].sort((a,b)=>a-b),visible.map(box=>box.id).sort((a,b)=>a-b));
+      await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
       await page.evaluate(()=>window.scrollTo(0,0));await page.waitForTimeout(150);
       await page.screenshot({path:path.join(evidence,'board-role-'+user+'.png'),fullPage:true,animations:'disabled'});
       results.push({user,visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true});
@@ -69,7 +70,7 @@ const [installed, evidence] = process.argv.slice(2);
     await page.route(scopeEndpoint,async route=>{await new Promise(resolve=>setTimeout(resolve,2000));await route.continue();});
     await page.goto(origin+'/board');
     await page.locator('.board-attention:not([data-state=loading])').waitFor();
-    assert.equal(await page.locator('.board-work>.board-resource-note[data-state=loading]').count(),1);
+    assert.equal(await page.locator('.board-work>.board-section-head>.board-resource-note[data-state=loading]').count(),1);
     await page.locator('.board-actions button:not([disabled])').waitFor();await page.unroute(scopeEndpoint);
 
     let calls=0;
@@ -79,8 +80,28 @@ const [installed, evidence] = process.argv.slice(2);
     await page.evaluate(()=>{for(let index=0;index<6;index++)window.dispatchEvent(new Event('focus'));});
     await page.locator('.board-actions button:not([disabled])').waitFor();assert.equal(calls,1,'Focus events must not duplicate an active board refresh');
     await page.unroute(ictEndpoint);
+    const shortStates=[];
+    const shortCheck=async name=>{
+      await page.setViewportSize({width:1366,height:660});await page.evaluate(()=>document.documentElement.dataset.fontSize='large');
+      await page.locator('header').getByRole('button',{name:'AI 업무지원',exact:true}).click();await page.locator('#assist-panel').waitFor();
+      const result=await require('./verify-board-fit.cjs').checkLayout(page,evidence,'short-'+name);
+      shortStates.push({name,width:result.width,height:result.height,scrollY:result.scrollY});
+      await page.locator('header').getByRole('button',{name:'AI 업무지원',exact:true}).click();await page.locator('#assist-panel').waitFor({state:'hidden'});
+    };
+    let failure='stale';
+    const shortHandler=route=>route.fulfill(failure==='empty'?{json:{boxes:[],addDepartments:[]}}:{status:failure==='denied'?403:503,json:{message:'Synthetic short-window source failure'}});
+    await page.route(ictEndpoint,shortHandler);
+    for(const [mode,state] of [['stale','stale'],['denied','unavailable'],['empty','empty']]) {
+      failure=mode;await page.locator('.board-actions button:not([disabled])').waitFor();await page.locator('.board-actions button').click();
+      await page.locator(`.board-attention[data-state=${state}]`).waitFor();await shortCheck(mode);
+    }
+    await page.unroute(ictEndpoint,shortHandler);
+    const failedEndpoints=/\/api\/(ict-status|work-status(?:\/scope)?|work\/items|work\/receipts|directives|duty\/today)(?:\?.*)?$/;
+    await page.route(failedEndpoints,route=>route.fulfill({status:503,json:{message:'Synthetic short-window total failure'}}));
+    await page.goto(origin+'/board');await page.locator('.board-attention[data-state=error]').waitFor();await shortCheck('all-failed');
+    await page.unroute(failedEndpoints);
     assert.deepEqual(errors,[]);
-    fs.writeFileSync(path.join(evidence,'board-roles-result.json'),JSON.stringify({success:true,results,emptyScopeClearsOldValues:true,ictIndependentOfWork:true,refreshDeduplicated:true,rendererErrors:errors},null,2));
+    fs.writeFileSync(path.join(evidence,'board-roles-result.json'),JSON.stringify({success:true,results,emptyScopeClearsOldValues:true,ictIndependentOfWork:true,refreshDeduplicated:true,shortStates,rendererErrors:errors},null,2));
     console.log('PASS four real role scopes, full ICT lists, scope change, independent ICT and refresh deduplication');
   } catch(error) {
     await page.screenshot({path:path.join(evidence,'board-roles-failure.png'),fullPage:true}).catch(()=>{});throw error;

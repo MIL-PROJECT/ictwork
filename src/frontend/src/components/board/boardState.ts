@@ -46,3 +46,19 @@ export function coreBoxes(boxes: BoxCard[]): BoxCard[] {
     (ALERT_RANK[a.shownColor] ?? 9) - (ALERT_RANK[b.shownColor] ?? 9) ||
     a.departmentLabel.localeCompare(b.departmentLabel) || a.id - b.id);
 }
+
+// One visible representative per existing indicator type, highest configured
+// attention colour first. The full department-specific list remains accessible.
+export function coreHighlights(boxes: BoxCard[]): (BoxCard | null)[] {
+  const sorted = coreBoxes(boxes);
+  return (["cpcon", "crisis"] as const).map(kind => sorted.find(box => coreKind(box.title) === kind) ?? null);
+}
+
+export function pageCapacity(height: number, rowHeight: number, reserved = 0): number {
+  return rowHeight > 0 ? Math.max(0, Math.floor((height - reserved) / rowHeight)) : 0;
+}
+
+export function boardViewport(viewportWidth: number, viewportHeight: number, documentTop: number, zoom: number, width: number, bottomPadding: number) {
+  const height = Math.max(0, Math.floor((viewportHeight - documentTop) / zoom - bottomPadding));
+  return { height, fit: viewportWidth >= 1024 && width >= 340 && height >= 440 };
+}

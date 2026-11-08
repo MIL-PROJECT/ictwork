@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { BoxCard } from "../src/api/ictStatus.ts";
-import { attentionBoxes, coreBoxes, coreKind, initialResource, mergeResource, visibleBoxes } from "../src/components/board/boardState.ts";
+import { attentionBoxes, coreBoxes, coreHighlights, coreKind, initialResource, mergeResource, visibleBoxes, pageCapacity, boardViewport } from "../src/components/board/boardState.ts";
 
 const box = (id: number, shownColor: BoxCard["shownColor"], overrides: Partial<BoxCard> = {}): BoxCard => ({
   id, departmentId: 22, departmentLabel: "1중대", title: `상태 ${id}`, shownSummary: "현재 값", shownColor,
@@ -44,4 +44,26 @@ test("recovery replaces stale data and advances only that source check time", ()
   const before=mergeResource(initialResource<number[]>(),{ok:true,value:[1]},"t1");
   const failed=mergeResource(before,{ok:false},"t2");
   assert.deepEqual(mergeResource(failed,{ok:true,value:[]},"t3"),{value:[],state:"empty",checkedAt:"t3"});
+});
+
+test("one-screen highlights show both kinds and select the highest configured colour per kind", () => {
+  const boxes=[box(1,"GREEN",{title:"CPCON"}),box(2,"RED",{title:"CPCON",departmentId:23}),box(3,"BLUE",{title:"위기경보단계"})];
+  assert.deepEqual(coreHighlights(boxes).map(row=>row?.id),[2,3]);
+  assert.deepEqual(coreHighlights([]),[null,null]);
+  assert.equal(coreBoxes(boxes).length,3,'The full department-specific list remains intact');
+});
+test("page capacity accounts for actual space and never reports a clipped extra row", () => {
+  assert.equal(pageCapacity(89,30),2);
+  assert.equal(pageCapacity(60,30),2);
+  assert.equal(pageCapacity(59,30),1);
+  assert.equal(pageCapacity(59,30,30),0);
+  assert.equal(pageCapacity(100,0),0);
+});
+test("board height includes actual header offset, font zoom and parent padding", () => {
+  assert.deepEqual(boardViewport(1366,768,70,1.25,700,28),{height:530,fit:true});
+  assert.equal(boardViewport(1280,720,56,1,950,28).fit,true);
+  assert.equal(boardViewport(1366,660,72.5,1.25,370,28).fit,true,'Native title/menu/task bars and large text can use the short layout');
+  assert.equal(boardViewport(1366,600,70,1.25,700,28).fit,false);
+  assert.equal(boardViewport(390,844,70,1,350,16).fit,false);
+  assert.equal(boardViewport(1366,768,56,1,300,28).fit,false);
 });
