@@ -91,8 +91,8 @@
     "assignedWork": "Assigned work"
   },
   "register": {
-    "titleRequest": "Request Another Department",
-    "titleRegister": "Register Department Work",
+    "titleRequest": "Task Request",
+    "titleRegister": "Task Register",
     "editTitle": "Edit and resubmit request",
     "notEditable": "This request cannot be edited and resubmitted. Only the drafter of a rejected or withdrawn sending approval can edit it.",
     "toDetail": "Go to the request",
@@ -201,9 +201,9 @@
   "tasks": {
     "title": "Registered Tasks",
     "tabs": {
-      "department": "Work Register",
+      "department": "Our department",
       "mine": "Requested tasks",
-      "viewable": "Shared Requests"
+      "viewable": "Shared with me"
     },
     "closedRange": "Closed: {from}~{to}",
     "filter": {
@@ -388,7 +388,7 @@
     "title": "Approve Tasks",
     "tabs": {
       "myTurn": "My turn",
-      "handled": "Handled Approvals"
+      "handled": "Handled"
     },
     "tabDesc": {
       "myTurn": "Approvals waiting for you, and your rejected or withdrawn approvals waiting to be edited and resubmitted or cancelled.",

@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router";
 import AppHeader from "./AppHeader";
 import AppSidebar from "./AppSidebar";
-import SectionNavigation from "./SectionNavigation";
 import Backdrop from "./Backdrop";
 
 // QA 마스터가 고른 계정으로 들어온 동안 맨 위에 보이는 띠 (DEC-067). 계정 바꾸기 = 계정 고르기로 돌아가기
@@ -57,7 +56,6 @@ const LayoutContent: React.FC = () => {
         <AppHeader />
         {/* OMNIS처럼 본문은 창 폭 끝까지 넓어진다(예전 1536px 최대 폭 없앰). 상단바와 좌우 끝이 맞는다 */}
         <main className="w-full flex-1 p-4 md:px-[30px] md:pt-0.5 md:pb-7">
-          <SectionNavigation />
           <Outlet />
         </main>
       </div>

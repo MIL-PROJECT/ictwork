@@ -23,7 +23,6 @@ import { formatDateTime, formatPeriod, formatSchedule, idParam, isNotFound, useW
 import OrgPicker from "@/components/work/OrgPicker";
 import RequestFields from "@/components/work/RequestFields";
 import { useOrgData } from "@/hooks/useOrgData";
-import { safeDepartmentListReturn } from "@/layout/navigationSections";
 import { CalenderIcon, DocsIcon, ListIcon, TaskIcon, TimeIcon } from "@/icons";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -46,13 +45,11 @@ function RequestDetailPage() {
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("frameWork");
   const id = idParam(useParams().id);
-  const [params] = useSearchParams();
-  const from = viewFromOf(params.get("from"));
+  const from = viewFromOf(useSearchParams()[0].get("from"));
   const navigate = useNavigate();
   const describeError = useWorkError();
   const { departments, personnel, paths } = useOrgData({ personnel: true });
   const [request, setRequest] = useState<Request | null>(null);
-  const registrationList = request?.kind === "REGISTER" ? safeDepartmentListReturn(params.get("returnTo")) : null;
   // 읽기 실패: 없거나 볼 수 없는 요청(404·잘못된 주소)은 "찾을 수 없음", 그 밖은 "다시 시도"
   const [failed, setFailed] = useState<"requestDetail.notFound" | "loadFailed" | null>(null);
   const [dialog, setDialog] = useState<"viewers" | "cancel" | null>(null);
@@ -220,15 +217,13 @@ function RequestDetailPage() {
       <PageMeta titleKey="work:requestDetail.title" />
       <PageBreadcrumb
         pageTitle={request?.title ?? t("requestDetail.title")}
-        back={registrationList ? undefined : true}
+        back
         actions={
-          <>
-          {registrationList && <Link to={registrationList} className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3">{t("back")}</Link>}
-          {request && (request.editable || request.cancelable) ? (
+          request && (request.editable || request.cancelable) ? (
             // 작업 단추는 인쇄하지 않는다 (OMNIS 제목 오른쪽 화면 동작)
             <div className="contents print:hidden">
               {request.editable && (
-                <ActionButton onClick={() => navigate(`/work/requests/${request.id}/edit?${params.toString()}`)}>{t("requestDetail.edit")}</ActionButton>
+                <ActionButton onClick={() => navigate(`/work/requests/${request.id}/edit`)}>{t("requestDetail.edit")}</ActionButton>
               )}
               {request.cancelable && (
                 <ActionButton tone="danger" onClick={() => setDialog("cancel")}>
@@ -236,8 +231,7 @@ function RequestDetailPage() {
                 </ActionButton>
               )}
             </div>
-          ) : undefined}
-          </>
+          ) : undefined
         }
       />
       {(id === null || (failed && !request)) && <p role="alert" className="text-sm text-error-600 dark:text-error-400">{t(id === null ? "requestDetail.notFound" : (failed ?? "loadFailed"))}</p>}

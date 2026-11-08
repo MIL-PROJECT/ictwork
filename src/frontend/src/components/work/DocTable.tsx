@@ -2,8 +2,7 @@ import type { DocListItem } from "@/api/work";
 import type { Paging } from "@/hooks/usePaging";
 import { DocsIcon } from "@/icons";
 import { useTranslation } from "react-i18next";
-import { withListReturn } from "@/layout/navigationSections";
-import { Link, useLocation } from "react-router";
+import { Link } from "react-router";
 import { DocStatusBadge, PanelTable, PriorityBadge } from "./common";
 import { formatDateTime } from "./format";
 
@@ -13,7 +12,6 @@ import { formatDateTime } from "./format";
  */
 export default function DocTable({ caption, docs, failed, paging }: { caption: string; docs: DocListItem[] | null; failed: boolean; paging: Paging }) {
   const { t } = useTranslation("work");
-  const location = useLocation();
   return (
     <PanelTable
       caption={caption}
@@ -26,7 +24,7 @@ export default function DocTable({ caption, docs, failed, paging }: { caption: s
           t(`docTypes.${doc.docType}`),
           <span key="title" className="flex flex-wrap items-center gap-2">
             <PriorityBadge priority={doc.priority} />
-            <Link to={withListReturn(`/approvals/docs/${doc.id}`, location.pathname + location.search)} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+            <Link to={`/approvals/docs/${doc.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
               {doc.title}
             </Link>
           </span>,

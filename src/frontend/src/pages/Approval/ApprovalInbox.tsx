@@ -3,6 +3,7 @@ import { Panel } from "@/components/common/Panel";
 import { PagingFooter } from "@/components/common/Pagination";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
+import { Tabs } from "@/components/work/common";
 import DocTable from "@/components/work/DocTable";
 import { useCountText } from "@/components/work/format";
 import { useDocList } from "@/hooks/useDocList";
@@ -21,7 +22,7 @@ export default function ApprovalInbox() {
   const { t: tc } = useTranslation();
   const { t: tw } = useTranslation("frameWork");
   const countText = useCountText();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const tab = (INBOX_TABS.find((x) => x === params.get("tab")) ?? "myTurn") as InboxTab;
   const { docs, failed } = useDocList(LOADERS[tab], tab);
   const paging = usePaging("approvals", docs?.length ?? 0);
@@ -29,6 +30,7 @@ export default function ApprovalInbox() {
     <div>
       <PageMeta titleKey="sidebar.items.taskApproval" />
       <PageBreadcrumb pageTitle={tc("sidebar.items.taskApproval")} description={tw("approvals.desc")} />
+      <Tabs tabs={INBOX_TABS.map((value) => ({ value, label: t(`approvals.tabs.${value}`) }))} value={tab} onChange={(value) => setParams({ tab: value })} />
       {/* OMNIS 목록 카드: 머리(아이콘·탭 이름·건수) + 탭 설명 줄 + 꽉 찬 표 + 아래 쪽 나누기 띠 */}
       <Panel
         icon={<DocsIcon />}

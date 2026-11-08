@@ -152,7 +152,7 @@ export interface BoxStats {
 
 const json = (body: unknown) => ({ headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export const fetchIctTab = (signal?: AbortSignal) => apiFetch<IctTab>("/api/ict-status", { signal });
+export const fetchIctTab = () => apiFetch<IctTab>("/api/ict-status");
 export const saveLayoutOrder = (boxIds: number[]) => apiFetch<void>("/api/ict-status/layout/order", { method: "PUT", ...json({ boxIds }) });
 export const saveLayout = (boxId: number, change: { size?: BoxSize; hidden?: boolean }) =>
   apiFetch<void>(`/api/ict-status/layout/${boxId}`, { method: "PUT", ...json(change) });

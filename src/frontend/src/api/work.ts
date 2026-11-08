@@ -426,7 +426,7 @@ export interface FilterTypeOption {
 export const fetchFilterTypeOptions = () => apiFetch<FilterTypeOption[]>("/api/work/types/all");
 const withQuery = (path: string, query?: URLSearchParams) => (query && query.toString() !== "" ? `${path}?${query}` : path);
 // 업무 현황에서 온 조건(주소의 d 등)이 있으면 서버가 같은 판정으로 거른다 (slices/9_업무현황.md 3.5). 걸러 보기 조건(f…)은 그 위에 더 거른다 (REQ-117)
-export const fetchDepartmentItems = (query?: URLSearchParams, signal?: AbortSignal) => apiFetch<ItemListItem[]>(withQuery("/api/work/items", query), { signal });
+export const fetchDepartmentItems = (query?: URLSearchParams) => apiFetch<ItemListItem[]>(withQuery("/api/work/items", query));
 
 const isYmd = (value: string | null): value is string => value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -436,7 +436,7 @@ export function readClosedRange(params: URLSearchParams): { from: string; to: st
   const to = params.get("closedTo");
   return isYmd(from) && isYmd(to) ? { from, to } : null;
 }
-export const fetchReceipts = (signal?: AbortSignal) => apiFetch<ItemListItem[]>("/api/work/receipts", { signal });
+export const fetchReceipts = () => apiFetch<ItemListItem[]>("/api/work/receipts");
 export const fetchMyRequests = (query?: URLSearchParams) => apiFetch<RequestListItem[]>(withQuery("/api/work/requests/mine", query));
 export const fetchViewableRequests = (query?: URLSearchParams) => apiFetch<RequestListItem[]>(withQuery("/api/work/requests/viewable", query));
 

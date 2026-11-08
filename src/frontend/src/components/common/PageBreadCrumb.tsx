@@ -1,5 +1,5 @@
 import useGoBack from "@/hooks/useGoBack";
-import { listPathOf, menuItemPath, menuTrail } from "@/layout/navigationSections";
+import { listPathOf, menuItemPath, menuTrail } from "@/layout/AppSidebar";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 
@@ -21,9 +21,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, description, des
   const trail = menuTrail(pathname, search);
   // 메뉴 화면 아래의 상세 화면이면 그 목록(좁은 화면 경로의 가운데 칸, [이전으로]의 기본 행선지)
   const listPath = trail ? (listPathOf(pathname, search) ?? menuItemPath(trail)) : undefined;
-  const [listName, listSearch = ""] = (listPath ?? "").split("?");
-  const listTrail = listName ? menuTrail(listName, listSearch) : null;
-  const parent = listPath && listName !== pathname && listTrail ? t(`sidebar.items.${listTrail.sub ?? listTrail.item}`) : null;
+  const parent = listPath && listPath.split("?")[0] !== pathname && trail ? t(`sidebar.items.${trail.sub ?? trail.item}`) : null;
   const goBack = useGoBack(back === true ? (listPath ?? "/") : (back ?? "/"));
   const section = trail && trail.group !== "home" ? t(`sidebar.groups.${trail.group}`) : null;
   // OMNIS 페이지 머리: 작은 구역명 위에 큰 굵은 제목. 경로는 넓은 화면에서 상단바(MenuCrumbs)가 보인다

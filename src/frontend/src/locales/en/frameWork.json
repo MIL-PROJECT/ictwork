@@ -5,8 +5,7 @@
     "urgent": "{count} urgent"
   },
   "tasks": {
-    "desc": "Browse our department's tasks, tasks you requested, and tasks you can view.",
-    "departmentDesc": "Review received, ongoing and completed department work, and register new work."
+    "desc": "Browse our department's tasks, tasks you requested, and tasks you can view."
   },
   "receipts": {
     "listTitle": "Awaiting receipt"

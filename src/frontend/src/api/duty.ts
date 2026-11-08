@@ -270,7 +270,7 @@ const json = (method: string, body: unknown): RequestInit => ({
 const roster = (id: number) => `/api/duty/rosters/${id}`;
 const rule = (id: number, ruleId: number) => `${roster(id)}/rules/${ruleId}`;
 
-export const fetchDutyToday = (signal?: AbortSignal) => apiFetch<DutyTodayView>("/api/duty/today", { signal });
+export const fetchDutyToday = () => apiFetch<DutyTodayView>("/api/duty/today");
 
 export const fetchDutyCalendar = (from: string, to: string) =>
   apiFetch<DutyCalendarView>(`/api/duty/calendar?${new URLSearchParams({ from, to })}`);

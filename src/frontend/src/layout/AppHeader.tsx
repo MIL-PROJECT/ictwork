@@ -35,10 +35,10 @@ const AppHeader: React.FC = () => {
   return (
     // OMNIS 상단바: 테두리 없이 바탕색을 비치게(반투명 + 흐림)
     <header className="sticky top-0 z-99999 flex w-full print:hidden bg-app-bg/82 backdrop-blur-[10px] backdrop-saturate-[1.3] dark:bg-gray-900">
-      <div className="flex min-w-0 grow flex-col items-center justify-between xl:flex-row xl:px-[30px]">
-        <div className="flex w-full min-w-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:gap-4 xl:h-14 xl:flex-1 xl:justify-normal xl:border-b-0 xl:px-0 xl:py-0 dark:border-gray-800">
+      <div className="flex grow flex-col items-center justify-between xl:flex-row xl:px-[30px]">
+        <div className="flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:gap-4 xl:h-14 xl:justify-normal xl:border-b-0 xl:px-0 xl:py-0 dark:border-gray-800">
           <button
-            className={`z-99999 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-gray-200 text-gray-500 xl:h-9 xl:w-9 xl:bg-white xl:shadow-theme-md dark:border-gray-800 dark:text-gray-400 dark:xl:bg-transparent ${
+            className={`z-99999 flex h-10 w-10 items-center justify-center rounded-full border-gray-200 text-gray-500 xl:h-9 xl:w-9 xl:bg-white xl:shadow-theme-md dark:border-gray-800 dark:text-gray-400 dark:xl:bg-transparent ${
               isMobileOpen ? "bg-gray-100 dark:bg-white/3" : ""
             }`}
             onClick={handleToggle}
@@ -113,7 +113,7 @@ const AppHeader: React.FC = () => {
         </div>
         <div
           className={cn(
-            "flex w-full items-center justify-between gap-4 px-5 py-4 shadow-theme-md xl:flex xl:w-auto xl:shrink-0 xl:justify-end xl:px-0 xl:py-0 xl:shadow-none",
+            "flex w-full items-center justify-between gap-4 px-5 py-4 shadow-theme-md xl:flex xl:justify-end xl:px-0 xl:py-0 xl:shadow-none",
             isApplicationMenuOpen ? "flex" : "hidden",
           )}
         >

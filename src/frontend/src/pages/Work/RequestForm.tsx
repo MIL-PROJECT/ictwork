@@ -52,8 +52,6 @@ import {
 } from "@/api/work";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import PageMeta from "@/components/common/PageMeta";
-import WorkGuidanceContent from "@/components/work/WorkGuidanceContent";
-import { Modal } from "@/components/ui/modal";
 import {
   InfoGrid,
   InfoRow,
@@ -146,8 +144,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { safeDepartmentListReturn, safeListReturn, withListReturn } from "@/layout/navigationSections";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 // 초점을 받을 수 있는 칸 (올리기 실패 때 첫 오류 칸으로 옮김, REQ-101)
 const FOCUSABLE =
@@ -211,12 +208,7 @@ export default function RequestForm({
   const { t: tf } = useTranslation("file");
   const { t: tw } = useTranslation("workform");
   const { t: ts } = useTranslation("scope");
-  const { t: tc } = useTranslation();
-  const [guideOpen, setGuideOpen] = useState(false);
   const { id } = useParams();
-  const location = useLocation();
-  const returnList = safeListReturn(new URLSearchParams(location.search).get("returnTo"));
-  const registrationList = safeDepartmentListReturn(returnList) ?? "/tasks?tab=department";
   // 고쳐 다시 올리기(/work/requests/:id/edit): 번호가 잘못되면 서버를 부르지 않고 "찾을 수 없음"
   const editing = id !== undefined;
   const editId = editing ? idParam(id) : null;
@@ -845,15 +837,14 @@ export default function RequestForm({
       attachmentIds: attachmentIds(attachments),
     };
     try {
-      // from=mine preserves the creator's full server view; returnTo controls navigation separately.
+      // 올린 사람은 요청자 쪽이므로 요청한 업무에서 연 것처럼 연다(받는 부서를 겸해도 전체 상태가 보이게)
       if (editId !== null) {
         await resubmitRequest(editId, input);
         // 고치기 화면을 기록에서 바꿔 넣어 요청 화면의 [이전으로]가 고치기 화면으로 돌아가지 않게
-        navigate(withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine"), { replace: true });
+        navigate(`/work/requests/${editId}?from=mine`, { replace: true });
       } else {
         const created = await createRequest(input);
-        const target = `/work/requests/${created.id}?from=mine`;
-        navigate(register ? withListReturn(target, registrationList) : target, { replace: register });
+        navigate(`/work/requests/${created.id}?from=mine`);
       }
     } catch (err) {
       // 그사이 유형의 일정 방식이 바뀌었을 수 있다: 고르기 목록을 다시 읽어 칸을 맞춘다
@@ -1920,19 +1911,9 @@ export default function RequestForm({
         description={t(
           register ? "register.descRegister" : "register.descRequest",
         )}
-        actions={register && !editing ? (
-          <Link to={registrationList} className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3">
-            {t("back")}
-          </Link>
-        ) : !register ? (
-          <button type="button" onClick={() => setGuideOpen(true)} disabled={submitting}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-            <DocsIcon className="size-4" aria-hidden="true" />
-            {tc("sidebar.items.departmentService")}
-          </button>
-        ) : undefined}
+        // 고쳐 다시 올리기 화면만 [이전으로] (업무 등록·업무 요청은 메뉴 화면)
         back={
-          editId !== null ? withListReturn(`/work/requests/${editId}?from=mine`, returnList ?? "/tasks?tab=mine") : undefined
+          editId !== null ? `/work/requests/${editId}?from=mine` : undefined
         }
       />
       {loadedEdit && (
@@ -2067,15 +2048,6 @@ export default function RequestForm({
           </Link>
         </div>
       )}
-      {guideOpen && <Modal isOpen onClose={() => setGuideOpen(false)} labelledBy="request-guidance-title" describedBy="request-guidance-description"
-        className="custom-scrollbar max-h-[calc(90vh/var(--app-zoom))] max-w-3xl overflow-y-auto">
-        <h2 id="request-guidance-title" className="px-6 pt-6 pe-20 text-lg font-bold text-gray-900 dark:text-white">{tc("sidebar.items.departmentService")}</h2>
-        <p id="request-guidance-description" className="px-6 pt-2 text-sm text-gray-500">{tc("workGuidance.description")}</p>
-        <div className="px-6 py-5"><WorkGuidanceContent /></div>
-        <div className="sticky bottom-0 flex justify-end border-t border-gray-100 bg-gray-50 px-6 py-3 dark:border-gray-800 dark:bg-gray-900">
-          <button type="button" onClick={() => setGuideOpen(false)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{tc("common.close")}</button>
-        </div>
-      </Modal>}
     </div>
   );
 }

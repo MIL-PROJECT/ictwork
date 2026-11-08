@@ -91,8 +91,8 @@
     "assignedWork": "배정된 업무"
   },
   "register": {
-    "titleRequest": "다른 부서에 요청",
-    "titleRegister": "우리 부서 업무 등록",
+    "titleRequest": "업무 요청",
+    "titleRegister": "업무 등록",
     "editTitle": "요청 고쳐 다시 올리기",
     "notEditable": "고쳐 다시 올릴 수 없는 요청입니다. 발송 결재가 반려·회수된 요청을 그 결재를 올린 사람만 고칩니다.",
     "toDetail": "요청 상세로 가기",
@@ -201,9 +201,9 @@
   "tasks": {
     "title": "등록된 업무",
     "tabs": {
-      "department": "업무등록대장",
+      "department": "우리 부서 업무",
       "mine": "요청한 업무",
-      "viewable": "공유받은 업무"
+      "viewable": "열람 업무"
     },
     "closedRange": "끝난 건: {from}~{to}",
     "filter": {
@@ -387,7 +387,7 @@
     "title": "업무 결재",
     "tabs": {
       "myTurn": "내 차례",
-      "handled": "처리한 결재"
+      "handled": "처리한 문서"
     },
     "tabDesc": {
       "myTurn": "내 차례인 결재와, 반려·회수되어 고쳐 다시 올리거나 취소를 기다리는 내 결재입니다.",

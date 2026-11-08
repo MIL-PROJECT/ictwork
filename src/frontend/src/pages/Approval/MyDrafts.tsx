@@ -20,8 +20,8 @@ export default function MyDrafts() {
   const paging = usePaging("in-progress", docs?.length ?? 0);
   return (
     <div>
-      <PageMeta titleKey="sidebar.items.taskApproval" />
-      <PageBreadcrumb pageTitle={tc("sidebar.items.taskApproval")} description={t("approvals.inProgressDesc")} />
+      <PageMeta titleKey="sidebar.items.approvalInProgress" />
+      <PageBreadcrumb pageTitle={tc("sidebar.items.approvalInProgress")} description={t("approvals.inProgressDesc")} />
       {/* OMNIS 목록 카드: 머리(아이콘·목록 이름·건수) + 꽉 찬 표 + 아래 쪽 나누기 띠 */}
       <Panel
         icon={<DocsIcon />}

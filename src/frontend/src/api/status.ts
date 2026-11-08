@@ -107,7 +107,7 @@ const query = (q: StatusQuery) => {
   return params;
 };
 
-export const fetchStatusScope = (signal?: AbortSignal) => apiFetch<StatusScope>("/api/work-status/scope", { signal });
+export const fetchStatusScope = () => apiFetch<StatusScope>("/api/work-status/scope");
 
 export const fetchWorkStatus = (q: StatusQuery, signal?: AbortSignal) =>
   apiFetch<WorkStatus>(`/api/work-status?${query(q)}`, { signal });
