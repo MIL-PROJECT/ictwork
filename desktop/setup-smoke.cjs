@@ -2,8 +2,9 @@ const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const [installed, evidence] = process.argv.slice(2);
-if (!installed || !evidence) throw Error('Usage: node setup-smoke.cjs <installed-directory> <evidence-directory>');
+const args = process.argv.slice(2);
+if (args.length !== 2) throw Error('Usage: node setup-smoke.cjs <installed-directory> <evidence-directory>');
+const [installed, evidence] = args.map(value => path.resolve(value));
 const profile = path.resolve(evidence, process.env.OMNIS_SETUP_TEST_PROFILE || 'fresh-user-profile');
 const result = { installed, profile, runs: [], unexpectedNetwork: [], rendererErrors: [] };
 const eventTitle = 'Setup 설치·재시작 검증 ' + Date.now();
@@ -65,7 +66,7 @@ async function csrfHeaders(context, origin) {
       ]);
       assert.equal(login.status(), 200);
       await page.locator('aside').first().getByRole('link', { name: '관리', exact: true }).waitFor();
-      await page.getByText('현황 전체', { exact: true }).waitFor({ timeout: 30000 });
+      await page.getByText('전체 체계', { exact: true }).waitFor({ timeout: 30000 });
       // The board now paints source-specific loading states immediately; wait for
       // actual values rather than treating the initial skeleton as loaded data.
       await page.waitForFunction(() => {
@@ -119,7 +120,12 @@ async function csrfHeaders(context, origin) {
           assert.equal(data.phase,'SENT');
           assert.equal(data.items.length,1);
         }
-        console.log('PASS request, registration, completion and rejection persisted across restart');
+        const operations=JSON.parse(fs.readFileSync(path.join(evidence,'operations-result.json'),'utf8'));
+        for(const expected of operations.persisted) {
+          const response=await api.get(origin+'/api/operations/'+expected.id);assert.equal(response.status(),200);
+          const detail=await response.json();assert.equal(detail.item.status,expected.status);assert.ok(detail.history.length>=expected.history);
+        }
+        console.log('PASS operations, request, registration, completion and rejection persisted across restart');
       }
       result.runs.push({ run, startSeconds, origin, loginStatus: login.status(), dashboardMetrics: metrics, eventId, persistence: true, rendererIsolation: actual.sandbox && actual.contextIsolation && !actual.nodeIntegration });
       console.log('PASS installed launch ' + run + ', login, synthetic event persistence, request/diagrams/docs, ' + startSeconds.toFixed(1) + 's startup');

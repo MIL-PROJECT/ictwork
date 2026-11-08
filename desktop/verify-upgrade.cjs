@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const [bundle,sourceEvidence,evidence]=process.argv.slice(2).map(p=>path.resolve(p));
 const source=JSON.parse(fs.readFileSync(path.join(sourceEvidence,'installed-smoke-result.json'),'utf8'));
-const profile=path.join(evidence,'V41 복사본 V42');
+const profile=path.join(evidence,'V42 복사본 V43');
 function manifest(root) {
   return fs.readdirSync(root,{withFileTypes:true}).flatMap(entry=>{
     const p=path.join(root,entry.name);
@@ -25,18 +25,19 @@ function copyProfile(source,destination) {
 (async()=>{
   assert.ok(source.success);
   assert.ok(!fs.existsSync(profile),'Use a new copied test profile');
-  assert.match(fs.readFileSync(path.join(source.profile,'service/spring.log'),'utf8'),/version[^\n]*41|41[^\n]*migration/i);
+  assert.match(fs.readFileSync(path.join(source.profile,'service/spring.log'),'utf8'),/version[^\n]*42|42[^\n]*migration/i);
   const before=manifest(source.profile);
-  console.log('Original V41 profile hashed:',before.length,'files');
+  console.log('Original V42 profile hashed:',before.length,'files');
   fs.mkdirSync(evidence,{recursive:true});
   copyProfile(source.profile,profile);
-  console.log('Copied isolated V41 profile');
+  console.log('Copied isolated V42 profile');
   const env={...process.env,PATH:path.join(process.env.SystemRoot,'System32'),ICTWORK_AI_ENABLED:'false'};
   delete env.JAVA_HOME; delete env.JDK_HOME; delete env.ELECTRON_RUN_AS_NODE;
   const app=await _electron.launch({executablePath:path.join(bundle,'OMNIS.exe'),args:['--user-data-dir='+profile],env,timeout:60000});
   const page=await app.firstWindow();
   page.setDefaultTimeout(20000);
   let origin;
+  let report;
   try {
     assert.equal(path.resolve(await app.evaluate(({app})=>app.getPath('userData'))),profile);
     await page.locator('[name=loginId]').waitFor({timeout:180000});
@@ -67,23 +68,25 @@ function copyProfile(source,destination) {
     const sql=query=>execFileSync(path.join(bundle,'resources/mysql/bin/mysql.exe'),[
       '--no-defaults','--protocol=TCP','-h','127.0.0.1','-P',port,'-u','root','-N','-B','ictwork',
     ],{input:query,encoding:'utf8',windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root}}).trim();
-    assert.equal(sql('SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1'),'42');
+    assert.equal(sql('SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1'),'43');
+    assert.equal(sql('SELECT COUNT(*) FROM operation_system'),'0');
     assert.equal(sql("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='ictwork' AND table_name='ai_message' AND column_name='assist'"),'1');
     await page.goto(origin+'/tasks?tab=department');
     await page.locator('main').getByRole('link',{name:'우리 부서 업무 등록',exact:true}).waitFor();
     await page.screenshot({animations:'disabled',path:path.join(evidence,'upgraded-department-list.png')});
-    fs.writeFileSync(path.join(evidence,'upgrade-result.json'),JSON.stringify({
-      success:true,sourceProfile:source.profile,copiedProfile:profile,fromSchema:41,toSchema:42,
+    report = {
+      success:true,sourceProfile:source.profile,copiedProfile:profile,fromSchema:42,toSchema:43,
       preservedWorkflow:workflow,preservedRegistration:registrations,preservedCalendarEvent:source.runs[0].eventId,
       sourceFilesChecked:before.length,
-    },null,2));
+    };
   } catch(error) {
     await page.screenshot({path:path.join(evidence,'upgrade-failure.png')}).catch(()=>{});
     throw error;
   } finally {
     await app.close();
   }
-  assert.deepEqual(manifest(source.profile),before,'The original V41 profile must remain byte-for-byte unchanged');
+  assert.deepEqual(manifest(source.profile),before,'The original V42 profile must remain byte-for-byte unchanged');
   assert.equal(await fetch(origin+'/signin',{signal:AbortSignal.timeout(1500)}).then(()=>true).catch(()=>false),false);
-  console.log('PASS copied V41-to-V42 upgrade, persisted work/approvals/calendar, unchanged original profile and normal shutdown');
+  fs.writeFileSync(path.join(evidence,'upgrade-result.json'),JSON.stringify(report,null,2));
+  console.log('PASS copied V42-to-V43 upgrade, persisted work/approvals/calendar, unchanged original profile and normal shutdown');
 })().catch(error=>{console.error(error);process.exitCode=1;});

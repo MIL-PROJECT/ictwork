@@ -185,7 +185,8 @@
       "departmentTasks": "Work Register",
       "departmentInfo": "Management",
       "personnelAttributes": "Personnel Attributes",
-      "equipmentAttributes": "Equipment Attributes"
+      "equipmentAttributes": "Equipment Attributes",
+      "operations": "Operations"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",

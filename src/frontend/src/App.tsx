@@ -1,3 +1,4 @@
+import Operations from "./pages/Operations/Operations";
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from "react-router";
 import ControlBoard from "./pages/Board/ControlBoard";
 import HomeRedirect from "./components/auth/HomeRedirect";
@@ -67,6 +68,7 @@ export default function App() {
             {/* 지시사항 (REQ-601, slices/13 6.1): 로그인한 모두. 보는 범위는 서버가 정한다 */}
             {/* 통합상황판 (OMNIS 역설계 시제품) */}
             <Route path="/board" element={<ControlBoard />} />
+            <Route path="/operations" element={<Operations />} />
             <Route path="/directives" element={<Directives />} />
             {/* 근무자 현황(로그인한 모두)·근무표 수정(manage가 403이면 권한 없음 화면) (REQ-404, slices/14 14.8.1). 옛 주소는 옮기기만 */}
             <Route path="/duty" element={<DutyStatus />} />

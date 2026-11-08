@@ -185,7 +185,8 @@
       "departmentTasks": "업무등록대장",
       "departmentInfo": "관리",
       "personnelAttributes": "인원 추가 특성",
-      "equipmentAttributes": "장비 추가 특성"
+      "equipmentAttributes": "장비 추가 특성",
+      "operations": "운영현황"
     },
     "widget": {
       "title": "#1 Tailwind CSS 대시보드",

@@ -148,5 +148,17 @@
       "alerts": "All attention items"
     },
     "modifiedShort": "Modified"
+  },
+  "classic": {
+    "section": "Operations overview",
+    "desc": "Communications operations as of {date}.",
+    "summary": "Systems and work overview",
+    "total": "Total systems",
+    "normal": "Operating normally",
+    "normalRate": "Normal rate",
+    "normalHelp": "Normal systems divided by all visible systems. Individual availability values are manually recorded.",
+    "operations": "Communications operations",
+    "systemCount": "{count} systems",
+    "systemAttention": "Watch / fault systems"
   }
 }

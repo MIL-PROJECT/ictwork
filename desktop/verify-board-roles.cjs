@@ -44,6 +44,15 @@ const [installed, evidence] = process.argv.slice(2);
       await page.locator('.board-attention:not([data-state=loading])').waitFor();
       const response=await page.request.get(origin+'/api/ict-status');assert.equal(response.status(),200);
       const raw=await response.json();
+      const operations=await (await page.request.get(origin+'/api/operations')).json();
+      await page.waitForFunction(total=>document.querySelector('.board-metric-value')?.textContent===total+'개',operations.items.length);
+      assert.equal((await page.locator('.board-metric-value').allTextContents())[1],operations.items.filter(item=>item.status==='NORMAL').length+'개');
+      await page.goto(origin+'/operations');await page.locator('.ops-toolbar').waitFor();
+      if(operations.items.length) await page.locator('.ops-table tbody tr').first().waitFor();
+      assert.equal(await page.getByRole('button',{name:'체계 등록',exact:true}).count(),operations.createDepartments.length?1:0);
+      assert.equal(await page.locator('.ops-table tbody').getByRole('button',{name:'체계 수정',exact:true}).count(),operations.items.slice(0,10).filter(item=>item.canManage).length);
+      await page.goto(origin+'/board');await page.locator('.board-attention:not([data-state=loading])').waitFor();
+
       const visible=raw.boxes.filter(box=>!box.hidden);
       const alerts=visible.filter(box=>['RED','ORANGE','YELLOW'].includes(box.shownColor));
       assert.equal(await page.getByTestId('attention-count').innerText(),String(new Set(alerts.map(box=>box.id)).size));
@@ -55,7 +64,7 @@ const [installed, evidence] = process.argv.slice(2);
       await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
       await page.evaluate(()=>window.scrollTo(0,0));await page.waitForTimeout(150);
       await page.screenshot({path:path.join(evidence,'board-role-'+user+'.png'),fullPage:true,animations:'disabled'});
-      results.push({user,visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true});
+      results.push({user,operationIds:operations.items.map(item=>item.id),visibleBoxIds:visible.map(box=>box.id),attention:alerts.length,hiddenExcluded:true});
     }
     // The same mounted board clears department values when its certified scope disappears.
     const scopeEndpoint='**/api/work-status/scope';
@@ -63,7 +72,7 @@ const [installed, evidence] = process.argv.slice(2);
     await page.route(scopeEndpoint,route=>route.fulfill({json:{...oldScope,initialIds:[]}}));
     await page.locator('.board-actions button:not([disabled])').waitFor();await page.locator('.board-actions button').click();
     await page.locator('.board-metric .board-resource-note[data-state=unavailable]').first().waitFor();
-    assert.ok((await page.locator('.board-metric-value').allTextContents()).every(value=>value.includes('—')));
+    assert.ok((await page.locator('.board-metric-value').allTextContents()).slice(2).every(value=>value.includes('—')));
     await page.unroute(scopeEndpoint);
 
     // Independent ICT availability while the work scope is deliberately slow.
@@ -96,7 +105,7 @@ const [installed, evidence] = process.argv.slice(2);
       await page.locator(`.board-attention[data-state=${state}]`).waitFor();await shortCheck(mode);
     }
     await page.unroute(ictEndpoint,shortHandler);
-    const failedEndpoints=/\/api\/(ict-status|work-status(?:\/scope)?|work\/items|work\/receipts|directives|duty\/today)(?:\?.*)?$/;
+    const failedEndpoints=/\/api\/(operations|ict-status|work-status(?:\/scope)?|work\/items|work\/receipts|directives|duty\/today)(?:\?.*)?$/;
     await page.route(failedEndpoints,route=>route.fulfill({status:503,json:{message:'Synthetic short-window total failure'}}));
     await page.goto(origin+'/board');await page.locator('.board-attention[data-state=error]').waitFor();await shortCheck('all-failed');
     await page.unroute(failedEndpoints);

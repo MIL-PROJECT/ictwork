@@ -7,7 +7,7 @@ const path = require('node:path');
 module.exports = async function verifyBoard(page, origin, evidence) {
   const checks = [];
   const scopeRoute='**/api/work-status/scope';
-  const boardEndpoints=/\/api\/(ict-status|work-status(?:\/scope)?|work\/items|work\/receipts|directives|duty\/today)(?:\?.*)?$/;
+  const boardEndpoints=/\/api\/(operations|ict-status|work-status(?:\/scope)?|work\/items|work\/receipts|directives|duty\/today)(?:\?.*)?$/;
   const count = page.getByTestId('attention-count');
   const attention = page.locator('.board-attention');
   const refresh = async () => {
@@ -40,7 +40,7 @@ module.exports = async function verifyBoard(page, origin, evidence) {
   }
   await shot('board-real-data.png');
   await page.screenshot({path:path.join(evidence,'board-real-data-full.png'),fullPage:true,animations:'disabled'});
-  const realMetric=page.locator('.board-metric[href]').first();
+  const realMetric=page.locator('.board-metric[href*="fb=ONGOING"]').first();
   const href=await realMetric.getAttribute('href');
   assert.ok(href.includes('tab=department')&&href.includes('d=')&&href.includes('closedFrom=')&&href.includes('closedTo='));
   await realMetric.click();await page.waitForURL(origin+href);await go();await ready('ready');
@@ -117,7 +117,7 @@ module.exports = async function verifyBoard(page, origin, evidence) {
     await page.route(scopeRoute,route=>route.fulfill({status:503,json:{message:'Synthetic scope failure'}}));
     await refresh();await page.locator('.board-work>.board-section-head>.board-resource-note[data-state=error]').waitFor();
     const values=await page.locator('.board-metric-value').allTextContents();
-    assert.ok(values.every(value=>value.includes('—')),'Unknown scope must clear previous department figures');
+    assert.ok(values.slice(2).every(value=>value.includes('—')),'Unknown scope must clear previous department figures');
     assert.equal(await count.innerText(),'5');
     await page.unroute(scopeRoute);
     checks.push('unknown work scope clears old figures while ICT remains available');

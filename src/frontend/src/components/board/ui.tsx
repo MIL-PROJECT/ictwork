@@ -128,19 +128,21 @@ export function Paged<T>({
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(0);
   const [page, setPage] = useState(1);
+  const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const fit = () =>
-      setSize(
-        pageCapacity(el.clientHeight, rowHeight, reserved),
-      );
+    const fit = () => {
+      setSize(pageCapacity(el.clientHeight, rowHeight, reserved));
+      setNarrow(el.clientWidth < 380);
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
   }, [rowHeight, reserved]);
   const pages = size ? Math.max(1, Math.ceil(rows.length / size)) : 1;
+  const smallPager = compact || narrow;
   const cur = Math.min(page, pages);
   const start = (cur - 1) * size;
   const go = (p: number) => setPage(Math.max(1, Math.min(pages, p)));
@@ -164,7 +166,7 @@ export function Paged<T>({
           {unit}
         </span>
         <nav aria-label={t("pages")}>
-          {!compact && <button
+          {!smallPager && <button
             type="button"
             onClick={() => go(1)}
             disabled={cur === 1}
@@ -180,7 +182,7 @@ export function Paged<T>({
           >
             <Chevron d="M15 6l-6 6 6 6" />
           </button>
-          {compact ? <span className="board-page-position">{cur}/{pages}</span> : pageItems(pages, cur).map((p, i) =>
+          {smallPager ? <span className="board-page-position">{cur}/{pages}</span> : pageItems(pages, cur).map((p, i) =>
             p === "gap" ? (
               <span key={`g${i}`} className="gap" aria-hidden>
                 …
@@ -204,7 +206,7 @@ export function Paged<T>({
           >
             <ChevronRight />
           </button>
-          {!compact && <button
+          {!smallPager && <button
             type="button"
             onClick={() => go(pages)}
             disabled={cur === pages}

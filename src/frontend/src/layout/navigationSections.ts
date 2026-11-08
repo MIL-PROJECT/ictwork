@@ -2,6 +2,7 @@ export type NavigationLink = { key: string; path: string; feature?: string; tabK
 type Screen = { key: string; owner: string; tabs: NavigationLink[]; actions?: NavigationLink[] };
 export const screens: Screen[] = [
   { key: "overview", owner: "overview", tabs: [{ key: "overview", path: "/board" }] },
+  { key: "operations", owner: "overview", tabs: [{ key: "operations", path: "/operations" }] },
   { key: "workStatus", owner: "overview", tabs: [
     { key: "workStatus", path: "/status", feature: "WORK_DASHBOARD" },
   ] },
@@ -48,7 +49,7 @@ export const screens: Screen[] = [
 ];
 
 export const topMenus = [
-  { key: "overview", screen: "overview", children: ["workStatus", "directives", "duty", "ictStatus"] },
+  { key: "overview", screen: "overview", children: ["operations", "workStatus", "directives", "duty", "ictStatus"] },
   { key: "requests", screen: "newRequest", children: ["newRequest", "requestStatus"] },
   { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "approvals"] },
   { key: "schedule", screen: "calendar", children: [] },

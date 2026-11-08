@@ -2,6 +2,7 @@ import { ApiError } from "@/api/client";
 import { fetchDirectives, type DirectiveItem } from "@/api/directive";
 import { fetchDutyToday } from "@/api/duty";
 import { fetchIctTab, type BoxCard } from "@/api/ictStatus";
+import { fetchOperations, type OperationList } from "@/api/operations";
 import { fetchStatusScope, fetchWorkStatus, type StatusScope, type WorkStatus } from "@/api/status";
 import { fetchDepartmentItems, fetchReceipts, type ItemListItem } from "@/api/work";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { initialResource, mergeResource, type Outcome, type Resource } from "./boardState";
 
 interface BoardValues {
+  operations: OperationList;
   scope: StatusScope; status: WorkStatus; urgent: ItemListItem[]; overdue: ItemListItem[];
   planned: ItemListItem[]; receipts: ItemListItem[]; boxes: BoxCard[]; directives: DirectiveItem[]; dutyToday: number;
 }
@@ -16,6 +18,7 @@ export type BoardResources = { [K in keyof BoardValues]: Resource<BoardValues[K]
 type Snapshot = { owner: string; resources: BoardResources; scopeKey: string; refreshing: boolean };
 const scopedKeys = ["status", "urgent", "overdue", "planned"] as const;
 const emptyResources = (): BoardResources => ({
+  operations: initialResource(),
   scope: initialResource(), status: initialResource(), urgent: initialResource(), overdue: initialResource(),
   planned: initialResource(), receipts: initialResource(), boxes: initialResource(), directives: initialResource(), dutyToday: initialResource(),
 });
@@ -81,7 +84,7 @@ export function useBoardData() {
     };
     try {
       await Promise.all([
-        work(), source("receipts", fetchReceipts),
+        work(), source("receipts", fetchReceipts), source("operations", fetchOperations),
         source("boxes", async signal => (await fetchIctTab(signal)).boxes),
         source("directives", async signal => {
           const data = await fetchDirectives(signal);

@@ -148,5 +148,17 @@
       "alerts": "전체 주의 현황"
     },
     "modifiedShort": "수정"
+  },
+  "classic": {
+    "section": "운용 현황",
+    "desc": "{date} 기준 정보통신 운영 현황입니다.",
+    "summary": "체계 및 업무 요약",
+    "total": "전체 체계",
+    "normal": "정상 운용",
+    "normalRate": "정상 운용률",
+    "normalHelp": "조회 가능한 전체 체계 중 정상 상태인 체계의 비율입니다. 개별 체계의 운용률은 등록된 값입니다.",
+    "operations": "정보통신 운영 현황",
+    "systemCount": "전체 {count}개 체계",
+    "systemAttention": "주의·장애 체계"
   }
 }
