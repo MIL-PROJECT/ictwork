@@ -26,7 +26,7 @@ export function MenuCrumbs() {
     <nav
       aria-label={t("sidebar.crumbs")}
       title={parts.join(" › ")}
-      className="ms-3 me-auto hidden min-w-0 flex-1 items-center gap-1 overflow-hidden text-[13.5px] whitespace-nowrap text-gray-400 xl:flex"
+      className="legacy-crumbs ms-3 me-auto hidden min-w-0 flex-1 items-center gap-1 overflow-hidden text-[13.5px] whitespace-nowrap text-gray-400 xl:flex"
     >
       {parts.map((p, i) => (
         <span key={i} className={compact && i < parts.length - 1 ? "hidden" : "flex min-w-0 items-center gap-1"}>

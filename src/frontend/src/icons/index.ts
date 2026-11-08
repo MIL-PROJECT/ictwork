@@ -245,3 +245,8 @@ export {
   TextIcon,
   UserAltIcon,
 };
+
+// Original OMNIS dashboard icon family (Material Icons, MIT).
+export { ReactComponent as LegacyHubIcon } from "./legacy-hub.svg?react";
+export { ReactComponent as LegacyBuildIcon } from "./legacy-build.svg?react";
+export { ReactComponent as LegacyCampaignIcon } from "./legacy-campaign.svg?react";

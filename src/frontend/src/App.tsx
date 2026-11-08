@@ -1,4 +1,4 @@
-import Operations from "./pages/Operations/Operations";
+import OperationsWorkspace, { LegacyIctRedirect } from "./pages/Operations/OperationsWorkspace";
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from "react-router";
 import ControlBoard from "./pages/Board/ControlBoard";
 import HomeRedirect from "./components/auth/HomeRedirect";
@@ -24,7 +24,6 @@ import Calendar from "./pages/Calendar";
 import DiagramList from "./pages/Department/DiagramList";
 import DiagramView from "./pages/Department/DiagramView";
 import DocBox from "./pages/Department/DocBox";
-import IctStatus from "./pages/IctStatus/IctStatus";
 import EquipmentDetail from "./pages/Department/EquipmentDetail";
 import EquipmentList from "./pages/Department/EquipmentList";
 import OrgChart from "./pages/Department/OrgChart";
@@ -68,7 +67,7 @@ export default function App() {
             {/* 지시사항 (REQ-601, slices/13 6.1): 로그인한 모두. 보는 범위는 서버가 정한다 */}
             {/* 통합상황판 (OMNIS 역설계 시제품) */}
             <Route path="/board" element={<ControlBoard />} />
-            <Route path="/operations" element={<Operations />} />
+            <Route path="/operations" element={<OperationsWorkspace />} />
             <Route path="/directives" element={<Directives />} />
             {/* 근무자 현황(로그인한 모두)·근무표 수정(manage가 403이면 권한 없음 화면) (REQ-404, slices/14 14.8.1). 옛 주소는 옮기기만 */}
             <Route path="/duty" element={<DutyStatus />} />
@@ -77,7 +76,7 @@ export default function App() {
             <Route path="/directives/duty/calendar" element={<MovedTo to="/duty" />} />
 
             {/* 정보통신 현황 (REQ-503·602, slices/15 13.1): 로그인한 모두. 박스마다 판정은 서버 API */}
-            <Route path="/ict-status" element={<IctStatus />} />
+            <Route path="/ict-status" element={<LegacyIctRedirect />} />
 
             {/* 업무·결재 (B 업무·결재, DEC-060) */}
             <Route path="/tasks" element={<TaskList />} />

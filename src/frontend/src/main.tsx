@@ -6,8 +6,8 @@ import { AuthProvider } from "./context/AuthContext.tsx";
 import { LanguageProvider } from "./context/LanguageContext.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
 import "./i18n";
-import "pretendard-gov/dist/web/variable/pretendardvariable-gov-dynamic-subset.css";
 import "./index.css";
+import "./legacy.css";
 import { installDatePickerOnClick } from "./utils/openDatePicker";
 
 installDatePickerOnClick();

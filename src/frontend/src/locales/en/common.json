@@ -186,7 +186,9 @@
       "departmentInfo": "Management",
       "personnelAttributes": "Personnel Attributes",
       "equipmentAttributes": "Equipment Attributes",
-      "operations": "Operations"
+      "operations": "Operations",
+      "operationSystems": "System operations",
+      "operationSignals": "Communications & alerts"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",

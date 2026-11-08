@@ -85,7 +85,7 @@
   },
   "risk": {
     "eyebrow": "Operations control",
-    "core": "Critical operating status",
+    "core": "Control levels",
     "coreHelp": "Current CPCON and crisis alert values · severity follows the configured colour",
     "cpcon": "CPCON",
     "crisis": "Crisis alert level",
@@ -111,7 +111,8 @@
     "receiptScope": "My receipt permission scope · {count} items",
     "support": "Operations support",
     "supportHelp": "Directives and today’s duty · open details to review",
-    "dutyHelp": "Unique personnel across today’s duty rosters. Open the duty board for details."
+    "dutyHelp": "Unique personnel across today’s duty rosters. Open the duty board for details.",
+    "allIndicators": "All indicators"
   },
   "health": {
     "loading": "Checking source…",
@@ -143,7 +144,7 @@
     "panels": "Work processing and operations support",
     "overdue": "Overdue",
     "dialog": {
-      "all": "All ICT status",
+      "all": "All communications & alerts",
       "core": "Core status by department",
       "alerts": "All attention items"
     },

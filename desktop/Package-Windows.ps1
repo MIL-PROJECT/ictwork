@@ -29,7 +29,7 @@ if ($ResourceEditor) {
 $resources = Join-Path $out 'resources'
 if (Test-Path -LiteralPath "$resources/app") { throw 'Use an unmodified Electron distribution.' }
 New-Item -ItemType Directory -Path "$resources/app" | Out-Null
-foreach ($name in 'package.json', 'main.cjs', 'omnis.ico') {
+foreach ($name in 'package.json', 'main.cjs', 'legacy-schema.cjs', 'omnis.ico') {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination "$resources/app/$name"
 }
 Copy-Item -LiteralPath $helperFile -Destination "$resources/app/windows-ansi.exe"

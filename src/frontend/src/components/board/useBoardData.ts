@@ -1,6 +1,5 @@
 import { ApiError } from "@/api/client";
 import { fetchDirectives, type DirectiveItem } from "@/api/directive";
-import { fetchDutyToday } from "@/api/duty";
 import { fetchIctTab, type BoxCard } from "@/api/ictStatus";
 import { fetchOperations, type OperationList } from "@/api/operations";
 import { fetchStatusScope, fetchWorkStatus, type StatusScope, type WorkStatus } from "@/api/status";
@@ -12,7 +11,7 @@ import { initialResource, mergeResource, type Outcome, type Resource } from "./b
 interface BoardValues {
   operations: OperationList;
   scope: StatusScope; status: WorkStatus; urgent: ItemListItem[]; overdue: ItemListItem[];
-  planned: ItemListItem[]; receipts: ItemListItem[]; boxes: BoxCard[]; directives: DirectiveItem[]; dutyToday: number;
+  planned: ItemListItem[]; receipts: ItemListItem[]; boxes: BoxCard[]; directives: DirectiveItem[];
 }
 export type BoardResources = { [K in keyof BoardValues]: Resource<BoardValues[K]> };
 type Snapshot = { owner: string; resources: BoardResources; scopeKey: string; refreshing: boolean };
@@ -20,7 +19,7 @@ const scopedKeys = ["status", "urgent", "overdue", "planned"] as const;
 const emptyResources = (): BoardResources => ({
   operations: initialResource(),
   scope: initialResource(), status: initialResource(), urgent: initialResource(), overdue: initialResource(),
-  planned: initialResource(), receipts: initialResource(), boxes: initialResource(), directives: initialResource(), dutyToday: initialResource(),
+  planned: initialResource(), receipts: initialResource(), boxes: initialResource(), directives: initialResource(),
 });
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -89,10 +88,6 @@ export function useBoardData() {
         source("directives", async signal => {
           const data = await fetchDirectives(signal);
           return data.boxes.flatMap(id => data.items.filter(item => item.id === id));
-        }),
-        source("dutyToday", async signal => {
-          const data = await fetchDutyToday(signal);
-          return new Set(data.rosters.flatMap(roster => roster.days.filter(day => day.date === data.today).flatMap(day => day.people.map(person => person.personnelId)))).size;
         }),
       ]);
     } finally {

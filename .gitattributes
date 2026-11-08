@@ -1,0 +1,4 @@
+# Preserve vendored license text exactly as distributed upstream.
+src/frontend/public/licenses/*.txt -text -whitespace
+src/frontend/src/assets/fonts/legacy/LICENSE.txt -text -whitespace
+src/frontend/src/icons/LEGACY-MATERIAL-LICENSE.txt -text -whitespace

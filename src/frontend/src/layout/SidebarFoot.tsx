@@ -1,3 +1,4 @@
+import UserDropdown from "@/components/header/UserDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +20,7 @@ export default function SidebarFoot() {
           {ai ? t("sidebar.foot.aiOn") : t("sidebar.foot.aiOff")}
         </span>
       </div>
+      <div className="legacy-sidebar-user"><UserDropdown /><span className="legacy-sidebar-login">{user.loginId}</span></div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 const { app, BrowserWindow } = require('electron');
-const { spawn } = require('node:child_process');
+const { spawn, execFileSync } = require('node:child_process');
+const { pipeline } = require('node:stream/promises');
+const { prepareLegacySchema } = require('./legacy-schema.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -145,6 +147,26 @@ async function start() {
   }
   if (stopping) return;
 
+  const outOfOrder = await prepareLegacySchema({
+    query: async sql => {
+      const output = execFileSync(path.join(mysqlBin,'mysql.exe'),['--no-defaults','--protocol=TCP','--host=127.0.0.1','--port='+mysqlPort,'--user=root','--database=ictwork','--batch','--skip-column-names','--execute='+sql],{encoding:'utf8',windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root},timeout:30000});
+      return output.trim() ? output.trim().split(/\r?\n/).map(row=>row.split('\t')) : [];
+    },
+    backup: async () => {
+      status('OMNIS 업그레이드 준비 중','기존 시연 DB를 먼저 백업하고 있습니다.');
+      const folder=path.join(state,'backups');fs.mkdirSync(folder,{recursive:true});
+      const target=path.join(folder,'before-main-v44-'+Date.now()+'.sql');
+      const dump=spawn(path.join(mysqlBin,'mysqldump.exe'),['--no-defaults','--protocol=TCP','--host=127.0.0.1','--port='+mysqlPort,'--user=root','--single-transaction','--routines','--triggers','--events','--set-gtid-purged=OFF','--hex-blob','--databases','ictwork'],{windowsHide:true,env:{...process.env,MYSQL_PWD:credentials.root},stdio:['ignore','pipe','pipe']});
+      let error='';dump.stderr.on('data',chunk=>{error=(error+chunk.toString()).slice(-2000);});
+      const done=new Promise((resolve,reject)=>{dump.once('error',reject);dump.once('close',code=>code===0?resolve():reject(Error('DB 백업 실패: '+error)));});
+      const timer=setTimeout(()=>dump.kill(),90000);
+      try { await Promise.all([done,pipeline(dump.stdout,fs.createWriteStream(target,{flags:'wx'}))]); } finally {clearTimeout(timer);}
+      if(fs.statSync(target).size===0)throw Error('DB 백업 파일이 비어 있습니다.');
+      return {path:target,sha256:crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex')};
+    },
+    record: async value => fs.writeFileSync(path.join(state,'legacy-v43-upgrade.json'),JSON.stringify({...value,at:new Date().toISOString()},null,2)),
+  });
+  if (stopping) return;
   status('OMNIS 시작 중', 'Java 백엔드와 업무 화면을 준비하고 있습니다.');
   const webPort = await freePort();
   const origin = 'http://127.0.0.1:' + webPort;
@@ -156,6 +178,7 @@ async function start() {
     SPRING_DATASOURCE_USERNAME: 'ictwork',
     SPRING_DATASOURCE_PASSWORD: credentials.app,
     ICTWORK_INITIAL_PASSWORD: 'Local-Demo-Init!26',
+    ...(outOfOrder ? {SPRING_FLYWAY_OUT_OF_ORDER:'true'} : {}),
   });
   await waitFor(backend, async () => {
     try {

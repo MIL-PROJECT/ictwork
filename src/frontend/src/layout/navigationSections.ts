@@ -2,13 +2,15 @@ export type NavigationLink = { key: string; path: string; feature?: string; tabK
 type Screen = { key: string; owner: string; tabs: NavigationLink[]; actions?: NavigationLink[] };
 export const screens: Screen[] = [
   { key: "overview", owner: "overview", tabs: [{ key: "overview", path: "/board" }] },
-  { key: "operations", owner: "overview", tabs: [{ key: "operations", path: "/operations" }] },
+  { key: "operations", owner: "overview", tabs: [
+    { key: "operationSystems", path: "/operations?view=systems" },
+    { key: "operationSignals", path: "/operations?view=signals" },
+  ] },
   { key: "workStatus", owner: "overview", tabs: [
     { key: "workStatus", path: "/status", feature: "WORK_DASHBOARD" },
   ] },
   { key: "directives", owner: "overview", tabs: [{ key: "directives", path: "/directives" }] },
   { key: "duty", owner: "overview", tabs: [{ key: "duty", path: "/duty" }] },
-  { key: "ictStatus", owner: "overview", tabs: [{ key: "ictStatus", path: "/ict-status" }] },
   { key: "newRequest", owner: "requests", tabs: [
     { key: "otherDepartmentRequest", path: "/approvals/request" },
   ], actions: [
@@ -49,7 +51,7 @@ export const screens: Screen[] = [
 ];
 
 export const topMenus = [
-  { key: "overview", screen: "overview", children: ["operations", "workStatus", "directives", "duty", "ictStatus"] },
+  { key: "overview", screen: "overview", children: ["operations", "workStatus", "directives", "duty"] },
   { key: "requests", screen: "newRequest", children: ["newRequest", "requestStatus"] },
   { key: "processing", screen: "departmentTasks", children: ["departmentTasks", "taskReceipt", "approvals"] },
   { key: "schedule", screen: "calendar", children: [] },
@@ -67,6 +69,7 @@ export function matchesMenuPath(pathname: string, path: string) {
 
 function normalizedSearch(pathname: string, search: string) {
   const params = new URLSearchParams(search);
+  if (pathname === "/operations" && params.get("view") !== "signals") params.set("view", "systems");
   if (pathname === "/tasks" && !["mine", "viewable", "department"].includes(params.get("tab") ?? "")) params.set("tab", "department");
   if (pathname === "/approvals/todo" && params.get("tab") !== "handled") params.set("tab", "myTurn");
   return params;

@@ -1,5 +1,9 @@
 # OMNIS Desktop
 
+최신 main 통합 실행본: `output/OMNIS-Main-Merged-Windows-x64/OMNIS.exe`. main의 최신 AI·설명 표시 기능과 최종 메뉴·상황판·브랜딩을 함께 반영했다. DB는 main V43(설명 설정)·V44(운영현황)를 사용한다. 구형 데스크톱 V43 프로필은 확인된 이력에 한해 자동 백업 후 업그레이드한다. 근거·복원 경계는 `docs/MAIN_MERGE_VERIFICATION.md`, 시험 결과는 `output/git-main-delivery/`에 보관한다.
+
+최신 실행본: `output/OMNIS-Unified-Operations-Windows-x64/OMNIS.exe`. 운영현황·정보통신 현황을 한 메뉴로 통합하고, 상황판의 통제 단계·주의 현황을 별도 카드로 정리했다. 접수 대기 머리글도 중앙 정렬했다. 자세한 변경·검증은 `docs/OPERATIONS_UNIFIED.md`, 근거는 `output/operations-unified/`에 보관한다. 기존 업무 통계 상단 조건 배치는 유지한다.
+
 Windows x64 시연 실행본. 배포 폴더 전체를 유지한 상태에서 **OMNIS.exe**를 실행한다. 첫 실행은 DB 초기화와 마이그레이션 때문에 시간이 걸릴 수 있다. 앱 창에서 시연 계정 **bn1-co1-admin**과 암호 **Local-Demo-Init!26**으로 로그인한다.
 
 Electron이 포함된 Java 17로 Spring Boot WAR를 실행하고 MySQL 8.0의 시연 DB를 관리한다. 두 서비스는 매 실행에 정한 포트를 사용하며 127.0.0.1에서만 연결된다. 일반 창 닫기에서 Java 프로세스를 종료한 뒤 MySQL에 정상 종료를 요청한다.
@@ -148,3 +152,13 @@ $env:ICTWORK_AI_EMBED_MODEL = 'bge-m3'
 새 Windows 폴더형 실행본: `output/OMNIS-Classic-Operations-Windows-x64/OMNIS.exe`. 같은 폴더의 `resources`를 포함해 폴더 전체를 보관·이동한다. 기존 앱을 닫고 실행하면 Java/MySQL이 자동 시작되며 로그인 후 통합상황판과 하위 운영현황을 확인할 수 있다. 실제 사용자 프로필과 격리된 시연을 원하면 `--user-data-dir`을 지정한다. 검증 근거는 `output/omnis-restored-operations/`이며 별도 PC 설치·실제 통신체계 계측·실제 AI 모델 추론 검증과 구분한다.
 
 운영현황 회귀 검사는 `verify-operations.cjs`의 실제 UI/API 저장·동시 수정·상황판 연동과 `verify-operations-failures.cjs`의 503/403·재시도·저장 응답 시간 초과(전송 차단 시험)·영문/다크/큰 글씨 상세 창을 포함한다. `verify-board-roles.cjs`는 기존 네 역할의 운영현황 조회 범위·등록/수정 버튼도 비교하며, `verify-upgrade.cjs`는 성공한 이전 V42 시험 프로필의 복사본만 V43으로 올리고 원본 해시를 검사한다.
+
+## 원본 UI 일치 및 현재 프로필 38개 시연 자료 (2026-11-08)
+
+이번 UI 변경은 위 화면 스타일 설명을 대체한다. 원본 `military_project`의 날개·별 `BrandEmblem`, 실제 Pretendard Variable 폰트, Rounded 아이콘과 공통 디자인 규칙을 적용했다. 폰트·아이콘 라이선스도 함께 제공한다. 사이드바 하단의 사용자 메뉴는 기존 언어·개인설정·로그아웃을 재사용하고, 접힌 상태/모바일에서는 상단 접근을 유지한다. 기존 여섯 메뉴·업무등록대장·안내 배치·권한·API·Java/MySQL·Electron 기동/종료 로직은 유지한다. 일반 업무를 원본의 고장·정비로 이름만 바꾸지 않는다.
+
+새 실행본은 `output/OMNIS-Legacy-UI-Demo-Windows-x64/OMNIS.exe`이며 폴더 전체가 필요하다. 현재 `%APPDATA%\OMNIS Desktop Main` 시연 프로필에는 기존 API로 합성 체계 38개를 등록했다. 정상 30·주의 4·점검 2·장애 1·중단 1이고 정상 운용률은 79%다. 일부 체계에는 실제 생성 시각의 변경 이력도 있다. 기록 운용률은 자동 계측값이 아니다. 기존 사용자 자료와 설정을 초기화하거나 실행본에 넣지 않았다. 새로운 프로필에는 자동 등록하지 않으며, 개발 환경에서는 아래 helper를 별도로 실행할 수 있다.
+
+`seed-operations-demo.cjs --origin <실행 중인 로컬 앱 주소> --manifest <output 안의 결과 JSON> [--dry-run]`은 Node.js에서 실행한다. 암호는 `OMNIS_DEMO_PASSWORD` 환경변수로 전달하고 실행 후 제거한다. 계정은 `OMNIS_DEMO_LOGIN`으로 지정할 수 있으며 기본값은 시연 관리자다. 자기 활성 부서의 등록 권한을 확인하고, `DEMO-OMNIS-` 코드의 기존 자료는 편집하지 않고 건너뛴다. 재실행 추가는 0건이며 코드 충돌·삭제 이력은 강제 우회하지 않는다. 로그·Git에 암호·세션을 남기지 않는다.
+
+자세한 원본/현재 UI 대응과 데이터 경계는 `docs/UI_LEGACY_PARITY.md`에 정리했다. `capture-legacy-ui.cjs`, `verify-legacy-ui.cjs`, `verify-demo-seed.cjs`, `verify-current-demo.cjs`로 원본 격리 캡처·공통 스타일·38개 API 등록·실제 사용자 프로필을 각각 검증한다. 검증 근거와 화면은 `output/legacy-ui-demo/`이다. 큰 창은 원본 수치로 표시하고, 중간/짧은 창은 정보와 조작부를 유지하며 페이지당 행 수를 조절한다. 별도 PC 설치나 실제 AI 추론/자동 계측 검증과 구별한다.
