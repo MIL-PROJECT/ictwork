@@ -1,5 +1,11 @@
 # OMNIS Desktop
 
+## 폴더 복사형 DVD 배포 (2026-11-09)
+
+`Prepare-PortableDvd.ps1`은 검증된 `OMNIS-Windows-x64` 폴더를 `output/OMNIS-Portable-DVD-20261109/OMNIS`로 복사하고, Microsoft 서명이 유효한 `vc_redist.x64.exe`, 사용자용 HTML/TXT 안내서와 DVD 기록 안내를 한 폴더에 모은다. 원본 payload manifest의 873개 파일 해시를 복사 전후 대조하고, 런타임 서명과 복사본 해시를 확인한다. 출력의 `DVD-INFO.json`과 `SHA256SUMS.txt`에 검증 정보를 남긴다. 기존 출력 폴더가 있으면 덮어쓰지 않고 중단한다.
+
+최종 폴더는 약 1.80GB로 4.7GB DVD에 들어간다. 사용자는 `00_먼저읽기_설치및실행방법.html`을 열고 DVD의 OMNIS 폴더 전체를 PC에 복사한 뒤 실행한다. VC++ 런타임이 없는 PC는 동봉한 런타임 설치/관리자 승인이 필요할 수 있다. Java·MySQL은 포함되어 있고 이후 사용자 자료는 기존 `%APPDATA%\OMNIS Desktop Final\service`에 저장된다. 안내서 원본은 `desktop/portable-dvd/`에 있다. 물리 DVD 기록이나 다른 PC 검증을 수행한 것으로 해석하지 않는다.
+
 ## 최신 오프라인 설치본 (2026-11-09)
 
 표시 이름·시작 메뉴·바로가기·설치창은 **OMNIS**, 새 설치의 기본 프로그램 폴더는 `%LOCALAPPDATA%\Programs\OMNIS`다. 기존 Final 설치의 내부 등록 ID와 `%APPDATA%\OMNIS Desktop Final\service` 데이터 경로를 유지해 이름 변경으로 DB가 분리되거나 초기화되지 않게 한다. 기존 설치가 등록돼 있으면 그 설치 경로를 사용한다. 다른 기존 OMNIS 바탕화면 바로가기는 `OMNIS Desktop Final\shortcut-backups\<버전>`에 보관한다.
