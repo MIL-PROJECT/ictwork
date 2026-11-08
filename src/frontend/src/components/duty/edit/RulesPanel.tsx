@@ -49,7 +49,7 @@ export default function RulesPanel({ detail, departments, personnel, write, star
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
+        <p data-guide="" className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
         <button type="button" onClick={() => setEditing({ rule: null })} className={primaryButton}>
           {t("add")}
         </button>

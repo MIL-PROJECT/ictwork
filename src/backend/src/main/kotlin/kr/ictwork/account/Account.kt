@@ -34,6 +34,10 @@ class Account(
     /** 개인설정 글자 크기 NORMAL·LARGE (V35, REQ-008). 바꿀 때는 AccountRepository.updateFontSize로 이 칸만 고친다 */
     @Column(name = "font_size", nullable = false, length = 10, insertable = false, updatable = false)
     val fontSize: String = "NORMAL",
+
+    /** 개인설정 설명 글 보이기 (V43, REQ-009). 바꿀 때는 AccountRepository.updateShowGuides로 이 칸만 고친다 */
+    @Column(name = "show_guides", nullable = false, insertable = false, updatable = false)
+    val showGuides: Boolean = true,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -55,7 +55,7 @@ export default function ExcelImportDialog({ onClose, onImported }: { onClose: ()
         <h2 id="excel-import-title" className="text-lg font-semibold text-gray-800 dark:text-white/90">
           {t("import.title")}
         </h2>
-        <p className="text-sm break-keep text-gray-600 dark:text-gray-400">{t("import.help")}</p>
+        <p data-guide="" className="text-sm break-keep text-gray-600 dark:text-gray-400">{t("import.help")}</p>
         <button type="button" onClick={() => void template()} className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
           {t("import.template")}
         </button>

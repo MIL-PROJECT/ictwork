@@ -38,6 +38,7 @@ function AddDialog({ detail, write, onAdded, onClose }: { detail: DutyRosterDeta
     <ActionModal
       title={t("addTitle")}
       description={t("addHelp")}
+      descriptionGuide
       submitLabel={t("addSubmit")}
       canSubmit={valid}
       describeError={(err) => {
@@ -132,7 +133,7 @@ export default function HolidayPanel({ detail, write, startAdding = false, onSta
 
   return (
     <div className="space-y-4">
-      <p className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
+      <p data-guide="" className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => setAdding(true)} className={primaryButton}>
           {t("add")}

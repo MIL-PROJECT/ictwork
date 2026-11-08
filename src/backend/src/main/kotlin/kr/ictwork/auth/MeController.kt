@@ -35,6 +35,13 @@ class MeController(
         return ResponseEntity.noContent().build()
     }
 
+    /** 개인설정 설명 글 보이기 (REQ-009). QA 마스터 상태는 보안 설정이 막는다(403) */
+    @PutMapping("/api/me/guides")
+    fun changeShowGuides(principal: Principal, @RequestBody body: ShowGuidesRequest): ResponseEntity<Void> {
+        meService.changeShowGuides(principal.name, body.showGuides)
+        return ResponseEntity.noContent().build()
+    }
+
     /**
      * 비밀번호를 바꾸면 지금 세션은 유지하되 세션 ID를 새로 만들고, 비밀번호 상태 표시를 갱신한다.
      * 같은 계정의 다른 세션은 표시가 달라져 다음 요청부터 끊긴다 (OWASP ASVS 3.18)

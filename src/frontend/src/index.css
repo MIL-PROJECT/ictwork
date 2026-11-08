@@ -982,6 +982,21 @@ html[data-font-size="large"] {
   --app-zoom: 1.25;
   zoom: 1.25;
 }
+/* 개인설정 설명 글 보이기 (REQ-009, slices/23): 끄면 설명 글(data-guide)을 화면에서 숨기고 화면낭독기로는 읽게 남긴다(aria-describedby 연결 유지).
+   화면에서만 숨긴다: 인쇄·PDF는 이 설정과 관계없다 */
+@media screen {
+html[data-guides="off"] [data-guide] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+}
 @utility zoom-reset {
   zoom: calc(1 / var(--app-zoom));
 }

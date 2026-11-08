@@ -12,7 +12,7 @@ export default function CalendarSettingsCard() {
   const loginId = user?.loginId ?? "";
   return (
     // OMNIS 카드: 아이콘 머리(제목·설명) + 본문
-    <Panel icon={<CalenderIcon />} title={t("settings.calendarTitle")} titleId="settings-calendar-title" subtitle={t("settings.calendarDesc")}>
+    <Panel icon={<CalenderIcon />} title={t("settings.calendarTitle")} titleId="settings-calendar-title" subtitle={t("settings.calendarDesc")} subtitleGuide>
       <Switch key={loginId} label={t("settings.showPending")} defaultChecked={readShowPending(loginId)} onChange={(on) => writeShowPending(loginId, on)} />
     </Panel>
   );

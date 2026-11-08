@@ -1278,7 +1278,7 @@ export default function RequestForm({
               ? (paths.get(ownDepartment) ?? "")
               : t("register.noDepartment")}
           </p>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p data-guide="" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {t("register.targetsFixed")}
           </p>
         </Section>
@@ -1292,7 +1292,7 @@ export default function RequestForm({
           <TypeRecommendations ref={recommendRef} onQueryChange={setRecommendQuery} marked={assist.marked("recommend.query")} receivers={receivers} chosen={chosenTypes} onSelect={(departmentId, typeId, issue) => { addTarget(departmentId); setChosenTypes((prev) => ((prev[departmentId] ?? []).includes(typeId) ? prev : { ...prev, [departmentId]: [...(prev[departmentId] ?? []), typeId] })); if (!content.trim()) setContent(issue); }} onNoResults={() => { setManualOpen(true); setFocusRequest((prev) => ({ id: "request-manual-departments", n: (prev?.n ?? 0) + 1 })); }} />
           <RequestDisclosure title={t("recommend.manual")} open={manualOpen} onOpenChange={setManualOpen}>
           <div id="request-manual-departments" tabIndex={-1}>
-          <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
+          <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("recommend.manualHelp")}</p>
           <OrgPicker
             label={t("register.targets")}
             departments={departments}
@@ -1318,7 +1318,7 @@ export default function RequestForm({
         icon={<TaskIcon />}
         title={t("register.type")}
       >
-        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+        <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
           {t(intake ? "intake.typeHelp" : register ? "register.typeHelpRegister" : "register.typeHelp")}
         </p>
         {typeTargets.length === 0 ? (
@@ -1444,7 +1444,7 @@ export default function RequestForm({
         icon={<CalenderIcon />}
         title={t("schedule.title")}
       >
-        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+        <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
           {t(register ? "schedule.registerHelp" : "schedule.requestHelp")}
         </p>
         <ScheduleFields
@@ -1483,7 +1483,7 @@ export default function RequestForm({
           icon={<PageIcon />}
           title={tw("request.formTitle")}
         >
-          <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+          <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
             {tw("request.formHelp")}
           </p>
           <div className="space-y-6">
@@ -1537,7 +1537,7 @@ export default function RequestForm({
           {intake && <div id="request-schedule-section" className="mt-5 space-y-3">
             {exactRequired ? <div className="space-y-3 rounded-xl border border-brand-200 p-4 dark:border-brand-800">
               <h3 className="font-semibold text-gray-900 dark:text-white">{t("guidance.exactTitle")}</h3>
-              <p className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
+              <p data-guide="" className="text-sm text-gray-500">{t("guidance.requiredHelp")}</p>
               <ScheduleFields idPrefix="requested-exact" requireTimes value={schedule} onChange={(patch) => setSchedule((value) => ({ ...value, ...patch }))} invalid={tried && !scheduleReady} marked={(key) => assist.marked(`schedule.${key}`)} />
             </div> : maxPreferences > 0 && <RequestDisclosure title={t("guidance.optionalTitle")} initiallyOpen={hasPreferences}>
               <PreferredScheduleFields values={shownPreferences} max={maxPreferences} onChange={setPreferences} invalid={tried && !scheduleReady} marked={(index) => assist.marked("preferences", preferenceRow(shownPreferences[index]))} />
@@ -1557,7 +1557,7 @@ export default function RequestForm({
             icon={<EyeIcon />}
             title={t("register.viewers")}
           >
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
               {t("register.viewersHelp")}
             </p>
             <OrgPicker
@@ -1592,7 +1592,7 @@ export default function RequestForm({
         // 업무 요청(부서 접수): 열람 범위는 선택이라 처음엔 접어 둔다
         <div id="request-viewers">
           <RequestDisclosure title={`${t("intake.viewersOptional")} · ${viewerCount > 0 ? viewerCount : t("requestDetail.noViewers")}`} initiallyOpen={viewerCount > 0}>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t("intake.viewersHelp")}</p>
+            <p data-guide="" className="text-sm text-gray-500 dark:text-gray-400">{t("intake.viewersHelp")}</p>
             <OrgPicker
               label={t("register.viewers")}
               departments={departments}
@@ -1624,7 +1624,7 @@ export default function RequestForm({
             icon={<EyeIcon />}
             title={t("register.viewers")}
           >
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
               {t("register.viewersHelp")}
             </p>
             <RequestDisclosure
@@ -1673,7 +1673,7 @@ export default function RequestForm({
             icon={<BoxIconLine />}
             title={t("plan.support")}
           >
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
               {t("plan.supportHelp")}
             </p>
             <PlanEditor
@@ -1708,7 +1708,7 @@ export default function RequestForm({
             icon={<FolderIcon />}
             title={t("register.origins")}
           >
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">
               {t("register.originsHelp")}
             </p>
             <OrgPicker
@@ -1828,7 +1828,7 @@ export default function RequestForm({
     </>
   );
 
-  const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><ul className="mt-2 space-y-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => <li key={d}>{paths.get(d)}</li>)}</ul></Section>;
+  const departmentDelivery = <Section icon={<GroupIcon />} title={t("intake.deliveryTitle")}><p data-guide="" className="text-sm text-gray-600 dark:text-gray-300">{t("intake.departmentDelivery")}</p><ul className="mt-2 space-y-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{targets.map((d) => <li key={d}>{paths.get(d)}</li>)}</ul></Section>;
   const reviewSection = (
     <Section
       icon={<DocsIcon />}

@@ -63,7 +63,7 @@ function PersonPickDialog({ detail, ruleId, departments, personnel, onPick, onCl
       <h2 id={id} className="mb-2 pe-12 text-lg font-semibold text-gray-800 dark:text-white/90">
         {t("pickTitle")}
       </h2>
-      <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("pickHelp")}</p>
+      <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("pickHelp")}</p>
       {members.length > 0 && (
         <div className="mb-4">
           <p className={labelClass}>{t("ruleMembers", { name: rule?.name ?? "" })}</p>
@@ -437,7 +437,7 @@ export default function PlacementPanel({ detail, departments, personnel, write, 
           </button>
         </div>
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t("help")}</p>
+      <p data-guide="" className="text-sm text-gray-500 dark:text-gray-400">{t("help")}</p>
       {filled && (
         <p role="status" className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
           {filled}

@@ -6,6 +6,7 @@ import { Link, useLocation } from "react-router";
 interface BreadcrumbProps {
   pageTitle: string;
   description?: React.ReactNode; // OMNIS 제목 아래 설명 한 줄
+  descriptionGuide?: boolean; // 설명 글이면 true(처음 값): 설명 글 보이기를 끄면 숨긴다(REQ-009). 부서·권한 같은 자료면 false
   actions?: React.ReactNode; // OMNIS 제목 오른쪽(아래 정렬) 화면 동작 단추
   // [이전으로] 단추: 바로 전 화면으로, 주소를 바로 열었으면 이 목록으로. true면 들어온 목록(메뉴) 주소
   back?: string | true;
@@ -14,7 +15,7 @@ interface BreadcrumbProps {
 const BACK_CLASS =
   "inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3";
 
-const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, description, actions, back }) => {
+const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, description, descriptionGuide = true, actions, back }) => {
   const { t } = useTranslation();
   const { pathname, search } = useLocation();
   const trail = menuTrail(pathname, search);
@@ -29,7 +30,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, description, act
       <div>
         {section && <span className="text-xs font-semibold text-gray-400">{section}</span>}
         <h1 className="mt-0.5 text-[26px] leading-tight font-extrabold tracking-[-0.6px] text-gray-900 dark:text-white/90">{pageTitle}</h1>
-        {description && <p className="mt-1 text-[13.5px] text-gray-500 dark:text-gray-400">{description}</p>}
+        {description && <p data-guide={descriptionGuide ? "" : undefined} className="mt-1 text-[13.5px] text-gray-500 dark:text-gray-400">{description}</p>}
       </div>
       {(actions || back) && (
         <div className="flex flex-wrap items-center gap-2 print:hidden">

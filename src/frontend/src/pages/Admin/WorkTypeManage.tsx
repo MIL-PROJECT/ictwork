@@ -174,7 +174,7 @@ export default function WorkTypeManage() {
         className={TEXTAREA_CLASS}
       />
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {t("admin.descriptionHelp")} ({description.trim().length}/{DESCRIPTION_MAX})
+        <span data-guide="">{t("admin.descriptionHelp")}</span> ({description.trim().length}/{DESCRIPTION_MAX})
       </p>
     </div>
   );

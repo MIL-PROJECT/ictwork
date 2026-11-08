@@ -28,3 +28,11 @@ export const changeFontSize = (fontSize: FontSize) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fontSize }),
   });
+
+// 설명 글 보이기도 계정에 저장한다 (REQ-009)
+export const changeShowGuides = (showGuides: boolean) =>
+  apiFetch<void>("/api/me/guides", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ showGuides }),
+  });

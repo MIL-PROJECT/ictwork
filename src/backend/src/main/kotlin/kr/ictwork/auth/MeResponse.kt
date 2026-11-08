@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
  * - accountId·departmentId: 내 계정 id와 내 인원의 소속 부서(없으면 null). 업무·결재 화면이 버튼을 보일지 정할 때 쓴다 (DEC-060)
  * - qaMode: QA 마스터 상태 (DEC-067). 일반 로그인에서는 응답에 넣지 않는다
  * - fontSize: 개인설정 글자 크기 NORMAL·LARGE (REQ-008). QA 마스터는 계정이 없어 NORMAL
+ * - showGuides: 개인설정 설명 글 보이기 (REQ-009). QA 마스터는 true
  */
 data class MeResponse(
     val loginId: String,
@@ -26,4 +27,5 @@ data class MeResponse(
     @field:JsonInclude(JsonInclude.Include.NON_NULL)
     val qaMode: String? = null, // QA 마스터(DEC-067): MASTER = 계정 고르기 중, SWITCHED = 마스터가 고른 계정, 그 밖 null
     val fontSize: String = "NORMAL",
+    val showGuides: Boolean = true,
 )

@@ -1,5 +1,6 @@
 import type { PersonRow, UnitRow } from "@/api/status";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { useGuides } from "@/context/AuthContext";
 import { ArrowDownIcon, ArrowUpIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useId, useState } from "react";
@@ -153,6 +154,7 @@ export function PeopleSection({ rows, names, caption, from, to, onPeriod }: {
 function PeopleTable({ rows, names, caption, empty }: { rows: PersonRow[]; names: Map<number, string>; caption: string; empty: string }) {
   const { t } = useTranslation("status", { keyPrefix: "people" });
   const { t: ts } = useTranslation("status");
+  const guides = useGuides();
   const rankName = useRankName();
   const period = ` (${ts("periodShort")})`;
   const [sort, setSort] = useState<{ key: PeopleKey; asc: boolean } | null>(null);
@@ -182,7 +184,7 @@ function PeopleTable({ rows, names, caption, empty }: { rows: PersonRow[]; names
           type="button"
           onClick={() => toggle(key)}
           className={cn("inline-flex items-center gap-1 hover:text-gray-800 print:hidden dark:hover:text-white/90", active && "text-gray-800 dark:text-white/90")}
-          title={t("sortHint")}
+          title={guides ? t("sortHint") : undefined}
         >
           {text}
           {active && (sort.asc ? <ArrowUpIcon className="size-3.5" aria-hidden /> : <ArrowDownIcon className="size-3.5" aria-hidden />)}
@@ -221,7 +223,7 @@ function PeopleTable({ rows, names, caption, empty }: { rows: PersonRow[]; names
           </TableBody>
         </Table>
       </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("basis")}</p>
+      <p data-guide="" className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("basis")}</p>
     </div>
   );
 }

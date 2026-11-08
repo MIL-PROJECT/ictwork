@@ -122,7 +122,8 @@ export default function RequestFlow({
           >
             {t(`${copy}.headings.${step}`)}
           </h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          {/* 단계 설명은 설명 글(REQ-009) */}
+          <p data-guide="" className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
             {t(`${copy}.descriptions.${step}`)}
           </p>
         </div>
@@ -144,6 +145,7 @@ export default function RequestFlow({
             </p>
           ) : (
             <p
+              data-guide={uploading ? undefined : ""}
               className="text-xs text-gray-500 dark:text-gray-400"
               aria-live="polite"
             >

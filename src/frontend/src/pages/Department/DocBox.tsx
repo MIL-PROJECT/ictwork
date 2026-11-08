@@ -522,7 +522,7 @@ export default function DocBox() {
               {box?.canEdit && <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t(recordFolder ? "toolbar.recordFolderHelp" : "toolbar.uploadHelp")}</p>}
               {box && !box.canEdit && !box.canDeleteOnly && <p className="text-sm text-gray-500 dark:text-gray-400">{t("readOnly")}</p>}
               {box?.canDeleteOnly && <p className="text-sm text-gray-500 dark:text-gray-400">{t("deleteOnly")}</p>}
-              {isShared && <p className="text-sm text-gray-500 dark:text-gray-400">{t("sharedHelp")}</p>}
+              {isShared && <p data-guide="" className="text-sm text-gray-500 dark:text-gray-400">{t("sharedHelp")}</p>}
             </div>
           )}
           {notice && (

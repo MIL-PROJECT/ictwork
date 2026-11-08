@@ -31,7 +31,7 @@ export default function ConversationList({ conversations, error, selectedId, bus
     // OMNIS 카드: 머리(아이콘 타일·제목·대화 수 / 펴기·새 대화) + 목록 행(hover 때 옅은 바탕 + 왼쪽 남색 선)
     <aside
       aria-labelledby="ai-list-title"
-      className="omnis-panel min-w-0 overflow-hidden rounded-[20px] bg-white xl:w-72 xl:shrink-0 dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/[0.03]"
+      className="omnis-panel min-w-0 overflow-hidden rounded-[20px] bg-white xl:flex xl:w-72 xl:shrink-0 xl:flex-col dark:ring-1 dark:ring-gray-800 dark:ring-inset dark:bg-white/[0.03]"
     >
       <div className="flex min-h-[62px] flex-wrap items-center gap-2 px-[18px] py-3">
         <span aria-hidden className="grid size-[34px] shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-500 [&_svg]:size-[18px] dark:bg-white/10 dark:text-brand-300">
@@ -64,7 +64,7 @@ export default function ConversationList({ conversations, error, selectedId, bus
           {t("list.new")}
         </button>
       </div>
-      <div id="ai-conversations" className={cn("border-t border-gray-100 dark:border-gray-800", open ? "block" : "hidden", "xl:block")}>
+      <div id="ai-conversations" className={cn("border-t border-gray-100 xl:flex-1 dark:border-gray-800", open ? "block" : "hidden", "xl:block")}>
         {error ? (
           <p role="alert" className="px-[18px] py-4 text-sm text-error-600 dark:text-error-400">
             {t("list.error")}

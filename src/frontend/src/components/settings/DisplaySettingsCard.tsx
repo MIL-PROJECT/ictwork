@@ -1,5 +1,5 @@
 import type { FontSize } from "@/api/auth";
-import { changeFontSize } from "@/api/me";
+import { changeFontSize, changeShowGuides } from "@/api/me";
 import { Panel } from "@/components/common/Panel";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -10,7 +10,7 @@ import { cn } from "@/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-// 화면 설정: 언어·화면 테마(상단바에 있던 기능을 개인설정에도 모음, 이 브라우저에 저장), 글자 크기(계정에 저장, REQ-008)
+// 화면 설정: 언어·화면 테마(상단바에 있던 기능을 개인설정에도 모음, 이 브라우저에 저장), 글자 크기(계정에 저장, REQ-008), 설명 글 보이기(계정에 저장, REQ-009)
 function OptionButtons<T extends string>({
   labelId,
   options,
@@ -52,9 +52,11 @@ export default function DisplaySettingsCard() {
   const { t } = useTranslation("settings", { keyPrefix: "display" });
   const { language, setLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
-  const { user, setFontSize } = useAuth();
+  const { user, setFontSize, setShowGuides } = useAuth();
   const fontSize = user?.fontSize ?? "NORMAL";
   const [fontError, setFontError] = useState<string | null>(null);
+  const showGuides = user?.showGuides !== false;
+  const [guidesError, setGuidesError] = useState<string | null>(null);
 
   // 글자 크기 (REQ-008): 화면(사용자 상태)을 먼저 바꾸고 계정에 저장한다. 저장하지 못하면 되돌리고 알린다
   const selectFontSize = async (next: FontSize) => {
@@ -70,9 +72,23 @@ export default function DisplaySettingsCard() {
     }
   };
 
+  // 설명 글 보이기 (REQ-009): 글자 크기와 같이 화면을 먼저 바꾸고 계정에 저장한다. 저장하지 못하면 되돌리고 알린다
+  const selectShowGuides = async (next: "ON" | "OFF") => {
+    const value = next === "ON";
+    if (value === showGuides) return;
+    setGuidesError(null);
+    setShowGuides(value);
+    try {
+      await changeShowGuides(value);
+    } catch {
+      setShowGuides(!value);
+      setGuidesError(t("guidesSaveFailed"));
+    }
+  };
+
   return (
     // OMNIS 카드: 아이콘 머리(제목·설명) + 이름표·고르기 줄(아래 경계선)
-    <Panel icon={<LayoutIcon />} title={t("title")} titleId="settings-display-title" subtitle={t("desc")} bodyClassName="divide-y divide-gray-100 dark:divide-gray-800">
+    <Panel icon={<LayoutIcon />} title={t("title")} titleId="settings-display-title" subtitle={t("desc")} subtitleGuide bodyClassName="divide-y divide-gray-100 dark:divide-gray-800">
       <div className="flex flex-wrap items-center gap-4 py-3">
         <span id="display-language-label" className="w-28 text-[12.5px] font-bold text-gray-600 dark:text-gray-400">
           {t("language")}
@@ -116,6 +132,28 @@ export default function DisplaySettingsCard() {
         {fontError && (
           <p role="alert" className="basis-full text-sm text-error-600 dark:text-error-500">
             {fontError}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-4 py-3">
+        <span id="display-guides-label" className="w-28 text-[12.5px] font-bold text-gray-600 dark:text-gray-400">
+          {t("guides")}
+        </span>
+        <OptionButtons
+          labelId="display-guides-label"
+          options={[
+            { value: "ON", label: t("guidesOn") },
+            { value: "OFF", label: t("guidesOff") },
+          ]}
+          value={showGuides ? "ON" : "OFF"}
+          onSelect={selectShowGuides}
+        />
+        <p data-guide className="basis-full text-[12.5px] text-gray-500 dark:text-gray-400">
+          {t("guidesHelp")}
+        </p>
+        {guidesError && (
+          <p role="alert" className="basis-full text-sm text-error-600 dark:text-error-500">
+            {guidesError}
           </p>
         )}
       </div>

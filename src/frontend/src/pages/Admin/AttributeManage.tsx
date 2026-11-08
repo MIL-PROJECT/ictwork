@@ -356,7 +356,7 @@ export default function AttributeManage({ target }: { target: AttributeTarget })
 
       {/* 판: 그 부서의 부서 관리자만 본다 (G-58). 순서 바꾸기는 판을 남기지 않는다 */}
       {departmentId !== null && (
-        <Panel className="mt-6" icon={<TimeIcon />} title={t("revisions")} titleId="attr-revisions-title" subtitle={t("revisionsHelp")} flush>
+        <Panel className="mt-6" icon={<TimeIcon />} title={t("revisions")} titleId="attr-revisions-title" subtitle={t("revisionsHelp")} subtitleGuide flush>
           <DataTable
             flush
             caption={t("revisions")}

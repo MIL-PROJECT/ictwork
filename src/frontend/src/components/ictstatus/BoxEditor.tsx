@@ -425,7 +425,7 @@ export default function BoxEditor({ detail, onSaved, onCancel, onReopen }: { det
           {assist.marked("scope") && <AiFilledMark />}
         </h4>
         <AssistSources sources={assist.sources("scope")} />
-        <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.scopeHelp")}</p>
+        <p data-guide="" className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.scopeHelp")}</p>
         <ScopePicker value={scope} onChange={setScope} departments={org.departments} personnel={org.personnel} paths={org.paths} marked={(id) => assist.marked("scope", id)} />
       </section>
 

@@ -359,6 +359,7 @@ export default function EquipmentDetail({ creating = false }: { creating?: boole
       {/* OMNIS 상세 머리: 제목 아래 요약(상태 알약·관리부서·모델명·시리얼넘버), 오른쪽에 화면 동작(목록·고치기·반출 여부 바꾸기) */}
       <PageBreadcrumb
         pageTitle={title}
+        descriptionGuide={creating || editing}
         description={
           creating ? (
             tf("equipment.newDescription")

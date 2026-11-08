@@ -94,7 +94,7 @@ export default function StepsEditor({
   return (
     <fieldset className="space-y-3">
       <legend className={showTitle ? LABEL_CLASS : "sr-only"}>{t("steps.title")}</legend>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t("steps.help")}</p>
+      <p data-guide="" className="text-sm text-gray-500 dark:text-gray-400">{t("steps.help")}</p>
       <OrgPicker
         label={t("steps.title")}
         departments={departments}

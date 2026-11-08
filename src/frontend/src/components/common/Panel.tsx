@@ -13,8 +13,10 @@ export function Panel({
   title,
   titleId,
   subtitle,
+  subtitleGuide = false,
   actions,
   toolbar,
+  toolbarGuide = false,
   footer,
   flush = false,
   printHead = true,
@@ -28,8 +30,10 @@ export function Panel({
   title?: ReactNode;
   titleId?: string;
   subtitle?: ReactNode;
+  subtitleGuide?: boolean; // 부제가 설명 글이면 true: 설명 글 보이기를 끄면 숨긴다(REQ-009). 건수·기간 같은 자료면 false(처음 값)
   actions?: ReactNode;
   toolbar?: ReactNode;
+  toolbarGuide?: boolean; // 걸러 보기 줄이 설명 글만 담으면 true: 설명 글 보이기를 끄면 줄째 숨긴다(빈 띠가 남지 않게, REQ-009)
   footer?: ReactNode;
   flush?: boolean;
   printHead?: boolean; // false면 머리(제목·동작)를 인쇄에서 뺀다 (예: 인쇄에는 표만)
@@ -72,7 +76,7 @@ export function Panel({
                   {title}
                 </h2>
                 {subtitle && (
-                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">
+                  <span data-guide={subtitleGuide ? "" : undefined} className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">
                     {subtitle}
                   </span>
                 )}
@@ -85,7 +89,7 @@ export function Panel({
         </div>
       )}
       {toolbar && (
-        <div className={cn("flex flex-wrap items-center gap-2 border-b border-gray-100 px-[22px] py-3 dark:border-gray-800", !printToolbar && "print:hidden")}>
+        <div data-guide={toolbarGuide ? "" : undefined} className={cn("flex flex-wrap items-center gap-2 border-b border-gray-100 px-[22px] py-3 dark:border-gray-800", !printToolbar && "print:hidden")}>
           {toolbar}
         </div>
       )}
@@ -123,7 +127,8 @@ export function EmptyState({
         {title}
       </strong>
       {description && (
-        <span className="max-w-[300px] text-[12.5px] leading-normal text-gray-500 dark:text-gray-400">
+        // 빈 화면 설명은 설명 글(REQ-009)
+        <span data-guide="" className="max-w-[300px] text-[12.5px] leading-normal text-gray-500 dark:text-gray-400">
           {description}
         </span>
       )}

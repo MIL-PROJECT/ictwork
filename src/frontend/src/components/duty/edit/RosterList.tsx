@@ -35,6 +35,7 @@ function CreateDialog({ departmentId, onSubmit, onClose }: { departmentId: numbe
     <ActionModal
       title={t("addTitle")}
       description={t("addHelp")}
+      descriptionGuide
       submitLabel={t("addSubmit")}
       canSubmit={length(trimmed) >= 1}
       describeError={(err) => {

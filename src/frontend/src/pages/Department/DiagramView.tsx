@@ -477,6 +477,7 @@ function DiagramScreen({ id }: { id: number }) {
         pageTitle={detail?.name ?? t("sidebar.items.diagrams")}
         // 편집 중에는 저장·편집 취소로 끝내도록 [이전으로]를 보이지 않는다
         back={mode === "view" ? true : undefined}
+        descriptionGuide={false}
         description={detail ? `${detail.ownerDepartmentName} · ${td(`permission.${detail.permission}`)}` : undefined}
         actions={
           (mode === "view" && canEdit && !lockedByOther && !editingElsewhere) || mode !== "view" ? (

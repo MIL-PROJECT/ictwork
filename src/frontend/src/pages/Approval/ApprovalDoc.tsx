@@ -322,7 +322,7 @@ function ApprovalDocPage() {
         </ActionModal>
       )}
       {dialog?.kind === "resubmit" && doc.target.workItemId !== null && (
-        <ActionModal wide title={t("doc.resubmitTitle")} description={t("doc.resubmitHelp")} submitLabel={t("doc.resubmit")} describeError={describeError}
+        <ActionModal wide title={t("doc.resubmitTitle")} description={t("doc.resubmitHelp")} descriptionGuide submitLabel={t("doc.resubmit")} describeError={describeError}
           describedBy="doc-resubmit-rejection"
           canSubmit={stepsReady(steps) && inactiveSteps(steps, activeAccounts, user?.accountId).length === 0 && (!includePlan || planReady(plan))}
           onSubmit={() => resubmitDoc(doc.id, toStepInputs(steps), includePlan ? toPlanInput(plan) : null,

@@ -111,7 +111,7 @@ export default function TypeRecommendations({
           placeholder={t("recommend.placeholder")}
           className={INPUT_CLASS}
         />
-        <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+        <p data-guide="" className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
           {t("recommend.basis")}
         </p>
         <button

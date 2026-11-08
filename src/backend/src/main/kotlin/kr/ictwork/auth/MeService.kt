@@ -20,6 +20,9 @@ private val FONT_SIZES = setOf("NORMAL", "LARGE")
 /** PUT /api/me/font-size 본문. 빈 값·다른 값은 서비스가 FONT_SIZE_INVALID로 거부한다 */
 data class FontSizeRequest(val fontSize: String? = null)
 
+/** PUT /api/me/guides 본문. 값이 없으면 서비스가 GUIDES_INVALID로 거부한다 */
+data class ShowGuidesRequest(val showGuides: Boolean? = null)
+
 @Service
 class MeService(
     private val accountRepository: AccountRepository,
@@ -54,6 +57,7 @@ class MeService(
             accountId = account.id,
             departmentId = actor.personnelDepartmentId,
             fontSize = account.fontSize,
+            showGuides = account.showGuides,
         )
     }
 
@@ -64,6 +68,13 @@ class MeService(
             throw ApiException(HttpStatus.BAD_REQUEST, "FONT_SIZE_INVALID", "글자 크기는 보통(NORMAL)·크게(LARGE) 중에서 고르세요.")
         }
         accountRepository.updateFontSize(loginId, checkNotNull(fontSize))
+    }
+
+    /** 개인설정 설명 글 보이기 (REQ-009): 켬·끔 */
+    @Transactional
+    fun changeShowGuides(loginId: String, showGuides: Boolean?) {
+        if (showGuides == null) throw ApiException(HttpStatus.BAD_REQUEST, "GUIDES_INVALID", "설명 글 보이기는 켬(true)·끔(false) 중에서 고르세요.")
+        accountRepository.updateShowGuides(loginId, showGuides)
     }
 
     /** QA 마스터(DEC-067): DB 계정이 아니므로 고정 값. 관리 기능·소속은 없다 */

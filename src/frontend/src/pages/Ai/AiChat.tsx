@@ -247,7 +247,7 @@ export default function AiChat() {
           {t(statusError === "off" ? "off" : "statusError")}
         </p>
       )}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
         <ConversationList
           conversations={conversations}
           error={listError}

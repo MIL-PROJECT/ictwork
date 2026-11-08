@@ -227,7 +227,7 @@ function ItemDetailPage() {
           <AnswerView targets={[{ departmentId: item.departmentId, types: item.request.types }]} forms={item.request.forms} />
 
           <Section icon={<PaperClipIcon />} title={tf("itemFiles")}>
-            {item.canProcess && <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{tf("itemHelp")}</p>}
+            {item.canProcess && <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">{tf("itemHelp")}</p>}
             {/* 지우기는 처리 건 부서원이 상태와 관계없이, 올리기는 반려·이송 건이 아닐 때 (G-26) */}
             <div className="print:[&_button]:hidden">
               <AttachmentList items={item.attachments} onRemove={item.canProcess ? (f) => void removeFile(f) : undefined} removingId={removingId} />
@@ -245,7 +245,7 @@ function ItemDetailPage() {
           </Section>
 
           <Section icon={<ChatIcon />} title={t("note.title")}>
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("note.help")}</p>
+            <p data-guide="" className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("note.help")}</p>
             {item.notes.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t("note.empty")}</p>
             ) : (

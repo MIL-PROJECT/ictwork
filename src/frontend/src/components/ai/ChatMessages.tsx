@@ -62,7 +62,7 @@ export default function ChatMessages({ messages, draft, loading, error, examples
             <AiIcon />
           </span>
           <h3 className="text-[14.5px] font-bold text-gray-800 dark:text-white/90">{t("empty.title")}</h3>
-          <p className="mt-1.5 max-w-md text-[12.5px] leading-normal text-gray-500 dark:text-gray-400">{t("empty.help")}</p>
+          <p data-guide="" className="mt-1.5 max-w-md text-[12.5px] leading-normal text-gray-500 dark:text-gray-400">{t("empty.help")}</p>
           {examples.length > 0 && (
             <div className="mt-5 w-full">
               <p id="ai-examples-title" className="text-[11.5px] font-bold text-gray-600 dark:text-gray-400">

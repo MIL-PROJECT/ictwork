@@ -1,6 +1,7 @@
 import type { BoxCard, BoxColor } from "@/api/ictStatus";
 import type { ItemListItem, WorkStatus as ItemStatus } from "@/api/work";
 import PageMeta from "@/components/common/PageMeta";
+import { useGuides } from "@/context/AuthContext";
 import "@/components/board/board.css";
 import {
   ArrowRight,
@@ -117,6 +118,7 @@ export default function ControlBoard() {
   const { t: tw } = useTranslation("work");
   const { t: ti } = useTranslation("ictStatus");
   const { t: td } = useTranslation("directive");
+  const guides = useGuides();
   const navigate = useNavigate();
   const { data, error, updatedAt, refresh } = useBoardData();
   const today = new Date();
@@ -529,7 +531,7 @@ export default function ControlBoard() {
                       </span>
                       <span
                         className="board-mp-task-track"
-                        title={t("progress.elapsedHelp")}
+                        title={guides ? t("progress.elapsedHelp") : undefined}
                       >
                         <span className="board-mp-track">
                           <span

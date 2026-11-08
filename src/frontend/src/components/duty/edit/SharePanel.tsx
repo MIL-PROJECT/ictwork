@@ -37,7 +37,7 @@ export default function SharePanel({ detail, departments, write }: { detail: Dut
 
   return (
     <div className="space-y-4">
-      <p className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
+      <p data-guide="" className="text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
       {shares.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">{t("none")}</p>
       ) : (

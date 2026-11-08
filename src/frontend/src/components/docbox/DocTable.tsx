@@ -2,7 +2,7 @@ import { docDownloadUrl, docViewUrl, type DocNodeView } from "@/api/docbox";
 import { formatSize } from "@/components/file/attachments";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
-import { useAppZoom } from "@/context/AuthContext";
+import { useAppZoom, useGuides } from "@/context/AuthContext";
 import { ArrowDownIcon, ArrowUpIcon, DownloadIcon, FileIcon, FolderIcon, HorizontaLDots } from "@/icons";
 import { cn } from "@/utils";
 import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -52,6 +52,7 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
   caption: string;
 }) {
   const { t } = useTranslation("docbox");
+  const guides = useGuides();
   // 미리보기 창: PDF·그림·txt·한글·워드·엑셀·파워포인트는 새 탭 대신 체계 안에서 본다
   const [previewing, setPreviewing] = useState<{ id: number; name: string } | null>(null);
   const showShared = items.some((i) => i.shared !== null);
@@ -65,7 +66,7 @@ export default function DocTable({ items, sort, onSort, highlightId, actions, em
         <button
           type="button"
           onClick={() => onSort(key)}
-          title={t("table.sortHint")}
+          title={guides ? t("table.sortHint") : undefined}
           className={cn("inline-flex items-center gap-1 hover:text-gray-800 dark:hover:text-white/90", active && "text-gray-800 dark:text-white/90")}
         >
           {text}

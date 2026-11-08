@@ -336,6 +336,7 @@ function RequestDetailPage() {
           wide
           title={t("requestDetail.editViewers")}
           description={t(request.departmentIntake ? "intake.viewersHelp" : "register.viewersHelp")}
+          descriptionGuide
           submitLabel={t("save")}
           canSubmit={request.departmentIntake || viewerDepartments.length + viewerPeople.length > 0}
           describeError={describeError}

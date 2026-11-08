@@ -5,6 +5,7 @@ import AssistLabel, { AiFilledMark } from "@/components/assist/AssistLabel";
 import { useAssistAdapter, useAssistPage } from "@/components/assist/useAssistAdapter";
 import { Modal } from "@/components/ui/modal";
 import OrgPicker from "@/components/work/OrgPicker";
+import { useGuides } from "@/context/AuthContext";
 import { cn, clip } from "@/utils";
 import { type KeyboardEvent, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -96,6 +97,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
   const { t } = useTranslation("duty", { keyPrefix: "editor" });
   const { t: ts } = useTranslation("duty", { keyPrefix: "shift" });
   const { t: tk } = useTranslation("duty", { keyPrefix: "rules" });
+  const guides = useGuides();
   const describeError = useDutyError();
   const describe = usePersonText(detail, personnel);
   const dayLabel = useDayLabel();
@@ -290,7 +292,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
                 )}
               >
                 <span className="block text-sm font-semibold text-gray-900 dark:text-white/90">{tk(`kinds.${k}`)}</span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400">{tk(`kindHelp.${k}`)}</span>
+                <span data-guide="" className="block text-xs text-gray-500 dark:text-gray-400">{tk(`kindHelp.${k}`)}</span>
               </button>
             );
           })}
@@ -318,11 +320,11 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
           {t("step2")}
         </h3>
         {!shift ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">{t("weekdayHow")}</p>
+          <p data-guide="" className="text-sm text-gray-600 dark:text-gray-400">{t("weekdayHow")}</p>
         ) : (
           <>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t("shiftHow")}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t("offHow")}</p>
+            <p data-guide="" className="text-sm text-gray-600 dark:text-gray-400">{t("shiftHow")}</p>
+            <p data-guide="" className="text-sm text-gray-600 dark:text-gray-400">{t("offHow")}</p>
             {assist.marked("shifts") && (
               <p className="text-theme-xs text-gray-600 dark:text-gray-400">
                 {typesName}
@@ -356,7 +358,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
                       </td>
                       <td className="px-2 py-1.5">
                         {row.off ? (
-                          <span className="px-2 text-gray-400 dark:text-gray-500" title={t("offNoCount")}>
+                          <span className="px-2 text-gray-400 dark:text-gray-500" title={guides ? t("offNoCount") : undefined}>
                             —<span className="sr-only">{t("offNoCount")}</span>
                           </span>
                         ) : (
@@ -506,7 +508,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
             </button>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{shift ? t("shiftMembersHelp") : tk("membersHelp")}</p>
+        <p data-guide="" className="text-xs text-gray-500 dark:text-gray-400">{shift ? t("shiftMembersHelp") : tk("membersHelp")}</p>
         <MemberList
           ids={ids}
           describe={describe}
@@ -568,7 +570,7 @@ export default function RuleEditor({ detail, rule, departments, personnel, write
         <h3 id={`${id}-s4`} className={stepTitle}>
           {t("step4")}
         </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t("previewHelp")}</p>
+        <p data-guide="" className="text-xs text-gray-500 dark:text-gray-400">{t("previewHelp")}</p>
         {!valid || ids.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">{t("previewWait")}</p>
         ) : (

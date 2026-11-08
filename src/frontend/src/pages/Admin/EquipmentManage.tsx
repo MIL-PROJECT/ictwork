@@ -131,7 +131,7 @@ export default function EquipmentManage() {
         subtitle={
           <>
             {locations && <span className="block">{tf("location.summary", { total: managedLocations.length, active: managedLocations.filter((l) => l.active).length })}</span>}
-            <span className="block">{ta("location.help")}</span>
+            <span data-guide="" className="block">{ta("location.help")}</span>
           </>
         }
         actions={
@@ -171,6 +171,7 @@ export default function EquipmentManage() {
         <ActionModal
           title={ta(dialog.kind === "locationCreate" ? "location.add" : "location.rename")}
           description={ta("location.help")}
+          descriptionGuide
           submitLabel={ta("save")}
           canSubmit={name.trim() !== "" && (dialog.kind === "locationRename" || departmentId !== "")}
           onClose={() => setDialog(null)}

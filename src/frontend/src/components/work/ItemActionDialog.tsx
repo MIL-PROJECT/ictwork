@@ -119,7 +119,7 @@ export default function ItemActionDialog({
     case "completeApproval":
       // 완료 결재 (REQ-212): 지금 계획 칸을 올린다. 경로가 나 한 사람(결재)이면 바로 완료
       return (
-        <ActionModal {...common} wide title={t(`${dialogs}.completeApprovalTitle`)} description={t(`${dialogs}.completeApprovalHelp`)}
+        <ActionModal {...common} wide title={t(`${dialogs}.completeApprovalTitle`)} description={t(`${dialogs}.completeApprovalHelp`)} descriptionGuide
           submitLabel={t("item.actions.completeApproval")} canSubmit={stepsReady(steps)}
           onSubmit={() => completeWithApproval(item.id, version, toStepInputs(steps))}>
           {item.plan && <PlanSummary plan={item.plan} />}
@@ -136,7 +136,7 @@ export default function ItemActionDialog({
       );
     case "transfer":
       return (
-        <ActionModal {...common} title={t(`${dialogs}.transferTitle`)} description={`${t(`${dialogs}.transferHelp`)} ${t(`${dialogs}.transferNoReceiver`)}`} submitLabel={t("item.actions.transfer")}
+        <ActionModal {...common} title={t(`${dialogs}.transferTitle`)} description={`${t(`${dialogs}.transferHelp`)} ${t(`${dialogs}.transferNoReceiver`)}`} descriptionGuide submitLabel={t("item.actions.transfer")}
           canSubmit={target !== ""} onSubmit={() => transferItem(item.id, version, Number(target))}>
           {requestFiles}
           <SelectField
@@ -171,7 +171,7 @@ export default function ItemActionDialog({
       );
     case "plan":
       return (
-        <ActionModal {...common} wide title={t(`${dialogs}.planTitle`)} description={t(`${dialogs}.planHelp`)} submitLabel={t("item.actions.plan")}
+        <ActionModal {...common} wide title={t(`${dialogs}.planTitle`)} description={t(`${dialogs}.planHelp`)} descriptionGuide submitLabel={t("item.actions.plan")}
           canSubmit={planReady(plan)} onSubmit={() => planItem(item.id, version, toPlanInput(plan))}>
           <PlanEditor workItemId={item.id} paths={paths} value={plan} onChange={setPlan} />
         </ActionModal>
@@ -179,14 +179,14 @@ export default function ItemActionDialog({
     case "editPlan":
       // 계획 상태에서만 결재 없이 고친다(완료 결재 중·완료 뒤는 서버가 거부, G-149)
       return (
-        <ActionModal {...common} wide title={t(`${dialogs}.editPlanTitle`)} description={t(`${dialogs}.editPlanHelp`)}
+        <ActionModal {...common} wide title={t(`${dialogs}.editPlanTitle`)} description={t(`${dialogs}.editPlanHelp`)} descriptionGuide
           submitLabel={t("save")} canSubmit={planReady(plan)} onSubmit={() => editPlan(item.id, version, toPlanInput(plan))}>
           <PlanEditor workItemId={item.id} paths={paths} value={plan} onChange={setPlan} selectedNames={item.plan} />
         </ActionModal>
       );
     case "priority":
       return (
-        <ActionModal {...common} title={t(`${dialogs}.priorityTitle`)} description={t(`${dialogs}.priorityHelp`)} submitLabel={t("save")}
+        <ActionModal {...common} title={t(`${dialogs}.priorityTitle`)} description={t(`${dialogs}.priorityHelp`)} descriptionGuide submitLabel={t("save")}
           onSubmit={() => setPriority(item.id, version, priority)}>
           <PriorityField id="item-priority" value={priority} onChange={setPriorityValue} />
         </ActionModal>

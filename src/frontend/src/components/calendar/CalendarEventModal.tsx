@@ -212,7 +212,7 @@ const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           <h5 id="event-modal-title" className="modal-title mb-2 text-theme-xl font-semibold text-gray-800 lg:text-2xl dark:text-white/90">
             {selectedEvent ? t("editTitle") : t("addTitle")}
           </h5>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p data-guide="" className="text-sm text-gray-500 dark:text-gray-400">
             {t("description")}
           </p>
         </div>

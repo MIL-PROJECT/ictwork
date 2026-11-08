@@ -15,6 +15,7 @@ type AuthContextType = {
   signOut: () => Promise<boolean>; // 로그아웃되면(QA로 고른 계정이면 계정 고르기로 돌아가면) true
   refresh: () => Promise<void>; // 현재 사용자(역할·강제 변경 여부)를 다시 읽음
   setFontSize: (fontSize: FontSize) => void; // 글자 크기를 화면에 바로 반영(저장은 부르는 쪽이 한다, REQ-008)
+  setShowGuides: (showGuides: boolean) => void; // 설명 글 보이기를 화면에 바로 반영(저장은 부르는 쪽이 한다, REQ-009)
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +37,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     applyFontSize(fontSize);
   }, [fontSize]);
+
+  // 개인설정 설명 글 보이기 (REQ-009): 끄면 <html data-guides="off">로 설명 글(data-guide)을 숨긴다(index.css). 로그인 전·로그아웃 뒤는 보임
+  const guidesOff = user?.showGuides === false;
+  useEffect(() => {
+    if (guidesOff) document.documentElement.dataset.guides = "off";
+    else delete document.documentElement.dataset.guides;
+  }, [guidesOff]);
 
   useEffect(() => {
     setUnauthorizedListener(() => {
@@ -66,6 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setFontSize = (fontSize: FontSize) => {
     setUser((prev) => (prev ? { ...prev, fontSize } : prev));
+  };
+
+  const setShowGuides = (showGuides: boolean) => {
+    setUser((prev) => (prev ? { ...prev, showGuides } : prev));
   };
 
   const signIn = async (loginId: string, password: string) => {
@@ -117,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, signedOutReason, signIn, signOut, refresh, setFontSize }}>
+    <AuthContext.Provider value={{ user, signedOutReason, signIn, signOut, refresh, setFontSize, setShowGuides }}>
       {children}
     </AuthContext.Provider>
   );
@@ -138,6 +150,12 @@ const LARGE_ZOOM = 1.25;
 export function applyFontSize(fontSize: FontSize | undefined) {
   if (fontSize === "LARGE") document.documentElement.dataset.fontSize = "large";
   else delete document.documentElement.dataset.fontSize;
+}
+
+// 설명 글을 보이는가 (REQ-009). 설명만 하는 툴팁(title)은 CSS로 숨길 수 없어 이 값으로 주고 뺀다. 로그인 전은 보임
+export function useGuides() {
+  const { user } = useAuth();
+  return user?.showGuides !== false;
 }
 
 // 지금 화면 배율(보통 1, 크게 1.25). 외부 부품을 배율 밖에서 그릴 때 글자·높이를 이만큼 키우고,

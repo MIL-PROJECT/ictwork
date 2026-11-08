@@ -44,6 +44,7 @@ export default function CarryOutDialog({
     <ActionModal
       title={t("carryOut.title")}
       description={t("carryOut.help")}
+      descriptionGuide
       submitLabel={t("carryOut.submit")}
       canSubmit={canSubmit}
       describeError={(err) => {

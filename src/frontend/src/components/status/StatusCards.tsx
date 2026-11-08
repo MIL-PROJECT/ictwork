@@ -56,7 +56,7 @@ function MetricCard({ label, value, to, tone = "normal", help, compare }: {
         )}
       </p>
       {compare}
-      {help && <p className="text-xs text-gray-500 dark:text-gray-400">{help}</p>}
+      {help && <p data-guide="" className="text-xs text-gray-500 dark:text-gray-400">{help}</p>}
     </div>
   );
 }

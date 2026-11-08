@@ -70,7 +70,7 @@ export default function ShareDialog({ node, onClose }: { node: DocNodeView; onCl
       <h2 id={titleId} className="mb-2 pe-12 text-theme-xl font-bold break-all text-gray-800 dark:text-white/90">
         {t("title", { name: node.name })}
       </h2>
-      <p className="mb-3 text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
+      <p data-guide="" className="mb-3 text-sm break-keep text-gray-500 dark:text-gray-400">{t("help")}</p>
       <h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">{t("current")}</h3>
       {shares === null ? (
         !error && <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>

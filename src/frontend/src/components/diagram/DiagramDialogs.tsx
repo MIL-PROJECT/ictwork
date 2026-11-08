@@ -79,7 +79,7 @@ export function GrantDialog({ diagramId, open, canManage, onClose, onSaved }: {
 
   return (
     <Dialog title={t("grants.title")} open={open} onClose={onClose}>
-      <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{canManage ? t("grants.help") : t("grants.readOnly")}</p>
+      <p data-guide={canManage ? "" : undefined} className="mb-3 text-sm text-gray-500 dark:text-gray-400">{canManage ? t("grants.help") : t("grants.readOnly")}</p>
       <ul className="mb-4 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
         {grants.map((g, index) => (
           <li key={`${g.departmentId}-${g.personnelId}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
@@ -297,7 +297,7 @@ export function EquipmentSettingsDialog({ diagramId, open, shareFields, shareAtt
     <Dialog title={t("settings.title")} open={open} onClose={onClose}>
       <fieldset>
         <legend className="mb-1 text-sm font-bold text-gray-800 dark:text-white/90">{t("settings.share")}</legend>
-        <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareHelp")}</p>
+        <p data-guide="" className="mb-2 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareHelp")}</p>
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
           {EQUIPMENT_FIELDS.map((field) => {
             const fixed = field === "NAME";
@@ -323,18 +323,18 @@ export function EquipmentSettingsDialog({ diagramId, open, shareFields, shareAtt
           <input type="checkbox" checked={share.has(SHAPE_INFO_SHARE)} onChange={(e) => toggleShare(SHAPE_INFO_SHARE, e.target.checked)} />
           {t("settings.shareShapeInfo")}
         </label>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareShapeInfoHelp")}</p>
+        <p data-guide="" className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareShapeInfoHelp")}</p>
         {/* 장비 사진 (G-132): 상자 안 사진·작은 창 사진. 처음에는 켬 */}
         <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={share.has(EQUIPMENT_PHOTO_SHARE)} onChange={(e) => toggleShare(EQUIPMENT_PHOTO_SHARE, e.target.checked)} />
           {t("settings.sharePhoto")}
         </label>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("settings.sharePhotoHelp")}</p>
+        <p data-guide="" className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("settings.sharePhotoHelp")}</p>
       </fieldset>
       {attrGroups.length > 0 && (
         <fieldset className="mt-4">
           <legend className="mb-1 text-sm font-bold text-gray-800 dark:text-white/90">{t("settings.shareAttributes")}</legend>
-          <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareAttributesHelp")}</p>
+          <p data-guide="" className="mb-2 text-sm text-gray-500 dark:text-gray-400">{t("settings.shareAttributesHelp")}</p>
           <ul className="space-y-1">
             {attrGroups.map((g) => (
               <li key={g.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
@@ -560,7 +560,7 @@ export function ShapeInfoDialog({ kind, info, onClose, onApply }: {
 
   return (
     <Dialog title={kind === "line" ? t("shapeInfo.lineTitle") : t("shapeInfo.title")} open onClose={onClose}>
-      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{kind === "line" ? t("shapeInfo.lineHelp") : t("shapeInfo.help")}</p>
+      <p data-guide="" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{kind === "line" ? t("shapeInfo.lineHelp") : t("shapeInfo.help")}</p>
       <div className="space-y-5">
         {kind === "shape" &&
           section(

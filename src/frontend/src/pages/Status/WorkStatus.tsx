@@ -526,7 +526,7 @@ export default function WorkStatus() {
             <>
               <Panel icon={<TableIcon />} title={t("sections.compare")} className="min-w-0">
                 <CompareTable lines={lines} caption={t("sections.compare")} />
-                {lines.some((l) => l.indent) && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("compare.childNote")}</p>}
+                {lines.some((l) => l.indent) && <p data-guide="" className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("compare.childNote")}</p>}
               </Panel>
               <Panel icon={<ChartAltIcon />} title={t("sections.compareTrend")} subtitle={t("periodTitle", { from: data.from, to: data.to })} className="min-w-0">
                 {lines.every((l) => l.unit.weekly.every((w) => w.completed === 0 && w.requests === 0)) ? (

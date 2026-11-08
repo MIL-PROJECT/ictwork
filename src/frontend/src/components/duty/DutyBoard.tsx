@@ -135,7 +135,8 @@ export default function DutyBoard({ tick, rosterIds, mine }: { tick: number; ros
                 {t("title")}
               </h3>
               <span className={panelSubtitle}>
-                {t("today")} {dayLabel(today)} · {t("basis")}
+                {t("today")} {dayLabel(today)}
+                <span data-guide=""> · {t("basis")}</span>
               </span>
             </div>
           </div>

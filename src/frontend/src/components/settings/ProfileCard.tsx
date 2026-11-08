@@ -42,7 +42,7 @@ export default function ProfileCard() {
 
   return (
     // OMNIS 카드: 아이콘 머리(제목·설명) + 이름표·값 줄(OMNIS 시스템 정보 표처럼 아래 경계선)
-    <Panel icon={<UserCircleIcon />} title={t("title")} titleId="settings-profile-title" subtitle={t("desc")}>
+    <Panel icon={<UserCircleIcon />} title={t("title")} titleId="settings-profile-title" subtitle={t("desc")} subtitleGuide>
       {error && <p className="text-sm text-error-600 dark:text-error-400">{t("loadError")}</p>}
       <dl className="grid grid-cols-1 sm:grid-cols-[8rem_1fr]">
         {rows.map(([label, value]) => (

@@ -4,6 +4,7 @@ import { RowButton } from "@/components/admin/DataTable";
 import { AiFilledMark, AssistSources } from "@/components/assist/AssistLabel";
 import { useAssistAdapter } from "@/components/assist/useAssistAdapter";
 import Button from "@/components/ui/button/Button";
+import { useGuides } from "@/context/AuthContext";
 import { Section } from "@/components/work/common";
 import { INPUT_CLASS, LABEL_CLASS, TEXTAREA_CLASS, useWorkError } from "@/components/work/format";
 import { PageIcon } from "@/icons";
@@ -211,7 +212,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
         )}
         {preview ? (
           <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-            <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.previewHelp")}</p>
+            <p data-guide="" className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.previewHelp")}</p>
             <FormFill guided definition={def} value={fill} onChange={setFill} idPrefix={`preview-${type.id}`} showRequired={previewSent} />
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button size="sm" variant="outline" onClick={() => setPreviewSent(true)}>
@@ -304,6 +305,7 @@ export default function FormEditor({ type, onSaved, onClose }: { type: WorkTypeA
 /** 끌어 옮길 수 있는 질문 줄: 다른 질문 위에 놓으면 그 앞으로 간다. 연결은 실제 DOM 요소에 건다(React 19, slices/11 2.4.4) */
 function DraggableItem({ place, onDrop, children }: { place: Place; onDrop: (from: Place) => void; children: ReactNode }) {
   const { t } = useTranslation("workform");
+  const guides = useGuides();
   const [{ dragging }, drag, preview] = useDrag({ type: DRAG_TYPE, item: place, collect: (m) => ({ dragging: m.isDragging() }) }, [place.s, place.i]);
   const [{ over }, drop] = useDrop<Place, void, { over: boolean }>(
     { accept: DRAG_TYPE, drop: (from) => (from.s !== place.s || from.i !== place.i ? onDrop(from) : undefined), collect: (m) => ({ over: m.isOver() }) },
@@ -318,7 +320,7 @@ function DraggableItem({ place, onDrop, children }: { place: Place; onDrop: (fro
   }, [drag]);
   return (
     <div ref={box} className={`${dragging ? "opacity-50" : ""} ${over ? "border-t-2 border-brand-500" : ""}`}>
-      <span ref={handle} className="cursor-move text-theme-xs text-gray-500 select-none dark:text-gray-400" title={t("editor.dragHelp")}>
+      <span ref={handle} className="cursor-move text-theme-xs text-gray-500 select-none dark:text-gray-400" title={guides ? t("editor.dragHelp") : undefined}>
         {t("editor.drag")}
       </span>
       {children}
@@ -589,7 +591,7 @@ export function ItemEditor({
               }}
               className="block w-full text-sm text-gray-700 file:me-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium dark:text-gray-300 dark:file:bg-gray-800"
             />
-            <p className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.imageHelp")}</p>
+            <p data-guide="" className="text-theme-xs text-gray-500 dark:text-gray-400">{t("editor.imageHelp")}</p>
             {imageError && <p className="text-theme-xs text-error-600 dark:text-error-400">{imageError}</p>}
             {item.imageFileId !== null && (
               <div className="flex flex-wrap items-end gap-2">

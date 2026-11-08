@@ -15,6 +15,7 @@ import { cn } from "@/utils";
 export default function ActionModal({
   title,
   description,
+  descriptionGuide = false,
   submitLabel,
   canSubmit = true,
   describeError,
@@ -29,6 +30,7 @@ export default function ActionModal({
 }: {
   title: string;
   description?: string;
+  descriptionGuide?: boolean; // 설명이 순수 설명 글(*Help)이면 true: 설명 글 보이기를 끄면 숨긴다(REQ-009). 확인·경고 문구면 false(처음 값)
   submitLabel: string;
   canSubmit?: boolean;
   describeError?: (err: unknown) => string;
@@ -72,7 +74,7 @@ export default function ActionModal({
           {title}
         </h2>
         <div className="space-y-4 px-[22px] pt-3 pb-6">
-          {description && <p className="text-[13.5px] leading-relaxed break-keep text-gray-600 dark:text-gray-400">{description}</p>}
+          {description && <p data-guide={descriptionGuide ? "" : undefined} className="text-[13.5px] leading-relaxed break-keep text-gray-600 dark:text-gray-400">{description}</p>}
           {children}
           {error && (
             <p role="alert" className="rounded-xl bg-error-50 px-3.5 py-2.5 text-[13px] text-error-600 ring-1 ring-error-500/20 ring-inset dark:bg-error-500/10 dark:text-error-400">

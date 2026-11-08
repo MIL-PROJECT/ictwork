@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components
 import DepartmentFilter, { FILTER_SELECT_CLASS } from "@/components/org/DepartmentFilter";
 import { byName } from "@/components/org/OrgTree";
 import { AssignedWorkList } from "@/components/work/common";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, useGuides } from "@/context/AuthContext";
 import { useOrgData } from "@/hooks/useOrgData";
 import { usePaging } from "@/hooks/usePaging";
 import { ArrowDownIcon, ArrowUpIcon, BoxCubeIcon } from "@/icons";
@@ -136,6 +136,7 @@ export default function EquipmentBrowser({
   const { t } = useTranslation("equipment");
   const { t: tf } = useTranslation("frameDept");
   const { user } = useAuth();
+  const guides = useGuides();
   const location = useLocation();
   const { departments, paths, loaded: orgLoaded } = useOrgData({});
   const knownDepartmentIds = useMemo(() => new Set(departments.map((d) => d.id)), [departments]);
@@ -595,7 +596,7 @@ export default function EquipmentBrowser({
         }
         flush
       >
-        {editMode && <p className={cn(message, "text-gray-600 dark:text-gray-400")}>{t("edit.help")}</p>}
+        {editMode && <p data-guide="" className={cn(message, "text-gray-600 dark:text-gray-400")}>{t("edit.help")}</p>}
         {editMode && forbidden && (
           <p role="alert" className={cn(message, "text-error-600 dark:text-error-400")}>
             {t("edit.forbidden")}
@@ -654,7 +655,7 @@ export default function EquipmentBrowser({
                       <button
                         type="button"
                         onClick={() => toggleSort(key)}
-                        title={t("list.sortHint")}
+                        title={guides ? t("list.sortHint") : undefined}
                         className={cn("inline-flex items-center gap-1 hover:text-gray-800 dark:hover:text-white/90", active && "text-gray-800 dark:text-white/90")}
                       >
                         {columnLabel(key)}

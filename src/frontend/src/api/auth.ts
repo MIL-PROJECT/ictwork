@@ -21,6 +21,8 @@ export interface Me {
   qaMode?: "MASTER" | "SWITCHED";
   // 개인설정 글자 크기 (REQ-008): LARGE면 화면 전체 125%. QA 마스터는 NORMAL
   fontSize: FontSize;
+  // 개인설정 설명 글 보이기 (REQ-009): false면 화면의 설명 글(data-guide)을 숨긴다. QA 마스터는 true
+  showGuides: boolean;
 }
 
 export type FontSize = "NORMAL" | "LARGE";

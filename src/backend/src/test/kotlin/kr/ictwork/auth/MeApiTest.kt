@@ -261,6 +261,45 @@ class MeApiTest(
             .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
     }
 
+    // 설명 글 보이기 (REQ-009, DEC-152)
+    private fun changeShowGuides(body: String) = mockMvc.perform(
+        put("/api/me/guides").with(signedIn(loginId, accountRepository)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(body),
+    )
+
+    @Test
+    fun `설명 글 - 처음은 켬이고 끄면 내 정보와 로그인 응답에 나오며 다시 켤 수 있다 (REQ-009)`() {
+        mockMvc.perform(get("/api/me").with(signedIn(loginId, accountRepository)))
+            .andExpect(status().isOk).andExpect(jsonPath("$.showGuides").value(true))
+
+        changeShowGuides("""{"showGuides":false}""").andExpect(status().isNoContent)
+        mockMvc.perform(get("/api/me").with(signedIn(loginId, accountRepository)))
+            .andExpect(jsonPath("$.showGuides").value(false))
+        mockMvc.perform(post("/api/auth/login").with(csrf()).param("loginId", loginId).param("password", password))
+            .andExpect(status().isOk).andExpect(jsonPath("$.showGuides").value(false))
+
+        changeShowGuides("""{"showGuides":true}""").andExpect(status().isNoContent)
+        assertThat(accountRepository.findByLoginId(loginId)!!.showGuides).isTrue()
+    }
+
+    @Test
+    fun `설명 글 - 빈 값은 400 GUIDES_INVALID이고, 바꿔도 글자 크기·비밀번호는 그대로이며, QA 마스터는 켬이고 바꿀 수 없다`() {
+        for (body in listOf("""{"showGuides":null}""", "{}")) {
+            changeShowGuides(body).andExpect(status().isBadRequest).andExpect(jsonPath("$.code").value("GUIDES_INVALID"))
+        }
+        val hashBefore = accountRepository.findByLoginId(loginId)!!.passwordHash
+        changeShowGuides("""{"showGuides":false}""").andExpect(status().isNoContent)
+        val after = accountRepository.findByLoginId(loginId)!!
+        assertThat(after.fontSize).isEqualTo("NORMAL")
+        assertThat(after.passwordHash).isEqualTo(hashBefore)
+
+        val master = mockMvc.perform(post("/api/auth/login").with(csrf()).param("loginId", MASTER_ID).param("password", MASTER_PASSWORD))
+            .andExpect(status().isOk).andExpect(jsonPath("$.showGuides").value(true))
+            .andReturn().request.getSession(false) as MockHttpSession
+        mockMvc.perform(put("/api/me/guides").session(master).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""{"showGuides":false}"""))
+            .andExpect(status().isForbidden).andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
+    }
+
     companion object {
         // QA 마스터 시험용 값(실제 값 아님), QaMasterTest와 같은 방식
         const val MASTER_ID = "qa-master!"

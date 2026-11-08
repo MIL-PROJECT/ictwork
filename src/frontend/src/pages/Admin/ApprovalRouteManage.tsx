@@ -148,6 +148,7 @@ export default function ApprovalRouteManage() {
           title={t("admin.routeSteps")}
           titleId="route-editor-title"
           subtitle={tf("routes.editorSubtitle")}
+          subtitleGuide
           footer={
             departmentId && (
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-[22px] py-3.5 dark:border-gray-800 dark:bg-white/3">

@@ -20,6 +20,11 @@ interface AccountRepository : JpaRepository<Account, Long> {
     @Query("update Account a set a.fontSize = :fontSize where a.loginId = :loginId")
     fun updateFontSize(loginId: String, fontSize: String): Int
 
+    /** 설명 글 보이기만 고친다(글자 크기와 같은 까닭, REQ-009) */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Account a set a.showGuides = :showGuides where a.loginId = :loginId")
+    fun updateShowGuides(loginId: String, showGuides: Boolean): Int
+
     /** 역할 부여·회수가 같은 계정에서 동시에 일어나지 않게 계정 행을 잠근다 */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Account a where a.id = :id")

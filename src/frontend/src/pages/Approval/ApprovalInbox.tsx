@@ -37,6 +37,7 @@ export default function ApprovalInbox() {
         title={t(`approvals.tabs.${tab}`)}
         subtitle={docs === null || failed ? undefined : countText(docs.length, docs.filter((d) => d.priority === "URGENT").length)}
         toolbar={<p className="text-[12.5px] text-gray-500 dark:text-gray-400">{t(`approvals.tabDesc.${tab}`)}</p>}
+        toolbarGuide
         flush
         footer={paging.total > 0 ? <PagingFooter paging={paging} /> : undefined}
       >

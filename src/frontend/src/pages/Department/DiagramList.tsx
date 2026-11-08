@@ -110,7 +110,7 @@ export default function DiagramList() {
         </div>
       </Panel>
       {orphans.length > 0 && (
-        <Panel icon={<TimeIcon />} title={td("list.orphans")} subtitle={td("list.orphansHelp")} className="mt-6" flush>
+        <Panel icon={<TimeIcon />} title={td("list.orphans")} subtitle={td("list.orphansHelp")} subtitleGuide className="mt-6" flush>
           <div className={FLUSH_TABLE}>
             <DataTable
               caption={td("list.orphans")}

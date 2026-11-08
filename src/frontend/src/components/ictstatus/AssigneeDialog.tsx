@@ -40,6 +40,7 @@ export default function AssigneeDialog({ boxId, departmentId, current, onSaved, 
     <ActionModal
       title={t("title")}
       description={t("help")}
+      descriptionGuide
       submitLabel={t("save")}
       describeError={describe}
       wide

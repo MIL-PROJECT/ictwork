@@ -21,7 +21,7 @@ export default function PreferredScheduleFields({ values, max, onChange, invalid
   const openPicker = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.showPicker?.();
   const change = (index: number, patch: Partial<PreferredDraft>) => onChange(values.map((value, i) => (i === index ? { ...value, ...patch } : value)));
   return <div className="space-y-4">
-    <p className="text-sm leading-relaxed text-gray-500">{t(max > 1 ? "intake.scheduleHelpRanked" : "intake.scheduleHelp", { count: max })}</p>
+    <p data-guide="" className="text-sm leading-relaxed text-gray-500">{t(max > 1 ? "intake.scheduleHelpRanked" : "intake.scheduleHelp", { count: max })}</p>
     {values.map((value, index) => {
       const suffix = index === 0 ? "" : `-${index + 1}`;
       const dateId = `request-preference-date${suffix}`;

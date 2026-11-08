@@ -43,7 +43,7 @@
   },
   "display": {
     "title": "Display",
-    "desc": "Language and theme are saved in this browser; text size is saved to your account.",
+    "desc": "Language and theme are saved in this browser; text size and help text are saved to your account.",
     "language": "Language",
     "theme": "Theme",
     "light": "Light",
@@ -51,6 +51,11 @@
     "fontSize": "Text size",
     "fontNormal": "Normal",
     "fontLarge": "Large",
-    "fontSaveFailed": "Couldn't save the text size. Try again in a moment."
+    "fontSaveFailed": "Couldn't save the text size. Try again in a moment.",
+    "guides": "Help text",
+    "guidesOn": "Show",
+    "guidesOff": "Hide",
+    "guidesHelp": "Hides small explanatory text on screens. Rules, warnings and errors always stay visible.",
+    "guidesSaveFailed": "Couldn't save the help text setting. Try again in a moment."
   }
 }

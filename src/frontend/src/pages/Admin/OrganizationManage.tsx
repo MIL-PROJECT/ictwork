@@ -232,6 +232,7 @@ export default function OrganizationManage() {
         <ActionModal
           title={ta("org.assignAdminTitle", { department: paths.get(dialog.department.id) })}
           description={ta("org.assignAdminHelp")}
+          descriptionGuide
           submitLabel={ta("org.assignAdmin")}
           onClose={() => setDialog(null)}
           canSubmit={targetId !== ""}

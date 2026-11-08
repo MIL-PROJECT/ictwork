@@ -151,6 +151,7 @@ export default function MoveDialog({ departmentId, boxName, node, currentParentI
     <ActionModal
       title={t("title", { name: node.name })}
       description={t("help")}
+      descriptionGuide
       submitLabel={t("submit")}
       canSubmit={target !== undefined && target !== currentParentId}
       describeError={describe}
